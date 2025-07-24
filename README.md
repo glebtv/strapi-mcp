@@ -153,17 +153,6 @@ This project uses GitHub Actions for continuous integration and deployment:
   - Security vulnerability scanning
   - Bundle size reporting
 
-- **Release** - Automated npm publishing
-  - Triggers on GitHub release creation
-  - Publishes to npm registry
-  - Uploads build artifacts
-
-### Required Secrets
-
-For publishing releases, configure this secret in your GitHub repository:
-
-- `NPM_TOKEN` - npm authentication token for publishing
-
 ## License
 
 MIT
