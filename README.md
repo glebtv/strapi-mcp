@@ -1,5 +1,7 @@
 # Strapi MCP
 
+⚠️ **IMPORTANT DISCLAIMER**: This software has been developed with the assistance of AI technology. It is provided as-is and should NOT be used in production environments without thorough testing and validation. The code may contain errors, security vulnerabilities, or unexpected behavior. Use at your own risk for research, learning, or development purposes only.
+
 An MCP server for Strapi CMS, providing access to content types and entries through the Model Context Protocol.
 
 

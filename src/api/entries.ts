@@ -1,4 +1,5 @@
 import axios from "axios";
+import qs from "qs";
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { strapiClient, validateStrapiConnection } from "./client.js";
 import { hasApiToken } from "../auth/index.js";

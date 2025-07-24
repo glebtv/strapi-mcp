@@ -14,6 +14,8 @@ export const config = {
   }
 };
 
+let hasValidated = false;
+
 export function validateConfig(): void {
   const { strapi } = config;
   
@@ -27,5 +29,9 @@ export function validateConfig(): void {
     process.exit(1);
   }
 
-  console.error(`[Setup] Connecting to Strapi at ${strapi.url}`);
+  // Only log connection message once
+  if (!hasValidated) {
+    console.error(`[Setup] Connecting to Strapi at ${strapi.url}`);
+    hasValidated = true;
+  }
 }

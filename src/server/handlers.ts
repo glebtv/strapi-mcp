@@ -19,6 +19,7 @@ import { QueryParams } from "../types/index.js";
 import { ExtendedMcpError, ExtendedErrorCode } from "../errors/index.js";
 import { strapiClient } from "../api/client.js";
 import axios from "axios";
+import qs from "qs";
 
 async function makeRestRequest(endpoint: string, method: string = 'GET', params?: any, body?: any): Promise<any> {
   try {
@@ -28,7 +29,12 @@ async function makeRestRequest(endpoint: string, method: string = 'GET', params?
     };
 
     if (params && Object.keys(params).length > 0) {
+      // Use qs to serialize parameters as recommended by Strapi
+      const queryString = qs.stringify(params, { encodeValuesOnly: true });
       config.params = params;
+      config.paramsSerializer = (params: any) => qs.stringify(params, { encodeValuesOnly: true });
+      console.log('[REST] Request params:', JSON.stringify(params, null, 2));
+      console.log('[REST] Query string:', queryString);
     }
 
     if (body && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
