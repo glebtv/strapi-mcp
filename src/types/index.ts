@@ -9,6 +9,7 @@ export interface QueryParams {
   sort?: string[];
   populate?: string | string[] | Record<string, any>;
   fields?: string[];
+  status?: 'published' | 'draft' | 'all';
 }
 
 export interface ContentType {

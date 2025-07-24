@@ -31,42 +31,15 @@ export async function validateStrapiConnection(): Promise<void> {
   if (connectionValidated) return;
   
   try {
-    console.error("[Setup] Validating connection to Strapi...");
-    
     let response;
-    let authMethod = "";
     
-    if (config.strapi.admin.email && config.strapi.admin.password) {
-      try {
-        const { loginToStrapiAdmin, makeAdminApiRequest } = await import("../auth/index.js");
-        await loginToStrapiAdmin();
-        const data = await makeAdminApiRequest('/admin/users/me');
-        if (data) {
-          response = { status: 200, data }; // Create a response-like object
-          authMethod = "admin credentials";
-          console.error("[Setup] ✓ Admin authentication successful");
-        }
-      } catch (adminError) {
-        console.error("[Setup] Admin authentication failed, trying API token...");
-        // Don't throw here, try API token method instead
-      }
-    }
-    
-    if (!response) {
-      try {
-        response = await strapiClient.get('/api/upload/files?pagination[limit]=1');
-        authMethod = "API token";
-        console.error("[Setup] ✓ API token authentication successful");
-      } catch (apiError) {
-        console.error("[Setup] API token test failed, trying root endpoint...");
-        response = await strapiClient.get('/');
-        authMethod = "server connection";
-        console.error("[Setup] ✓ Server is reachable");
-      }
+    try {
+      response = await strapiClient.get('/api/upload/files?pagination[limit]=1');
+    } catch (apiError) {
+      response = await strapiClient.get('/');
     }
     
     if (response && response.status >= 200 && response.status < 300) {
-      console.error(`[Setup] ✓ Connection to Strapi successful using ${authMethod}`);
       connectionValidated = true;
     } else if (response) {
       throw new Error(`Unexpected response status: ${response.status}`);
@@ -74,7 +47,6 @@ export async function validateStrapiConnection(): Promise<void> {
       throw new Error(`No response received from Strapi server`);
     }
   } catch (error: any) {
-    console.error("[Setup] ✗ Failed to connect to Strapi");
     
     let errorMessage = "Cannot connect to Strapi instance";
     

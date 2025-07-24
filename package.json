@@ -34,7 +34,10 @@
       "inspector": "npx @modelcontextprotocol/inspector build/index.js",
       "generate-test-image": "node scripts/generate-test-image.js",
       "context-window-info": "node scripts/context-window-example.js",
-      "test": "node test-mcp-server.js"
+      "test": "vitest",
+      "test:ui": "vitest --ui",
+      "test:coverage": "vitest --coverage",
+      "test:watch": "vitest --watch"
    },
    "dependencies": {
       "@modelcontextprotocol/sdk": "1.10.2",
@@ -47,9 +50,11 @@
    "devDependencies": {
       "@types/form-data": "^2.2.1",
       "@types/node": "^20.11.24",
+      "@vitest/ui": "^3.2.4",
       "canvas": "^3.1.0",
       "chalk": "^5.4.1",
       "dotenv-cli": "^8.0.0",
-      "typescript": "^5.3.3"
+      "typescript": "^5.3.3",
+      "vitest": "^3.2.4"
    }
 }

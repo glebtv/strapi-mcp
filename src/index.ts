@@ -85,10 +85,8 @@ setupHandlers(server);
  * Start the server using stdio transport.
  */
 async function main() {
-  console.error("[Setup] Starting Strapi MCP server");
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("[Setup] Strapi MCP server running");
 }
 
 main().catch((error) => {

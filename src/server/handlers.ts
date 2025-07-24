@@ -1,69 +1,72 @@
-import { 
-  ListResourcesRequestSchema, 
-  ReadResourceRequestSchema, 
-  ListToolsRequestSchema, 
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import {
   CallToolRequestSchema,
+  ListResourcesRequestSchema,
+  ListToolsRequestSchema,
+  ReadResourceRequestSchema,
   McpError,
   ErrorCode,
-  ReadResourceRequest,
-  CallToolRequest
 } from "@modelcontextprotocol/sdk/types.js";
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { config } from "../config/index.js";
-import { QueryParams } from "../types/index.js";
+import type {
+  CallToolRequest,
+  ReadResourceRequest,
+} from "@modelcontextprotocol/sdk/types.js";
 import * as contentTypes from "../api/content-types.js";
 import * as entries from "../api/entries.js";
 import * as media from "../api/media.js";
 import * as components from "../api/components.js";
+import { QueryParams } from "../types/index.js";
+import { ExtendedMcpError, ExtendedErrorCode } from "../errors/index.js";
 import { strapiClient } from "../api/client.js";
 import axios from "axios";
-import qs from "qs";
 
-// Helper function for making REST requests
-async function makeRestRequest(
-  endpoint: string,
-  method: string = 'GET',
-  params?: Record<string, any>,
-  body?: Record<string, any>
-): Promise<any> {
-  let url = `/${endpoint}`;
-  
-  // Parse query parameters if provided
-  if (params) {
-    const queryString = qs.stringify(params, {
-      encodeValuesOnly: true
-    });
-    if (queryString) {
-      url = `${url}?${queryString}`;
-    }
-  }
-
-  const requestOptions: any = {
-    method,
-    url,
-  };
-
-  if (body && (method === 'POST' || method === 'PUT')) {
-    requestOptions.data = body;
-  }
-
+async function makeRestRequest(endpoint: string, method: string = 'GET', params?: any, body?: any): Promise<any> {
   try {
-    const response = await strapiClient.request(requestOptions);
+    const config: any = {
+      method,
+      url: endpoint,
+    };
+
+    if (params && Object.keys(params).length > 0) {
+      config.params = params;
+    }
+
+    if (body && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
+      config.data = body;
+    }
+
+    const response = await strapiClient.request(config);
     return response.data;
-  } catch (error) {
-    await handleStrapiError(error, `REST request to ${endpoint}`);
-    throw error;
+  } catch (error: any) {
+    console.error(`[REST] Error making ${method} request to ${endpoint}:`, error);
+    
+    let errorMessage = `REST API request failed`;
+    let errorCode = ExtendedErrorCode.InternalError;
+    
+    if (axios.isAxiosError(error)) {
+      if (error.response) {
+        errorMessage = `${method} ${endpoint}: ${error.response.status} - ${JSON.stringify(error.response.data)}`;
+        if (error.response.status === 403) {
+          errorCode = ExtendedErrorCode.AccessDenied;
+        } else if (error.response.status === 401) {
+          errorCode = ExtendedErrorCode.AccessDenied;
+        } else if (error.response.status === 404) {
+          errorCode = ExtendedErrorCode.ResourceNotFound;
+        } else if (error.response.status === 400) {
+          errorCode = ExtendedErrorCode.InvalidRequest;
+        }
+      } else {
+        errorMessage += `: ${error.message}`;
+      }
+    } else if (error instanceof Error) {
+      errorMessage += `: ${error.message}`;
+    } else {
+      errorMessage += `: ${String(error)}`;
+    }
+    
+    throw new ExtendedMcpError(errorCode, errorMessage);
   }
 }
-
-// Error handler
-async function handleStrapiError(error: any, context: string): Promise<void> {
-  if (axios.isAxiosError(error) && error.response) {
-    const errorMessage = `${context} failed with status ${error.response.status}: ${JSON.stringify(error.response.data)}`;
-    throw new McpError(ErrorCode.InternalError, errorMessage);
-  }
-}
-
 export function setupHandlers(server: Server) {
   server.setRequestHandler(ListResourcesRequestSchema, async () => {
     try {
@@ -71,15 +74,15 @@ export function setupHandlers(server: Server) {
       
       const contentTypeResources = contentTypesList.map(ct => ({
         uri: `strapi://content-type/${ct.uid}`,
+        name: `${ct.info.displayName} Content Type`,
+        description: ct.info.description || `Schema and structure for ${ct.info.displayName}`,
         mimeType: "application/json",
-        name: ct.info.displayName,
-        description: `Strapi content type: ${ct.info.displayName}`
       }));
       
       return {
         resources: contentTypeResources
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error("[Error] Failed to list resources:", error);
       throw new McpError(
         ErrorCode.InternalError,
@@ -87,7 +90,6 @@ export function setupHandlers(server: Server) {
       );
     }
   });
-
   server.setRequestHandler(ReadResourceRequestSchema, async (request: ReadResourceRequest) => {
     try {
       const uri = request.params.uri;
@@ -96,81 +98,22 @@ export function setupHandlers(server: Server) {
       if (!contentTypeMatch) {
         throw new McpError(
           ErrorCode.InvalidRequest,
-          `Invalid URI format: ${uri}`
+          `Invalid resource URI: ${uri}`
         );
       }
       
-      const contentTypeUid = contentTypeMatch[1];
-      const entryId = contentTypeMatch[2];
-      const queryString = contentTypeMatch[3];
+      const [, contentTypeId] = contentTypeMatch;
       
-      let queryParams: QueryParams = {};
-      if (queryString) {
-        try {
-          const parsedParams = new URLSearchParams(queryString);
-          
-          const filtersParam = parsedParams.get('filters');
-          if (filtersParam) {
-            queryParams.filters = JSON.parse(filtersParam);
-          }
-          
-          const pageParam = parsedParams.get('page');
-          const pageSizeParam = parsedParams.get('pageSize');
-          if (pageParam || pageSizeParam) {
-            queryParams.pagination = {};
-            if (pageParam) queryParams.pagination.page = parseInt(pageParam, 10);
-            if (pageSizeParam) queryParams.pagination.pageSize = parseInt(pageSizeParam, 10);
-          }
-          
-          const sortParam = parsedParams.get('sort');
-          if (sortParam) {
-            queryParams.sort = sortParam.split(',');
-          }
-          
-          const populateParam = parsedParams.get('populate');
-          if (populateParam) {
-            try {
-              queryParams.populate = JSON.parse(populateParam);
-            } catch {
-              queryParams.populate = populateParam.split(',');
-            }
-          }
-          
-          const fieldsParam = parsedParams.get('fields');
-          if (fieldsParam) {
-            queryParams.fields = fieldsParam.split(',');
-          }
-        } catch (parseError) {
-          console.error("[Error] Failed to parse query parameters:", parseError);
-          throw new McpError(
-            ErrorCode.InvalidRequest,
-            `Invalid query parameters: ${parseError instanceof Error ? parseError.message : String(parseError)}`
-          );
-        }
-      }
-      
-      if (entryId) {
-        const entry = await entries.fetchEntry(contentTypeUid, entryId, queryParams);
-        
-        return {
-          contents: [{
-            uri: request.params.uri,
-            mimeType: "application/json",
-            text: JSON.stringify(entry, null, 2)
-          }]
-        };
-      }
-      
-      const entriesList = await entries.fetchEntries(contentTypeUid, queryParams);
+      const schema = await contentTypes.fetchContentTypeSchema(contentTypeId);
       
       return {
         contents: [{
-          uri: request.params.uri,
+          uri,
           mimeType: "application/json",
-          text: JSON.stringify(entriesList, null, 2)
+          text: JSON.stringify(schema, null, 2)
         }]
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error("[Error] Failed to read resource:", error);
       throw new McpError(
         ErrorCode.InternalError,
@@ -178,7 +121,6 @@ export function setupHandlers(server: Server) {
       );
     }
   });
-
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     return {
       tools: [
@@ -191,30 +133,22 @@ export function setupHandlers(server: Server) {
           }
         },
         {
+          name: "get_content_type_schema",
+          description: "Get the schema (fields, types, relations) for a specific content type.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              contentType: {
+                type: "string",
+                description: "The API ID of the content type (e.g., 'api::article.article')."
+              }
+            },
+            required: ["contentType"]
+          }
+        },
+        {
           name: "strapi_rest",
-          description: "Execute REST API requests against Strapi endpoints. Supports all CRUD operations with advanced query options.\n\n" +
-            "1. Reading components:\n" +
-            "params: { populate: ['SEO'] } // Populate a component\n" +
-            "params: { populate: { SEO: { fields: ['Title', 'seoDescription'] } } } // With field selection\n\n" +
-            "2. Updating components:\n" +
-            "body: {\n" +
-            "  data: {\n" +
-            "    // For single components:\n" +
-            "    componentName: {\n" +
-            "      Title: 'value',\n" +
-            "      seoDescription: 'value'\n" +
-            "    },\n" +
-            "    // For repeatable components:\n" +
-            "    componentName: [\n" +
-            "      { field: 'value' }\n" +
-            "    ]\n" +
-            "  }\n" +
-            "}\n\n" +
-            "3. Other parameters:\n" +
-            "- fields: Select specific fields\n" +
-            "- filters: Filter results\n" +
-            "- sort: Sort results\n" +
-            "- pagination: Page through results",
+          description: "Execute REST API requests against Strapi endpoints. Supports all CRUD operations with advanced query options.\n\n1. Reading components:\nparams: { populate: ['SEO'] } // Populate a component\nparams: { populate: { SEO: { fields: ['Title', 'seoDescription'] } } } // With field selection\n\n2. Updating components:\nbody: {\n  data: {\n    // For single components:\n    componentName: {\n      Title: 'value',\n      seoDescription: 'value'\n    },\n    // For repeatable components:\n    componentName: [\n      { field: 'value' }\n    ]\n  }\n}\n\n3. Other parameters:\n- fields: Select specific fields\n- filters: Filter results\n- sort: Sort results\n- pagination: Page through results",
           inputSchema: {
             type: "object",
             properties: {
@@ -230,7 +164,7 @@ export function setupHandlers(server: Server) {
               },
               params: {
                 type: "object",
-                description: "Optional query parameters for GET requests. For components, use populate: ['componentName'] or populate: { componentName: { fields: ['field1'] } }"
+                description: "Optional query parameters for GET requests. For components, use populate: ['componentName'] or populate: { componentName: { fields: ['field1'] } }. For Draft & Publish, use status: 'published' (default), 'draft', or 'all'"
               },
               body: {
                 type: "object",
@@ -246,16 +180,16 @@ export function setupHandlers(server: Server) {
           inputSchema: {
             type: "object",
             properties: {
-              contentType: {
+              pluralApiId: {
                 type: "string",
-                description: "The content type UID (e.g., 'api::article.article')"
+                description: "The plural API ID (e.g., 'articles', 'restaurants', 'users'). This is the plural form used in the API endpoint."
               },
               options: {
                 type: "string",
-                description: "JSON string with query options including filters, pagination, sort, populate, and fields. Example: '{\"filters\":{\"title\":{\"$contains\":\"hello\"}},\"pagination\":{\"page\":1,\"pageSize\":10},\"sort\":[\"title:asc\"],\"populate\":[\"author\",\"categories\"],\"fields\":[\"title\",\"content\"]}'"
+                description: "JSON string with query options including filters, pagination, sort, populate, fields, and status. Status can be 'published' (default), 'draft', or 'all'. Example: '{\"filters\":{\"title\":{\"$contains\":\"hello\"}},\"pagination\":{\"page\":1,\"pageSize\":10},\"sort\":[\"title:asc\"],\"populate\":[\"author\",\"categories\"],\"fields\":[\"title\",\"content\"],\"status\":\"draft\"}'"
               }
             },
-            required: ["contentType"]
+            required: ["pluralApiId"]
           }
         },
         {
@@ -264,11 +198,11 @@ export function setupHandlers(server: Server) {
           inputSchema: {
             type: "object",
             properties: {
-              contentType: {
+              pluralApiId: {
                 type: "string",
-                description: "The content type UID (e.g., 'api::article.article')"
+                description: "The plural API ID (e.g., 'articles', 'restaurants', 'users'). This is the plural form used in the API endpoint."
               },
-              id: {
+              documentId: {
                 type: "string",
                 description: "The documentId of the entry"
               },
@@ -277,7 +211,7 @@ export function setupHandlers(server: Server) {
                 description: "JSON string with query options including populate and fields. Example: '{\"populate\":[\"author\",\"categories\"],\"fields\":[\"title\",\"content\"]}'"
               }
             },
-            required: ["contentType", "id"]
+            required: ["pluralApiId", "documentId"]
           }
         },
         {
@@ -288,14 +222,18 @@ export function setupHandlers(server: Server) {
             properties: {
               contentType: {
                 type: "string",
-                description: "The content type UID (e.g., 'api::article.article')"
+                description: "The content type UID (e.g., 'api::article.article'). Used for slug generation if needed."
+              },
+              pluralApiId: {
+                type: "string",
+                description: "The plural API ID (e.g., 'articles', 'restaurants', 'users'). This is the plural form used in the API endpoint."
               },
               data: {
                 type: "object",
                 description: "The data for the new entry"
               }
             },
-            required: ["contentType", "data"]
+            required: ["contentType", "pluralApiId", "data"]
           }
         },
         {
@@ -304,11 +242,11 @@ export function setupHandlers(server: Server) {
           inputSchema: {
             type: "object",
             properties: {
-              contentType: {
+              pluralApiId: {
                 type: "string",
-                description: "The content type UID (e.g., 'api::article.article')"
+                description: "The plural API ID (e.g., 'articles', 'restaurants', 'users'). This is the plural form used in the API endpoint."
               },
-              id: {
+              documentId: {
                 type: "string",
                 description: "The documentId of the entry to update"
               },
@@ -317,7 +255,7 @@ export function setupHandlers(server: Server) {
                 description: "The updated data for the entry"
               }
             },
-            required: ["contentType", "id", "data"]
+            required: ["pluralApiId", "documentId", "data"]
           }
         },
         {
@@ -326,16 +264,16 @@ export function setupHandlers(server: Server) {
           inputSchema: {
             type: "object",
             properties: {
-              contentType: {
+              pluralApiId: {
                 type: "string",
-                description: "Content type UID.",
+                description: "The plural API ID (e.g., 'articles', 'restaurants', 'users'). This is the plural form used in the API endpoint."
               },
-              id: {
+              documentId: {
                 type: "string",
-                description: "The documentId of the entry.",
-              },
+                description: "The documentId of the entry."
+              }
             },
-            required: ["contentType", "id"]
+            required: ["pluralApiId", "documentId"]
           }
         },
         {
@@ -346,16 +284,16 @@ export function setupHandlers(server: Server) {
             properties: {
               fileData: {
                 type: "string",
-                description: "Base64 encoded string of the file data. Large files cause context window overflow.",
+                description: "Base64 encoded string of the file data. Large files cause context window overflow."
               },
               fileName: {
                 type: "string",
-                description: "The desired name for the file.",
+                description: "The desired name for the file."
               },
               fileType: {
                 type: "string",
-                description: "The MIME type of the file (e.g., 'image/jpeg', 'application/pdf').",
-              },
+                description: "The MIME type of the file (e.g., 'image/jpeg', 'application/pdf')."
+              }
             },
             required: ["fileData", "fileName", "fileType"]
           }
@@ -368,32 +306,18 @@ export function setupHandlers(server: Server) {
             properties: {
               filePath: {
                 type: "string",
-                description: "Local file system path to the file to upload.",
+                description: "Local file system path to the file to upload."
               },
               fileName: {
                 type: "string",
-                description: "Optional: Override the file name. If not provided, uses the original filename.",
+                description: "Optional: Override the file name. If not provided, uses the original filename."
               },
               fileType: {
                 type: "string",
-                description: "Optional: Override the MIME type. If not provided, auto-detects from file extension.",
-              },
+                description: "Optional: Override the MIME type. If not provided, auto-detects from file extension."
+              }
             },
             required: ["filePath"]
-          }
-        },
-        {
-          name: "get_content_type_schema",
-          description: "Get the schema (fields, types, relations) for a specific content type.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              contentType: {
-                type: "string",
-                description: "The API ID of the content type (e.g., 'api::article.article').",
-              },
-            },
-            required: ["contentType"]
           }
         },
         {
@@ -402,12 +326,25 @@ export function setupHandlers(server: Server) {
           inputSchema: {
             type: "object",
             properties: {
-              contentType: { type: "string", description: "Main content type UID." },
-              id: { type: "string", description: "Main entry documentId." },
-              relationField: { type: "string", description: "Relation field name." },
-              relatedIds: { type: "array", items: { type: "string" }, description: "Array of entry documentIds to connect." }
+              pluralApiId: {
+                type: "string",
+                description: "The plural API ID (e.g., 'articles', 'restaurants', 'users'). This is the plural form used in the API endpoint."
+              },
+              documentId: {
+                type: "string",
+                description: "Main entry documentId."
+              },
+              relationField: {
+                type: "string",
+                description: "Relation field name."
+              },
+              relatedIds: {
+                type: "array",
+                items: { type: "string" },
+                description: "Array of entry documentIds to connect."
+              }
             },
-            required: ["contentType", "id", "relationField", "relatedIds"]
+            required: ["pluralApiId", "documentId", "relationField", "relatedIds"]
           }
         },
         {
@@ -416,12 +353,25 @@ export function setupHandlers(server: Server) {
           inputSchema: {
             type: "object",
             properties: {
-              contentType: { type: "string", description: "Main content type UID." },
-              id: { type: "string", description: "Main entry documentId." },
-              relationField: { type: "string", description: "Relation field name." },
-              relatedIds: { type: "array", items: { type: "string" }, description: "Array of entry documentIds to disconnect." }
+              pluralApiId: {
+                type: "string",
+                description: "The plural API ID (e.g., 'articles', 'restaurants', 'users'). This is the plural form used in the API endpoint."
+              },
+              documentId: {
+                type: "string",
+                description: "Main entry documentId."
+              },
+              relationField: {
+                type: "string",
+                description: "Relation field name."
+              },
+              relatedIds: {
+                type: "array",
+                items: { type: "string" },
+                description: "Array of entry documentIds to disconnect."
+              }
             },
-            required: ["contentType", "id", "relationField", "relatedIds"]
+            required: ["pluralApiId", "documentId", "relationField", "relatedIds"]
           }
         },
         {
@@ -430,12 +380,25 @@ export function setupHandlers(server: Server) {
           inputSchema: {
             type: "object",
             properties: {
-              contentType: { type: "string", description: "Main content type UID." },
-              id: { type: "string", description: "Main entry documentId." },
-              relationField: { type: "string", description: "Relation field name." },
-              relatedIds: { type: "array", items: { type: "string" }, description: "Array of entry documentIds to set." }
+              pluralApiId: {
+                type: "string",
+                description: "The plural API ID (e.g., 'articles', 'restaurants', 'users'). This is the plural form used in the API endpoint."
+              },
+              documentId: {
+                type: "string",
+                description: "Main entry documentId."
+              },
+              relationField: {
+                type: "string",
+                description: "Relation field name."
+              },
+              relatedIds: {
+                type: "array",
+                items: { type: "string" },
+                description: "Array of entry documentIds to set."
+              }
             },
-            required: ["contentType", "id", "relationField", "relatedIds"]
+            required: ["pluralApiId", "documentId", "relationField", "relatedIds"]
           }
         },
         {
@@ -578,16 +541,16 @@ export function setupHandlers(server: Server) {
           inputSchema: {
             type: "object",
             properties: {
-              contentType: {
+              pluralApiId: {
                 type: "string",
-                description: "Content type UID."
+                description: "The plural API ID (e.g., 'articles', 'restaurants', 'users'). This is the plural form used in the API endpoint."
               },
-              id: {
+              documentId: {
                 type: "string",
                 description: "Entry documentId."
               }
             },
-            required: ["contentType", "id"]
+            required: ["pluralApiId", "documentId"]
           }
         },
         {
@@ -596,22 +559,21 @@ export function setupHandlers(server: Server) {
           inputSchema: {
             type: "object",
             properties: {
-              contentType: {
+              pluralApiId: {
                 type: "string",
-                description: "Content type UID."
+                description: "The plural API ID (e.g., 'articles', 'restaurants', 'users'). This is the plural form used in the API endpoint."
               },
-              id: {
+              documentId: {
                 type: "string",
                 description: "Entry documentId."
               }
             },
-            required: ["contentType", "id"]
+            required: ["pluralApiId", "documentId"]
           }
-        },
+        }
       ]
     };
   });
-
   server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest) => {
     try {
       switch (request.params.name) {
@@ -651,11 +613,11 @@ export function setupHandlers(server: Server) {
         }
         
         case "get_entries": {
-          const { contentType, options } = request.params.arguments as any;
-          if (!contentType) {
+          const { pluralApiId, options } = request.params.arguments as any;
+          if (!pluralApiId) {
             throw new McpError(
               ErrorCode.InvalidParams,
-              "Content type is required"
+              "pluralApiId is required"
             );
           }
           
@@ -672,7 +634,7 @@ export function setupHandlers(server: Server) {
             }
           }
           
-          const entriesList = await entries.fetchEntries(String(contentType), queryParams);
+          const entriesList = await entries.fetchEntries(String(pluralApiId), queryParams);
           
           return {
             content: [{
@@ -683,12 +645,12 @@ export function setupHandlers(server: Server) {
         }
         
         case "get_entry": {
-          const { contentType, id, options } = request.params.arguments as any;
+          const { pluralApiId, documentId, options } = request.params.arguments as any;
           
-          if (!contentType || !id) {
+          if (!pluralApiId || !documentId) {
             throw new McpError(
               ErrorCode.InvalidParams,
-              "Content type and ID are required"
+              "pluralApiId and documentId are required"
             );
           }
           
@@ -705,7 +667,7 @@ export function setupHandlers(server: Server) {
             }
           }
           
-          const entry = await entries.fetchEntry(String(contentType), String(id), queryParams);
+          const entry = await entries.fetchEntry(String(pluralApiId), String(documentId), queryParams);
           
           return {
             content: [{
@@ -717,16 +679,17 @@ export function setupHandlers(server: Server) {
         
         case "create_entry": {
           const contentType = String(request.params.arguments?.contentType);
+          const pluralApiId = String(request.params.arguments?.pluralApiId);
           const data = request.params.arguments?.data;
           
-          if (!contentType || !data) {
+          if (!contentType || !pluralApiId || !data) {
             throw new McpError(
               ErrorCode.InvalidParams,
-              "Content type and data are required"
+              "contentType, pluralApiId, and data are required"
             );
           }
           
-          const entry = await entries.createEntry(contentType, data);
+          const entry = await entries.createEntry(contentType, pluralApiId, data);
           
           return {
             content: [{
@@ -737,292 +700,190 @@ export function setupHandlers(server: Server) {
         }
         
         case "update_entry": {
-          const contentType = String(request.params.arguments?.contentType);
-          const id = String(request.params.arguments?.id);
+          const pluralApiId = String(request.params.arguments?.pluralApiId);
+          const documentId = String(request.params.arguments?.documentId);
           const data = request.params.arguments?.data;
           
-          if (!contentType || !id || !data) {
+          if (!pluralApiId || !documentId || !data) {
             throw new McpError(
               ErrorCode.InvalidParams,
-              "Content type, ID, and data are required"
+              "pluralApiId, documentId, and data are required"
             );
           }
           
-          const entry = await entries.updateEntry(contentType, id, data);
-
-          if (entry) {
-            return {
-              content: [{
-                type: "text",
-                text: JSON.stringify(entry, null, 2)
-              }]
-            };
-          } else {
-            console.warn(`[API] Update for ${contentType} ${id} completed, but no updated entry data was returned by the API.`);
-            return {
-              content: [{
-                type: "text",
-                text: `Successfully updated entry ${id} for ${contentType}, but no updated data was returned by the API.`
-              }]
-            };
-          }
+          const entry = await entries.updateEntry(pluralApiId, documentId, data);
+          
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify(entry, null, 2)
+            }]
+          };
         }
         
         case "delete_entry": {
-          const contentType = String(request.params.arguments?.contentType);
-          const id = String(request.params.arguments?.id);
+          const pluralApiId = String(request.params.arguments?.pluralApiId);
+          const documentId = String(request.params.arguments?.documentId);
           
-          if (!contentType || !id) {
+          if (!pluralApiId || !documentId) {
             throw new McpError(
               ErrorCode.InvalidParams,
-              "Content type and ID are required"
+              "pluralApiId and documentId are required"
             );
           }
           
-          await entries.deleteEntry(contentType, id);
+          const result = await entries.deleteEntry(pluralApiId, documentId);
           
           return {
             content: [{
               type: "text",
-              text: `Successfully deleted entry ${id} from ${contentType}`
-            }]
-          };
-        }
-        
-        case "upload_media": {
-          const fileData = String(request.params.arguments?.fileData);
-          const fileName = String(request.params.arguments?.fileName);
-          const fileType = String(request.params.arguments?.fileType);
-          
-          if (!fileData || !fileName || !fileType) {
-            throw new McpError(
-              ErrorCode.InvalidParams,
-              "File data, file name, and file type are required"
-            );
-          }
-          
-          const truncatedFileData = fileData.length > 100 ? `${fileData.substring(0, 100)}... [${fileData.length} chars total]` : fileData;
-          console.error(`[API] Received base64 upload request: fileName=${fileName}, fileType=${fileType}, data=${truncatedFileData}`);
-          
-          const mediaResult = await media.uploadMedia(fileData, fileName, fileType);
-          
-          return {
-            content: [{
-              type: "text",
-              text: JSON.stringify(mediaResult, null, 2)
-            }]
-          };
-        }
-        
-        case "upload_media_from_path": {
-          const filePath = String(request.params.arguments?.filePath);
-          const fileName = request.params.arguments?.fileName ? String(request.params.arguments.fileName) : undefined;
-          const fileType = request.params.arguments?.fileType ? String(request.params.arguments.fileType) : undefined;
-          
-          if (!filePath) {
-            throw new McpError(
-              ErrorCode.InvalidParams,
-              "File path is required"
-            );
-          }
-          
-          const mediaResult = await media.uploadMediaFromPath(filePath, fileName, fileType);
-          
-          return {
-            content: [{
-              type: "text",
-              text: JSON.stringify(mediaResult, null, 2)
+              text: JSON.stringify(result, null, 2)
             }]
           };
         }
         
         case "get_content_type_schema": {
           const contentType = String(request.params.arguments?.contentType);
+          
           if (!contentType) {
             throw new McpError(
               ErrorCode.InvalidParams,
               "Content type is required"
             );
           }
+          
           const schema = await contentTypes.fetchContentTypeSchema(contentType);
+          
           return {
             content: [{
               type: "text",
               text: JSON.stringify(schema, null, 2)
+            }]
+          };
+        }
+        
+        case "upload_media": {
+          const { fileData, fileName, fileType } = request.params.arguments as any;
+          
+          if (!fileData || !fileName || !fileType) {
+            throw new McpError(
+              ErrorCode.InvalidParams,
+              "fileData, fileName, and fileType are required"
+            );
+          }
+          
+          const result = await media.uploadMedia(fileData, fileName, fileType);
+          
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify(result, null, 2)
+            }]
+          };
+        }
+        
+        case "upload_media_from_path": {
+          const { filePath, fileName, fileType } = request.params.arguments as any;
+          
+          if (!filePath) {
+            throw new McpError(
+              ErrorCode.InvalidParams,
+              "filePath is required"
+            );
+          }
+          
+          const result = await media.uploadMediaFromPath(filePath, fileName, fileType);
+          
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify(result, null, 2)
             }]
           };
         }
         
         case "connect_relation": {
-          const { contentType, id, relationField, relatedIds } = request.params.arguments as any;
-          if (!contentType || !id || !relationField || !Array.isArray(relatedIds)) {
-            throw new McpError(ErrorCode.InvalidParams, "contentType, id, relationField, and relatedIds (array) are required.");
+          const pluralApiId = String(request.params.arguments?.pluralApiId);
+          const documentId = String(request.params.arguments?.documentId);
+          const relationField = String(request.params.arguments?.relationField);
+          const relatedIds = request.params.arguments?.relatedIds as string[];
+          
+          if (!pluralApiId || !documentId || !relationField || !relatedIds) {
+            throw new McpError(
+              ErrorCode.InvalidParams,
+              "pluralApiId, documentId, relationField, and relatedIds are required"
+            );
           }
-          const result = await entries.connectRelation(String(contentType), String(id), String(relationField), relatedIds);
-          return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+          
+          const result = await entries.connectRelation(pluralApiId, documentId, relationField, relatedIds);
+          
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify(result, null, 2)
+            }]
+          };
         }
         
         case "disconnect_relation": {
-          const { contentType, id, relationField, relatedIds } = request.params.arguments as any;
-          if (!contentType || !id || !relationField || !Array.isArray(relatedIds)) {
-            throw new McpError(ErrorCode.InvalidParams, "contentType, id, relationField, and relatedIds (array) are required.");
+          const pluralApiId = String(request.params.arguments?.pluralApiId);
+          const documentId = String(request.params.arguments?.documentId);
+          const relationField = String(request.params.arguments?.relationField);
+          const relatedIds = request.params.arguments?.relatedIds as string[];
+          
+          if (!pluralApiId || !documentId || !relationField || !relatedIds) {
+            throw new McpError(
+              ErrorCode.InvalidParams,
+              "pluralApiId, documentId, relationField, and relatedIds are required"
+            );
           }
-          const result = await entries.disconnectRelation(String(contentType), String(id), String(relationField), relatedIds);
-          return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+          
+          const result = await entries.disconnectRelation(pluralApiId, documentId, relationField, relatedIds);
+          
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify(result, null, 2)
+            }]
+          };
         }
-
+        
         case "set_relation": {
-          const { contentType, id, relationField, relatedIds } = request.params.arguments as any;
-          if (!contentType || !id || !relationField || !Array.isArray(relatedIds)) {
-            throw new McpError(ErrorCode.InvalidParams, "contentType, id, relationField, and relatedIds (array) are required.");
-          }
-          const result = await entries.setRelation(String(contentType), String(id), String(relationField), relatedIds);
-          return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
-        }
-
-        case "create_content_type": {
-          const contentTypeData = request.params.arguments;
-          if (!contentTypeData || typeof contentTypeData !== 'object') {
-            throw new McpError(ErrorCode.InvalidParams, "Content type data object is required.");
-          }
-          const creationResult = await contentTypes.createContentType(contentTypeData);
-          return {
-            content: [{
-              type: "text",
-              text: JSON.stringify(creationResult, null, 2)
-            }]
-          };
-        }
-
-        case "update_content_type": {
-          const { contentType, attributes } = request.params.arguments as any;
-          if (!contentType || !attributes || typeof attributes !== 'object') {
-            throw new McpError(ErrorCode.InvalidParams, "contentType (string) and attributes (object) are required.");
-          }
-          const updateResult = await contentTypes.updateContentType(String(contentType), attributes);
-          return {
-            content: [{
-              type: "text",
-              text: JSON.stringify(updateResult, null, 2)
-            }]
-          };
-        }
-
-        case "delete_content_type": {
-          const contentTypeUid = String(request.params.arguments?.contentType);
-          if (!contentTypeUid) {
+          const pluralApiId = String(request.params.arguments?.pluralApiId);
+          const documentId = String(request.params.arguments?.documentId);
+          const relationField = String(request.params.arguments?.relationField);
+          const relatedIds = request.params.arguments?.relatedIds as string[];
+          
+          if (!pluralApiId || !documentId || !relationField || !relatedIds) {
             throw new McpError(
               ErrorCode.InvalidParams,
-              "Content type UID is required"
+              "pluralApiId, documentId, relationField, and relatedIds are required"
             );
           }
-          const deletionResult = await contentTypes.deleteContentType(contentTypeUid);
-          return {
-            content: [{
-              type: "text",
-              text: JSON.stringify(deletionResult, null, 2)
-            }]
-          };
-        }
-
-        case "strapi_get_components": {
-          const page = Number(request.params.arguments?.page) || 1;
-          const pageSize = Number(request.params.arguments?.pageSize) || 25;
           
-          const componentsList = await components.listComponents();
-          
-          // Add pagination
-          const total = componentsList.length;
-          const pageCount = Math.ceil(total / pageSize);
-          const startIndex = (page - 1) * pageSize;
-          const endIndex = startIndex + pageSize;
-          const paginatedData = componentsList.slice(startIndex, endIndex);
-          
-          const response = {
-            data: paginatedData,
-            pagination: {
-              page,
-              pageSize,
-              total,
-              pageCount
-            }
-          };
+          const result = await entries.setRelation(pluralApiId, documentId, relationField, relatedIds);
           
           return {
             content: [{
               type: "text",
-              text: JSON.stringify(response, null, 2)
+              text: JSON.stringify(result, null, 2)
             }]
           };
         }
-
-        case "list_components": {
-          const componentsList = await components.listComponents();
-          return {
-            content: [{
-              type: "text",
-              text: JSON.stringify(componentsList, null, 2)
-            }]
-          };
-        }
-
-        case "get_component_schema": {
-          const componentUid = String(request.params.arguments?.componentUid);
-          if (!componentUid) {
-            throw new McpError(
-              ErrorCode.InvalidParams,
-              "Component UID is required"
-            );
-          }
-          const schema = await components.getComponentSchema(componentUid);
-          return {
-            content: [{
-              type: "text",
-              text: JSON.stringify(schema, null, 2)
-            }]
-          };
-        }
-
-        case "create_component": {
-          const componentData = request.params.arguments;
-          if (!componentData || typeof componentData !== 'object') {
-            throw new McpError(ErrorCode.InvalidParams, "Component data object is required.");
-          }
-          const creationResult = await components.createComponent(componentData);
-          return {
-            content: [{
-              type: "text",
-              text: JSON.stringify(creationResult, null, 2)
-            }]
-          };
-        }
-
-        case "update_component": {
-          const { componentUid, attributesToUpdate } = request.params.arguments as any;
-          if (!componentUid || !attributesToUpdate || typeof attributesToUpdate !== 'object') {
-            throw new McpError(ErrorCode.InvalidParams, "componentUid (string) and attributesToUpdate (object) are required.");
-          }
-          const updateResult = await components.updateComponent(String(componentUid), attributesToUpdate);
-          return {
-            content: [{
-              type: "text",
-              text: JSON.stringify(updateResult, null, 2)
-            }]
-          };
-        }
-
+        
         case "publish_entry": {
-          const contentType = String(request.params.arguments?.contentType);
-          const id = String(request.params.arguments?.id);
+          const pluralApiId = String(request.params.arguments?.pluralApiId);
+          const documentId = String(request.params.arguments?.documentId);
           
-          if (!contentType || !id) {
+          if (!pluralApiId || !documentId) {
             throw new McpError(
               ErrorCode.InvalidParams,
-              "Content type and ID are required"
+              "pluralApiId and documentId are required"
             );
           }
           
-          const result = await entries.publishEntry(contentType, id);
+          const result = await entries.publishEntry(pluralApiId, documentId);
+          
           return {
             content: [{
               type: "text",
@@ -1032,17 +893,18 @@ export function setupHandlers(server: Server) {
         }
         
         case "unpublish_entry": {
-          const contentType = String(request.params.arguments?.contentType);
-          const id = String(request.params.arguments?.id);
+          const pluralApiId = String(request.params.arguments?.pluralApiId);
+          const documentId = String(request.params.arguments?.documentId);
           
-          if (!contentType || !id) {
+          if (!pluralApiId || !documentId) {
             throw new McpError(
               ErrorCode.InvalidParams,
-              "Content type and ID are required"
+              "pluralApiId and documentId are required"
             );
           }
           
-          const result = await entries.unpublishEntry(contentType, id);
+          const result = await entries.unpublishEntry(pluralApiId, documentId);
+          
           return {
             content: [{
               type: "text",
@@ -1050,27 +912,183 @@ export function setupHandlers(server: Server) {
             }]
           };
         }
-
+        
+        case "create_content_type": {
+          const contentTypeData = request.params.arguments;
+          
+          if (!contentTypeData) {
+            throw new McpError(
+              ErrorCode.InvalidParams,
+              "Content type data is required"
+            );
+          }
+          
+          const result = await contentTypes.createContentType(contentTypeData);
+          
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify(result, null, 2)
+            }]
+          };
+        }
+        
+        case "update_content_type": {
+          const contentType = String(request.params.arguments?.contentType);
+          const attributes = request.params.arguments?.attributes;
+          
+          if (!contentType || !attributes) {
+            throw new McpError(
+              ErrorCode.InvalidParams,
+              "Content type and attributes are required"
+            );
+          }
+          
+          const result = await contentTypes.updateContentType(contentType, attributes);
+          
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify(result, null, 2)
+            }]
+          };
+        }
+        
+        case "delete_content_type": {
+          const contentType = String(request.params.arguments?.contentType);
+          
+          if (!contentType) {
+            throw new McpError(
+              ErrorCode.InvalidParams,
+              "Content type is required"
+            );
+          }
+          
+          const result = await contentTypes.deleteContentType(contentType);
+          
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify(result, null, 2)
+            }]
+          };
+        }
+        
+        case "strapi_get_components": {
+          throw new McpError(
+            ErrorCode.MethodNotFound,
+            "Component operations require admin credentials. This operation is not available with API tokens only."
+          );
+        }
+        
+        case "list_components": {
+          const componentsList = await components.listComponents();
+          
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify(componentsList, null, 2)
+            }]
+          };
+        }
+        
+        case "get_component_schema": {
+          const componentUid = String(request.params.arguments?.componentUid);
+          
+          if (!componentUid) {
+            throw new McpError(
+              ErrorCode.InvalidParams,
+              "Component UID is required"
+            );
+          }
+          
+          const schema = await components.getComponentSchema(componentUid);
+          
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify(schema, null, 2)
+            }]
+          };
+        }
+        
+        case "create_component": {
+          const componentData = request.params.arguments?.componentData;
+          
+          if (!componentData) {
+            throw new McpError(
+              ErrorCode.InvalidParams,
+              "Component data is required"
+            );
+          }
+          
+          const result = await components.createComponent(componentData);
+          
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify(result, null, 2)
+            }]
+          };
+        }
+        
+        case "update_component": {
+          const componentUid = String(request.params.arguments?.componentUid);
+          const attributesToUpdate = request.params.arguments?.attributesToUpdate;
+          
+          if (!componentUid || !attributesToUpdate) {
+            throw new McpError(
+              ErrorCode.InvalidParams,
+              "Component UID and attributes to update are required"
+            );
+          }
+          
+          const result = await components.updateComponent(componentUid, attributesToUpdate);
+          
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify(result, null, 2)
+            }]
+          };
+        }
+        
         default:
           throw new McpError(
             ErrorCode.MethodNotFound,
             `Unknown tool: ${request.params.name}`
           );
       }
-    } catch (error) {
-      console.error(`[Error] Tool execution failed: ${error instanceof Error ? error.message : String(error)}`);
+    } catch (error: any) {
+      console.error(`[Error] Tool execution failed for ${request.params.name}:`, error);
       
       if (error instanceof McpError) {
         throw error;
       }
       
-      return {
-        content: [{
-          type: "text",
-          text: `Error: ${error instanceof Error ? error.message : String(error)}`
-        }],
-        isError: true
-      };
+      let errorMessage = `Tool execution failed`;
+      
+      if (error instanceof ExtendedMcpError) {
+        throw new McpError(
+          ErrorCode.InternalError,
+          `${error.code}: ${error.message}`
+        );
+      } else if (axios.isAxiosError(error)) {
+        if (error.response) {
+          errorMessage = `${error.response.status} - ${JSON.stringify(error.response.data)}`;
+        } else {
+          errorMessage = error.message;
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      } else {
+        errorMessage = String(error);
+      }
+      
+      throw new McpError(
+        ErrorCode.InternalError,
+        errorMessage
+      );
     }
   });
 }
