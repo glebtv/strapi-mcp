@@ -15,6 +15,7 @@ export interface QueryParams {
 export interface ContentType {
   uid: string;
   apiID: string;
+  pluralApiId?: string; // Plural form for API endpoints (e.g., 'articles' for 'article')
   info: {
     displayName: string;
     description: string;

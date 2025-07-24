@@ -54,7 +54,7 @@ Key architectural decisions:
 
 ## Important Context
 
-1. **Strapi 5 Compatibility**: The codebase uses Strapi 5 patterns:
+1. **Strapi 5 Only**: This server only supports Strapi v5. The codebase uses Strapi 5 patterns:
    - `documentId` instead of numeric IDs
    - API routes: `/api/{pluralName}` (not `/api/{pluralName}/{id}`)
    - Draft & Publish via `status` parameter

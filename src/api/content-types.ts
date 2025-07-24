@@ -11,9 +11,12 @@ function processAndCacheContentTypes(data: any[], source: string): ContentType[]
   const contentTypes = data.map((item: any) => {
     const uid = item.uid;
     const apiID = uid.split('.').pop() || '';
+    // Get pluralName from the API response
+    const pluralApiId = item.info?.pluralName || item.pluralName || apiID;
     return {
       uid: uid,
       apiID: apiID,
+      pluralApiId: pluralApiId,
       info: {
         displayName: item.info?.displayName || apiID.charAt(0).toUpperCase() + apiID.slice(1).replace(/-/g, ' '),
         description: item.info?.description || `${apiID} content type`,
@@ -45,29 +48,34 @@ export async function fetchContentTypes(): Promise<ContentType[]> {
     const discoveredTypes = [];
     
     for (const type of commonTypes) {
-      try {
-        // Try plural form first as it's more common in Strapi
-        let testResponse;
+      // Try common plural forms
+      const pluralVariants = [
+        `${type}s`,      // articles, pages
+        `${type}es`,     // technologies
+        `${type}ies`,    // categories (category -> categories)
+        type             // user -> user (same)
+      ];
+      
+      for (const plural of pluralVariants) {
         try {
-          testResponse = await strapiClient.get(`/api/${type}s?pagination[limit]=1`);
+          const testResponse = await strapiClient.get(`/api/${plural}?pagination[limit]=1`);
+          if (testResponse && testResponse.status === 200) {
+            console.error(`[API] Discovered content type: api::${type}.${type} with plural: ${plural}`);
+            discoveredTypes.push({
+              uid: `api::${type}.${type}`,
+              apiID: type,
+              pluralApiId: plural, // Use the actual endpoint that worked
+              info: {
+                displayName: type.charAt(0).toUpperCase() + type.slice(1),
+                description: `${type} content type (discovered)`,
+              },
+              attributes: {}
+            });
+            break; // Found it, move to next type
+          }
         } catch (e) {
-          // If plural fails, try singular
-          testResponse = await strapiClient.get(`/api/${type}?pagination[limit]=1`);
+          // Continue trying other variants
         }
-        if (testResponse && testResponse.status === 200) {
-          console.error(`[API] Discovered content type: api::${type}.${type}`);
-          discoveredTypes.push({
-            uid: `api::${type}.${type}`,
-            apiID: type,
-            info: {
-              displayName: type.charAt(0).toUpperCase() + type.slice(1),
-              description: `${type} content type (discovered)`,
-            },
-            attributes: {}
-          });
-        }
-      } catch (e) {
-        // Ignore 404s and continue
       }
     }
     

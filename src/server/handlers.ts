@@ -79,7 +79,7 @@ export function setupHandlers(server: Server) {
       const contentTypesList = await contentTypes.fetchContentTypes();
       
       const contentTypeResources = contentTypesList.map(ct => ({
-        uri: `strapi://content-type/${ct.uid}`,
+        uri: `strapi://content-type/${ct.pluralApiId || ct.apiID}`,
         name: `${ct.info.displayName} Content Type`,
         description: ct.info.description || `Schema and structure for ${ct.info.displayName}`,
         mimeType: "application/json",
@@ -108,9 +108,22 @@ export function setupHandlers(server: Server) {
         );
       }
       
-      const [, contentTypeId] = contentTypeMatch;
+      const [, pluralApiId] = contentTypeMatch;
       
-      const schema = await contentTypes.fetchContentTypeSchema(contentTypeId);
+      // Find the content type by pluralApiId
+      const contentTypesList = await contentTypes.fetchContentTypes();
+      const contentType = contentTypesList.find(ct => 
+        (ct.pluralApiId === pluralApiId) || (ct.apiID === pluralApiId)
+      );
+      
+      if (!contentType) {
+        throw new McpError(
+          ErrorCode.InvalidRequest,
+          `Content type with plural API ID '${pluralApiId}' not found`
+        );
+      }
+      
+      const schema = await contentTypes.fetchContentTypeSchema(contentType.uid);
       
       return {
         contents: [{
