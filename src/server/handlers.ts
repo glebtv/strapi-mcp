@@ -260,7 +260,7 @@ export function setupHandlers(server: Server) {
         },
         {
           name: "get_entry",
-          description: "Get a specific entry by ID",
+          description: "Get a specific entry by documentId",
           inputSchema: {
             type: "object",
             properties: {
@@ -270,7 +270,7 @@ export function setupHandlers(server: Server) {
               },
               id: {
                 type: "string",
-                description: "The ID of the entry"
+                description: "The documentId of the entry"
               },
               options: {
                 type: "string",
@@ -310,7 +310,7 @@ export function setupHandlers(server: Server) {
               },
               id: {
                 type: "string",
-                description: "The ID of the entry to update"
+                description: "The documentId of the entry to update"
               },
               data: {
                 type: "object",
@@ -332,7 +332,7 @@ export function setupHandlers(server: Server) {
               },
               id: {
                 type: "string",
-                description: "Entry ID.",
+                description: "The documentId of the entry.",
               },
             },
             required: ["contentType", "id"]
@@ -403,9 +403,9 @@ export function setupHandlers(server: Server) {
             type: "object",
             properties: {
               contentType: { type: "string", description: "Main content type UID." },
-              id: { type: "string", description: "Main entry ID." },
+              id: { type: "string", description: "Main entry documentId." },
               relationField: { type: "string", description: "Relation field name." },
-              relatedIds: { type: "array", items: { type: "string" }, description: "Array of entry IDs to connect." }
+              relatedIds: { type: "array", items: { type: "string" }, description: "Array of entry documentIds to connect." }
             },
             required: ["contentType", "id", "relationField", "relatedIds"]
           }
@@ -417,9 +417,23 @@ export function setupHandlers(server: Server) {
             type: "object",
             properties: {
               contentType: { type: "string", description: "Main content type UID." },
-              id: { type: "string", description: "Main entry ID." },
+              id: { type: "string", description: "Main entry documentId." },
               relationField: { type: "string", description: "Relation field name." },
-              relatedIds: { type: "array", items: { type: "string" }, description: "Array of entry IDs to disconnect." }
+              relatedIds: { type: "array", items: { type: "string" }, description: "Array of entry documentIds to disconnect." }
+            },
+            required: ["contentType", "id", "relationField", "relatedIds"]
+          }
+        },
+        {
+          name: "set_relation",
+          description: "Sets related entries for a relation field, replacing all existing relations.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              contentType: { type: "string", description: "Main content type UID." },
+              id: { type: "string", description: "Main entry documentId." },
+              relationField: { type: "string", description: "Relation field name." },
+              relatedIds: { type: "array", items: { type: "string" }, description: "Array of entry documentIds to set." }
             },
             required: ["contentType", "id", "relationField", "relatedIds"]
           }
@@ -570,7 +584,7 @@ export function setupHandlers(server: Server) {
               },
               id: {
                 type: "string",
-                description: "Entry ID."
+                description: "Entry documentId."
               }
             },
             required: ["contentType", "id"]
@@ -588,7 +602,7 @@ export function setupHandlers(server: Server) {
               },
               id: {
                 type: "string",
-                description: "Entry ID."
+                description: "Entry documentId."
               }
             },
             required: ["contentType", "id"]
@@ -854,6 +868,15 @@ export function setupHandlers(server: Server) {
             throw new McpError(ErrorCode.InvalidParams, "contentType, id, relationField, and relatedIds (array) are required.");
           }
           const result = await entries.disconnectRelation(String(contentType), String(id), String(relationField), relatedIds);
+          return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+        }
+
+        case "set_relation": {
+          const { contentType, id, relationField, relatedIds } = request.params.arguments as any;
+          if (!contentType || !id || !relationField || !Array.isArray(relatedIds)) {
+            throw new McpError(ErrorCode.InvalidParams, "contentType, id, relationField, and relatedIds (array) are required.");
+          }
+          const result = await entries.setRelation(String(contentType), String(id), String(relationField), relatedIds);
           return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
         }
 

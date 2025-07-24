@@ -1,0 +1,3 @@
+```
+{  "data": [    // …    {      "id": 5,      "documentId": "znrlzntu9ei5onjvwfaalu2v",      "Name": "Biscotte Restaurant",      "Description": [        {          "type": "paragraph",          "children": [            {              "type": "text",              "text": "This is the draft version."            }          ]        }      ],      "createdAt": "2024-03-06T13:43:30.172Z",      "updatedAt": "2024-03-06T21:38:46.353Z",      "publishedAt": null,      "locale": "en"    },    // …  ],  "meta": {    "pagination": {      "page": 1,      "pageSize": 25,      "pageCount": 1,      "total": 4    }  }}
+```

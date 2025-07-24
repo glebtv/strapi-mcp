@@ -136,16 +136,16 @@ export async function fetchEntries(contentType: string, queryParams?: QueryParam
   return { data: [], meta: { pagination: { page: 1, pageSize: 25, pageCount: 0, total: 0 } } };
 }
 
-export async function fetchEntry(contentType: string, id: string, queryParams?: QueryParams): Promise<any> {
+export async function fetchEntry(contentType: string, documentId: string, queryParams?: QueryParams): Promise<any> {
   try {
-    console.error(`[API] Fetching entry ${id} for content type: ${contentType}`);
+    console.error(`[API] Fetching entry ${documentId} for content type: ${contentType}`);
     
     const collection = contentType.split(".")[1];
     
     if (hasAdminCredentials()) {
-      console.error(`[API] Attempt 1: Fetching entry ${id} for ${contentType} using admin credentials`);
+      console.error(`[API] Attempt 1: Fetching entry ${documentId} for ${contentType} using admin credentials`);
       try {
-        const adminEndpoint = `/content-manager/collection-types/${contentType}/${id}`;
+        const adminEndpoint = `/content-manager/collection-types/${contentType}/${documentId}`;
         
         const adminParams: Record<string, any> = {};
         if (queryParams?.populate) adminParams.populate = queryParams.populate;
@@ -154,11 +154,11 @@ export async function fetchEntry(contentType: string, id: string, queryParams?: 
         const adminResponse = await makeAdminApiRequest(adminEndpoint, 'get', undefined, adminParams);
         
         if (adminResponse) {
-          console.error(`[API] Successfully fetched entry ${id} via admin credentials`);
+          console.error(`[API] Successfully fetched entry ${documentId} via admin credentials`);
           return adminResponse;
         }
       } catch (adminError) {
-        console.error(`[API] Failed to fetch entry ${id} using admin credentials:`, adminError);
+        console.error(`[API] Failed to fetch entry ${documentId} using admin credentials:`, adminError);
         console.error(`[API] Falling back to API token...`);
       }
     } else {
@@ -173,14 +173,14 @@ export async function fetchEntry(contentType: string, id: string, queryParams?: 
       params.fields = queryParams.fields;
     }
 
-    console.error(`[API] Attempt 2: Fetching entry ${id} for ${contentType} using API token`);
-    const response = await strapiClient.get(`/api/${collection}/${id}`, { params });
+    console.error(`[API] Attempt 2: Fetching entry ${documentId} for ${contentType} using API token`);
+    const response = await strapiClient.get(`/api/${collection}/${documentId}`, { params });
     
     return response.data.data;
   } catch (error: any) {
-    console.error(`[Error] Failed to fetch entry ${id} for ${contentType}:`, error);
+    console.error(`[Error] Failed to fetch entry ${documentId} for ${contentType}:`, error);
     
-    let errorMessage = `Failed to fetch entry ${id} for ${contentType}`;
+    let errorMessage = `Failed to fetch entry ${documentId} for ${contentType}`;
     let errorCode = ExtendedErrorCode.InternalError;
 
     if (axios.isAxiosError(error)) {
@@ -252,13 +252,22 @@ export async function createEntry(contentType: string, data: any): Promise<any> 
       }
     } catch (error) {
       console.error(`[API] Failed to create entry via strapiClient:`, error);
+      if (axios.isAxiosError(error) && error.response) {
+        throw new McpError(
+          ErrorCode.InternalError,
+          `Failed to create entry for ${contentType}: ${error.response.status} - ${JSON.stringify(error.response.data)}`
+        );
+      }
       throw new McpError(
         ErrorCode.InternalError,
-        `Failed to create entry for ${contentType} via strapiClient: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to create entry for ${contentType}: ${error instanceof Error ? error.message : String(error)}`
       );
     }
   } catch (error) {
     console.error(`[Error] Failed to create entry for ${contentType}:`, error);
+    if (error instanceof McpError) {
+      throw error; // Re-throw McpError as-is
+    }
     throw new McpError(
       ErrorCode.InternalError,
       `Failed to create entry for ${contentType}: ${error instanceof Error ? error.message : String(error)}`
@@ -266,84 +275,94 @@ export async function createEntry(contentType: string, data: any): Promise<any> 
   }
 }
 
-export async function updateEntry(contentType: string, id: string, data: any): Promise<any> {
+export async function updateEntry(contentType: string, documentId: string, data: any): Promise<any> {
   const collection = contentType.split(".")[1];
-  const apiPath = `/api/${collection}/${id}`;
+  const apiPath = `/api/${collection}/${documentId}`;
   let responseData: any = null;
 
   if (hasAdminCredentials()) {
-    console.error(`[API] Attempt 1: Updating entry ${id} for ${contentType} using makeAdminApiRequest`);
+    console.error(`[API] Attempt 1: Updating entry ${documentId} for ${contentType} using makeAdminApiRequest`);
     try {
-      const adminEndpoint = `/content-manager/collection-types/${contentType}/${id}`;
+      const adminEndpoint = `/content-manager/collection-types/${contentType}/${documentId}`;
       console.error(`[API] Trying admin update endpoint: ${adminEndpoint}`);
       
       const adminResponse = await makeAdminApiRequest(adminEndpoint, 'put', data);
 
       if (adminResponse) {
-        console.error(`[API] Successfully updated entry ${id} via makeAdminApiRequest.`);
+        console.error(`[API] Successfully updated entry ${documentId} via makeAdminApiRequest.`);
         return adminResponse.data || adminResponse; 
       } else {
-        console.warn(`[API] Admin update for ${id} completed but returned no data.`);
-        return { id: id, message: "Update via admin succeeded, no data returned." }; 
+        console.warn(`[API] Admin update for ${documentId} completed but returned no data.`);
+        return { documentId: documentId, message: "Update via admin succeeded, no data returned." }; 
       }
     } catch (adminError) {
-      console.error(`[API] Failed to update entry ${id} using admin credentials:`, adminError);
+      console.error(`[API] Failed to update entry ${documentId} using admin credentials:`, adminError);
       console.error(`[API] Admin credentials failed, attempting to use API token as fallback.`);
     }
   } else {
     console.error("[API] Admin credentials not provided, falling back to API token.");
   }
 
-  console.error(`[API] Attempt 2: Updating entry ${id} for ${contentType} using strapiClient`);
+  console.error(`[API] Attempt 2: Updating entry ${documentId} for ${contentType} using strapiClient`);
   try {
     const response = await strapiClient.put(apiPath, { data: data });
     
     if (response.data && response.data.data) {
-      console.error(`[API] Successfully updated entry ${id} via strapiClient.`);
+      console.error(`[API] Successfully updated entry ${documentId} via strapiClient.`);
       return response.data.data;
     } else {
-      console.warn(`[API] Update via strapiClient for ${id} completed, but no updated data returned.`);
-      return { id: id, message: "Update via API token succeeded, no data returned." };
+      console.warn(`[API] Update via strapiClient for ${documentId} completed, but no updated data returned.`);
+      return { documentId: documentId, message: "Update via API token succeeded, no data returned." };
     }
   } catch (error) {
-    console.error(`[API] Failed to update entry ${id} via strapiClient:`, error);
+    console.error(`[API] Failed to update entry ${documentId} via strapiClient:`, error);
+    if (axios.isAxiosError(error) && error.response) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to update entry ${documentId} for ${contentType}: ${error.response.status} - ${JSON.stringify(error.response.data)}`
+      );
+    }
     throw new McpError(
       ErrorCode.InternalError,
-      `Failed to update entry ${id} for ${contentType} via strapiClient: ${error instanceof Error ? error.message : String(error)}`
+      `Failed to update entry ${documentId} for ${contentType}: ${error instanceof Error ? error.message : String(error)}`
     );
   }
 }
 
-export async function deleteEntry(contentType: string, id: string): Promise<void> {
+export async function deleteEntry(contentType: string, documentId: string): Promise<void> {
   try {
-    console.error(`[API] Deleting entry ${id} for content type: ${contentType}`);
+    console.error(`[API] Deleting entry ${documentId} for content type: ${contentType}`);
     
     const collection = contentType.split(".")[1];
     
-    await strapiClient.delete(`/api/${collection}/${id}`);
+    await strapiClient.delete(`/api/${collection}/${documentId}`);
   } catch (error) {
-    console.error(`[Error] Failed to delete entry ${id} for ${contentType}:`, error);
+    console.error(`[Error] Failed to delete entry ${documentId} for ${contentType}:`, error);
+    if (axios.isAxiosError(error) && error.response) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to delete entry ${documentId} for ${contentType}: ${error.response.status} - ${JSON.stringify(error.response.data)}`
+      );
+    }
     throw new McpError(
       ErrorCode.InternalError,
-      `Failed to delete entry ${id} for ${contentType}: ${error instanceof Error ? error.message : String(error)}`
+      `Failed to delete entry ${documentId} for ${contentType}: ${error instanceof Error ? error.message : String(error)}`
     );
   }
 }
 
-export async function connectRelation(contentType: string, id: string, relationField: string, relatedIds: number[] | string[]): Promise<any> {
+export async function connectRelation(contentType: string, documentId: string, relationField: string, relatedIds: string[]): Promise<any> {
   try {
-    console.error(`[API] Connecting relations for ${contentType} ${id}, field ${relationField}`);
+    console.error(`[API] Connecting relations for ${contentType} ${documentId}, field ${relationField}`);
     const updateData = {
-      data: {
-        [relationField]: {
-          connect: relatedIds.map(rid => ({ id: Number(rid) }))
-        }
+      [relationField]: {
+        connect: relatedIds
       }
     };
-    return await updateEntry(contentType, id, updateData.data); 
+    return await updateEntry(contentType, documentId, updateData); 
   } catch (error) {
     if (error instanceof McpError) throw error;
-    console.error(`[Error] Failed to connect relation ${relationField} for ${contentType} ${id}:`, error);
+    console.error(`[Error] Failed to connect relation ${relationField} for ${contentType} ${documentId}:`, error);
     throw new McpError(
       ErrorCode.InternalError,
       `Failed to connect relation: ${error instanceof Error ? error.message : String(error)}`
@@ -351,21 +370,19 @@ export async function connectRelation(contentType: string, id: string, relationF
   }
 }
 
-export async function disconnectRelation(contentType: string, id: string, relationField: string, relatedIds: number[] | string[]): Promise<any> {
+export async function disconnectRelation(contentType: string, documentId: string, relationField: string, relatedIds: string[]): Promise<any> {
   try {
-    console.error(`[API] Disconnecting relations for ${contentType} ${id}, field ${relationField}`);
+    console.error(`[API] Disconnecting relations for ${contentType} ${documentId}, field ${relationField}`);
     const updateData = {
-      data: {
-        [relationField]: {
-          disconnect: relatedIds.map(rid => ({ id: Number(rid) }))
-        }
+      [relationField]: {
+        disconnect: relatedIds
       }
     };
-    return await updateEntry(contentType, id, updateData.data); 
+    return await updateEntry(contentType, documentId, updateData); 
 
   } catch (error) {
     if (error instanceof McpError) throw error;
-    console.error(`[Error] Failed to disconnect relation ${relationField} for ${contentType} ${id}:`, error);
+    console.error(`[Error] Failed to disconnect relation ${relationField} for ${contentType} ${documentId}:`, error);
     throw new McpError(
       ErrorCode.InternalError,
       `Failed to disconnect relation: ${error instanceof Error ? error.message : String(error)}`
@@ -373,23 +390,43 @@ export async function disconnectRelation(contentType: string, id: string, relati
   }
 }
 
-export async function publishEntry(contentType: string, id: string): Promise<any> {
+export async function setRelation(contentType: string, documentId: string, relationField: string, relatedIds: string[]): Promise<any> {
   try {
-    console.error(`[API] Publishing entry ${id} for content type: ${contentType}`);
+    console.error(`[API] Setting relations for ${contentType} ${documentId}, field ${relationField}`);
+    const updateData = {
+      [relationField]: {
+        set: relatedIds
+      }
+    };
+    return await updateEntry(contentType, documentId, updateData); 
+
+  } catch (error) {
+    if (error instanceof McpError) throw error;
+    console.error(`[Error] Failed to set relation ${relationField} for ${contentType} ${documentId}:`, error);
+    throw new McpError(
+      ErrorCode.InternalError,
+      `Failed to set relation: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
+export async function publishEntry(contentType: string, documentId: string): Promise<any> {
+  try {
+    console.error(`[API] Publishing entry ${documentId} for content type: ${contentType}`);
     
     if (hasAdminCredentials()) {
-      console.error(`[API] Attempt 1: Publishing entry ${id} for ${contentType} using admin credentials`);
+      console.error(`[API] Attempt 1: Publishing entry ${documentId} for ${contentType} using admin credentials`);
       try {
-        const adminEndpoint = `/content-manager/collection-types/${contentType}/${id}/actions/publish`;
+        const adminEndpoint = `/content-manager/collection-types/${contentType}/${documentId}/actions/publish`;
         
         const adminResponse = await makeAdminApiRequest(adminEndpoint, 'post');
         
         if (adminResponse) {
-          console.error(`[API] Successfully published entry ${id} via admin credentials`);
+          console.error(`[API] Successfully published entry ${documentId} via admin credentials`);
           return adminResponse;
         }
       } catch (adminError) {
-        console.error(`[API] Failed to publish entry ${id} using admin credentials:`, adminError);
+        console.error(`[API] Failed to publish entry ${documentId} using admin credentials:`, adminError);
         console.error(`[API] Falling back to API token...`);
       }
     } else {
@@ -397,10 +434,10 @@ export async function publishEntry(contentType: string, id: string): Promise<any
     }
     
     const collection = contentType.split(".")[1];
-    console.error(`[API] Attempt 2: Publishing entry ${id} for ${contentType} using API token`);
+    console.error(`[API] Attempt 2: Publishing entry ${documentId} for ${contentType} using API token`);
     
     const now = new Date().toISOString();
-    const response = await strapiClient.put(`/api/${collection}/${id}`, {
+    const response = await strapiClient.put(`/api/${collection}/${documentId}`, {
       data: {
         publishedAt: now
       }
@@ -408,31 +445,31 @@ export async function publishEntry(contentType: string, id: string): Promise<any
     
     return response.data.data;
   } catch (error) {
-    console.error(`[Error] Failed to publish entry ${id} for ${contentType}:`, error);
+    console.error(`[Error] Failed to publish entry ${documentId} for ${contentType}:`, error);
     throw new McpError(
       ErrorCode.InternalError,
-      `Failed to publish entry ${id} for ${contentType}: ${error instanceof Error ? error.message : String(error)}`
+      `Failed to publish entry ${documentId} for ${contentType}: ${error instanceof Error ? error.message : String(error)}`
     );
   }
 }
 
-export async function unpublishEntry(contentType: string, id: string): Promise<any> {
+export async function unpublishEntry(contentType: string, documentId: string): Promise<any> {
   try {
-    console.error(`[API] Unpublishing entry ${id} for content type: ${contentType}`);
+    console.error(`[API] Unpublishing entry ${documentId} for content type: ${contentType}`);
     
     if (hasAdminCredentials()) {
-      console.error(`[API] Attempt 1: Unpublishing entry ${id} for ${contentType} using admin credentials`);
+      console.error(`[API] Attempt 1: Unpublishing entry ${documentId} for ${contentType} using admin credentials`);
       try {
-        const adminEndpoint = `/content-manager/collection-types/${contentType}/${id}/actions/unpublish`;
+        const adminEndpoint = `/content-manager/collection-types/${contentType}/${documentId}/actions/unpublish`;
         
         const adminResponse = await makeAdminApiRequest(adminEndpoint, 'post');
         
         if (adminResponse) {
-          console.error(`[API] Successfully unpublished entry ${id} via admin credentials`);
+          console.error(`[API] Successfully unpublished entry ${documentId} via admin credentials`);
           return adminResponse;
         }
       } catch (adminError) {
-        console.error(`[API] Failed to unpublish entry ${id} using admin credentials:`, adminError);
+        console.error(`[API] Failed to unpublish entry ${documentId} using admin credentials:`, adminError);
         console.error(`[API] Falling back to API token...`);
       }
     } else {
@@ -440,9 +477,9 @@ export async function unpublishEntry(contentType: string, id: string): Promise<a
     }
     
     const collection = contentType.split(".")[1];
-    console.error(`[API] Attempt 2: Unpublishing entry ${id} for ${contentType} using API token`);
+    console.error(`[API] Attempt 2: Unpublishing entry ${documentId} for ${contentType} using API token`);
     
-    const response = await strapiClient.put(`/api/${collection}/${id}`, {
+    const response = await strapiClient.put(`/api/${collection}/${documentId}`, {
       data: {
         publishedAt: null
       }
@@ -450,10 +487,10 @@ export async function unpublishEntry(contentType: string, id: string): Promise<a
     
     return response.data.data;
   } catch (error) {
-    console.error(`[Error] Failed to unpublish entry ${id} for ${contentType}:`, error);
+    console.error(`[Error] Failed to unpublish entry ${documentId} for ${contentType}:`, error);
     throw new McpError(
       ErrorCode.InternalError,
-      `Failed to unpublish entry ${id} for ${contentType}: ${error instanceof Error ? error.message : String(error)}`
+      `Failed to unpublish entry ${documentId} for ${contentType}: ${error instanceof Error ? error.message : String(error)}`
     );
   }
 }

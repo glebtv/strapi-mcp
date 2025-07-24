@@ -2,6 +2,7 @@ import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { makeAdminApiRequest, hasAdminCredentials } from "../auth/index.js";
 import { config } from "../config/index.js";
 import { ExtendedMcpError, ExtendedErrorCode } from "../errors/index.js";
+import axios from "axios";
 
 export async function listComponents(): Promise<any[]> {
   try {
@@ -36,6 +37,12 @@ export async function listComponents(): Promise<any[]> {
     }));
   } catch (error) {
     console.error(`[Error] Failed to list components:`, error);
+    if (axios.isAxiosError(error) && error.response) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to list components: ${error.response.status} - ${JSON.stringify(error.response.data)}`
+      );
+    }
     throw new McpError(
       ErrorCode.InternalError,
       `Failed to list components: ${error instanceof Error ? error.message : String(error)}`

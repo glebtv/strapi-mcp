@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from "axios";
+import qs from "qs";
 import { config } from "../config/index.js";
 import { ExtendedMcpError, ExtendedErrorCode } from "../errors/index.js";
 
@@ -9,6 +10,14 @@ export const strapiClient: AxiosInstance = axios.create({
   },
   validateStatus: function (status) {
     return status < 500;
+  },
+  paramsSerializer: {
+    serialize: (params) => {
+      return qs.stringify(params, {
+        encodeValuesOnly: true,
+        arrayFormat: 'brackets'
+      });
+    }
   }
 });
 

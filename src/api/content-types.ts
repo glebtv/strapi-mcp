@@ -160,13 +160,15 @@ export async function fetchContentTypes(): Promise<ContentType[]> {
     let errorCode = ExtendedErrorCode.InternalError;
     
     if (axios.isAxiosError(error)) {
-      errorMessage += `: ${error.response?.status} ${error.response?.statusText}`;
-      if (error.response?.status === 403) {
-        errorCode = ExtendedErrorCode.AccessDenied;
-        errorMessage += ` (Permission denied - check API token permissions)`;
-      } else if (error.response?.status === 401) {
-        errorCode = ExtendedErrorCode.AccessDenied;
-        errorMessage += ` (Unauthorized - API token may be invalid or expired)`;
+      if (error.response) {
+        errorMessage = `Failed to fetch content types: ${error.response.status} - ${JSON.stringify(error.response.data)}`;
+        if (error.response.status === 403) {
+          errorCode = ExtendedErrorCode.AccessDenied;
+        } else if (error.response.status === 401) {
+          errorCode = ExtendedErrorCode.AccessDenied;
+        }
+      } else {
+        errorMessage += `: ${error.message}`;
       }
     } else if (error instanceof Error) {
       errorMessage += `: ${error.message}`;
@@ -303,19 +305,19 @@ export async function fetchContentTypeSchema(contentType: string): Promise<any> 
     let errorCode = ExtendedErrorCode.InternalError;
 
     if (axios.isAxiosError(error)) {
-      errorMessage += `: ${error.response?.status} ${error.response?.statusText}`;
-      if (error.response?.status === 404) {
-        errorCode = ExtendedErrorCode.ResourceNotFound;
-        errorMessage += ` (Content type not found)`;
-      } else if (error.response?.status === 403) {
-        errorCode = ExtendedErrorCode.AccessDenied;
-        errorMessage += ` (Permission denied - check API token permissions for Content-Type Builder)`;
-      } else if (error.response?.status === 401) {
-        errorCode = ExtendedErrorCode.AccessDenied;
-        errorMessage += ` (Unauthorized - API token may be invalid or expired)`;
-      } else if (error.response?.status === 400) {
-        errorCode = ExtendedErrorCode.InvalidRequest;
-        errorMessage += ` (Bad request - malformed content type ID)`;
+      if (error.response) {
+        errorMessage = `Failed to fetch schema for ${contentType}: ${error.response.status} - ${JSON.stringify(error.response.data)}`;
+        if (error.response.status === 404) {
+          errorCode = ExtendedErrorCode.ResourceNotFound;
+        } else if (error.response.status === 403) {
+          errorCode = ExtendedErrorCode.AccessDenied;
+        } else if (error.response.status === 401) {
+          errorCode = ExtendedErrorCode.AccessDenied;
+        } else if (error.response.status === 400) {
+          errorCode = ExtendedErrorCode.InvalidRequest;
+        }
+      } else {
+        errorMessage += `: ${error.message}`;
       }
     } else if (error instanceof Error) {
       errorMessage += `: ${error.message}`;

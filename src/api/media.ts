@@ -1,6 +1,7 @@
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { strapiClient } from "./client.js";
 import { filterBase64FromResponse } from "../utils/index.js";
+import axios from "axios";
 
 export async function uploadMedia(fileData: string, fileName: string, fileType: string): Promise<any> {
   try {
@@ -39,6 +40,12 @@ export async function uploadMedia(fileData: string, fileName: string, fileType: 
     return cleanResponse;
   } catch (error) {
     console.error(`[Error] Failed to upload media file ${fileName}:`, error);
+    if (axios.isAxiosError(error) && error.response) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to upload media file ${fileName}: ${error.response.status} - ${JSON.stringify(error.response.data)}`
+      );
+    }
     throw new McpError(
       ErrorCode.InternalError,
       `Failed to upload media file ${fileName}: ${error instanceof Error ? error.message : String(error)}`
