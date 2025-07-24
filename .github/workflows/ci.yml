@@ -12,7 +12,7 @@ jobs:
     
     strategy:
       matrix:
-        node-version: [18.x, 20.x]
+        node-version: [22.x, 24.x]
     
     services:
       postgres:
@@ -40,8 +40,12 @@ jobs:
     
     - name: Setup Strapi test instance
       run: |
-        # Create a minimal Strapi project for testing
-        npx create-strapi-app@latest strapi-test --no-run \
+        # Create a minimal Strapi 5 project for testing
+        npx create-strapi@latest strapi-test \
+          --typescript \
+          --no-run \
+          --no-example \
+          --no-git-init \
           --dbclient=postgres \
           --dbhost=localhost \
           --dbport=5432 \
@@ -49,7 +53,8 @@ jobs:
           --dbusername=strapi \
           --dbpassword=strapi \
           --dbssl=false \
-          --skip-cloud
+          --skip-cloud \
+          --install
         
         cd strapi-test
         
