@@ -159,6 +159,34 @@ node build/index.js
 ### 0.1.3
 - Initial public release
 
+## CI/CD
+
+This project uses GitHub Actions for continuous integration and deployment:
+
+- **CI** - Runs on every push and pull request to main branch
+  - Tests on Node.js 18.x and 20.x
+  - Automatically sets up a local Strapi instance with PostgreSQL
+  - Creates required content types (projects, technologies)
+  - Generates API tokens for authentication
+  - Runs linting, type checking, and all tests
+  
+- **Code Quality** - Automated code quality checks
+  - ESLint for code style
+  - TypeScript type checking  
+  - Security vulnerability scanning
+  - Bundle size reporting
+
+- **Release** - Automated npm publishing
+  - Triggers on GitHub release creation
+  - Publishes to npm registry
+  - Uploads build artifacts
+
+### Required Secrets
+
+For publishing releases, configure this secret in your GitHub repository:
+
+- `NPM_TOKEN` - npm authentication token for publishing
+
 ## License
 
 MIT

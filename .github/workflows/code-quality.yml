@@ -1,0 +1,42 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  code-quality:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Check formatting
+      run: npm run format:check || true
+    
+    - name: Run ESLint
+      run: npm run lint
+    
+    - name: Check TypeScript
+      run: npm run typecheck
+    
+    - name: Check for security vulnerabilities
+      run: npm audit --audit-level=high
+    
+    - name: Check bundle size
+      run: |
+        npm run build
+        echo "Build size report:"
+        du -sh build/
+        find build -type f -name "*.js" -exec ls -lh {} \; | awk '{print $5, $9}'
