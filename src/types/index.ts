@@ -1,5 +1,3 @@
-import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
-
 export interface QueryParams {
   filters?: Record<string, any>;
   pagination?: {

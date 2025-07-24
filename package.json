@@ -39,7 +39,8 @@
       "test:coverage": "vitest --coverage",
       "test:watch": "vitest --watch",
       "lint": "eslint src --ext .ts",
-      "lint:fix": "eslint src --ext .ts --fix"
+      "lint:fix": "eslint src --ext .ts --fix",
+      "typecheck": "tsc --noEmit --skipLibCheck"
    },
    "dependencies": {
       "@modelcontextprotocol/sdk": "1.10.2",

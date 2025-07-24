@@ -8,7 +8,7 @@ export function generateSlug(text: string | number): string {
     .replace(/^-+|-+$/g, ""); // Remove leading/trailing hyphens
 }
 
-export function ensureSlugField(contentType: string, data: any, schema?: any): any {
+export function ensureSlugField(contentType: string, data: any, _schema?: any): any {
   // For now, handle known content types that require slugs
   const slugRequiredTypes = [
     "api::project.project",

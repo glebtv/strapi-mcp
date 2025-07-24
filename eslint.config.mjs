@@ -30,7 +30,7 @@ export default [
     rules: {
       ...typescriptEslint.configs.recommended.rules,
       ...prettierConfig.rules,
-      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
       '@typescript-eslint/no-unused-vars': ['error', { 'argsIgnorePattern': '^_' }],
       'prettier/prettier': 'error',

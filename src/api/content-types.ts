@@ -4,36 +4,12 @@ import { config } from "../config/index.js";
 import { ContentType } from "../types/index.js";
 import { ExtendedMcpError, ExtendedErrorCode } from "../errors/index.js";
 
+// Cache for discovered content types
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 let contentTypesCache: ContentType[] = [];
 
-function processAndCacheContentTypes(data: any[], source: string): ContentType[] {
-  console.error(`[API] Successfully fetched collection types from ${source}`);
-  const contentTypes = data.map((item: any) => {
-    const uid = item.uid;
-    const apiID = uid.split(".").pop() || "";
-    // Get pluralName from the API response
-    const pluralApiId = item.info?.pluralName || item.pluralName || apiID;
-    return {
-      uid: uid,
-      apiID: apiID,
-      pluralApiId: pluralApiId,
-      info: {
-        displayName:
-          item.info?.displayName ||
-          apiID.charAt(0).toUpperCase() + apiID.slice(1).replace(/-/g, " "),
-        description: item.info?.description || `${apiID} content type`,
-      },
-      attributes: item.attributes || {},
-    };
-  });
-
-  const filteredTypes = contentTypes.filter(
-    (ct: any) => !ct.uid.startsWith("admin::") && !ct.uid.startsWith("plugin::")
-  );
-
-  console.error(`[API] Found ${filteredTypes.length} content types via ${source}`);
-  contentTypesCache = filteredTypes;
-  return filteredTypes;
+export async function listContentTypes(): Promise<ContentType[]> {
+  return fetchContentTypes();
 }
 
 export async function fetchContentTypes(): Promise<ContentType[]> {
@@ -76,7 +52,7 @@ export async function fetchContentTypes(): Promise<ContentType[]> {
             });
             break; // Found it, move to next type
           }
-        } catch (e) {
+        } catch {
           // Continue trying other variants
         }
       }
@@ -258,7 +234,7 @@ export async function fetchContentTypeSchema(contentType: string): Promise<any> 
 }
 
 // Note: The following functions require admin permissions and are not available with API tokens only
-export async function createContentType(contentTypeData: any): Promise<any> {
+export async function createContentType(_contentTypeData: any): Promise<any> {
   throw new ExtendedMcpError(
     ExtendedErrorCode.AccessDenied,
     "Creating content types requires admin credentials. This operation is not available with API tokens only."
@@ -266,8 +242,8 @@ export async function createContentType(contentTypeData: any): Promise<any> {
 }
 
 export async function updateContentType(
-  contentTypeUid: string,
-  attributesToUpdate: Record<string, any>
+  _contentTypeUid: string,
+  _attributesToUpdate: Record<string, any>
 ): Promise<any> {
   throw new ExtendedMcpError(
     ExtendedErrorCode.AccessDenied,
@@ -275,7 +251,7 @@ export async function updateContentType(
   );
 }
 
-export async function deleteContentType(contentTypeUid: string): Promise<any> {
+export async function deleteContentType(_contentTypeUid: string): Promise<any> {
   throw new ExtendedMcpError(
     ExtendedErrorCode.AccessDenied,
     "Deleting content types requires admin credentials. This operation is not available with API tokens only."

@@ -35,8 +35,8 @@ async function makeRestRequest(
       const queryString = qs.stringify(params, { encodeValuesOnly: true });
       config.params = params;
       config.paramsSerializer = (params: any) => qs.stringify(params, { encodeValuesOnly: true });
-      console.log("[REST] Request params:", JSON.stringify(params, null, 2));
-      console.log("[REST] Query string:", queryString);
+      console.error("[REST] Request params:", JSON.stringify(params, null, 2));
+      console.error("[REST] Query string:", queryString);
     }
 
     if (body && (method === "POST" || method === "PUT" || method === "PATCH")) {
@@ -103,7 +103,7 @@ export function setupHandlers(server: Server) {
       const uri = request.params.uri;
 
       const contentTypeMatch = uri.match(
-        /^strapi:\/\/content-type\/([^\/\?]+)(?:\/([^\/\?]+))?(?:\?(.+))?$/
+        /^strapi:\/\/content-type\/([^/?]+)(?:\/([^/?]+))?(?:\?(.+))?$/
       );
       if (!contentTypeMatch) {
         throw new McpError(ErrorCode.InvalidRequest, `Invalid resource URI: ${uri}`);

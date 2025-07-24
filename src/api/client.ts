@@ -35,7 +35,7 @@ export async function validateStrapiConnection(): Promise<void> {
 
     try {
       response = await strapiClient.get("/api/upload/files?pagination[limit]=1");
-    } catch (apiError) {
+    } catch {
       response = await strapiClient.get("/");
     }
 
