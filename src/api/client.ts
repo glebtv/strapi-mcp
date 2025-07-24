@@ -15,30 +15,30 @@ export const strapiClient: AxiosInstance = axios.create({
     serialize: (params) => {
       return qs.stringify(params, {
         encodeValuesOnly: true,
-        arrayFormat: 'brackets'
+        arrayFormat: "brackets",
       });
-    }
-  }
+    },
+  },
 });
 
 if (config.strapi.apiToken) {
-  strapiClient.defaults.headers.common['Authorization'] = `Bearer ${config.strapi.apiToken}`;
+  strapiClient.defaults.headers.common["Authorization"] = `Bearer ${config.strapi.apiToken}`;
 }
 
 let connectionValidated = false;
 
 export async function validateStrapiConnection(): Promise<void> {
   if (connectionValidated) return;
-  
+
   try {
     let response;
-    
+
     try {
-      response = await strapiClient.get('/api/upload/files?pagination[limit]=1');
+      response = await strapiClient.get("/api/upload/files?pagination[limit]=1");
     } catch (apiError) {
-      response = await strapiClient.get('/');
+      response = await strapiClient.get("/");
     }
-    
+
     if (response && response.status >= 200 && response.status < 300) {
       connectionValidated = true;
     } else if (response) {
@@ -47,11 +47,10 @@ export async function validateStrapiConnection(): Promise<void> {
       throw new Error(`No response received from Strapi server`);
     }
   } catch (error: any) {
-    
     let errorMessage = "Cannot connect to Strapi instance";
-    
+
     if (axios.isAxiosError(error)) {
-      if (error.code === 'ECONNREFUSED') {
+      if (error.code === "ECONNREFUSED") {
         errorMessage += `: Connection refused. Is Strapi running at ${config.strapi.url}?`;
       } else if (error.response?.status === 401) {
         errorMessage += `: Authentication failed. Check your API token or admin credentials.`;
@@ -65,7 +64,7 @@ export async function validateStrapiConnection(): Promise<void> {
     } else {
       errorMessage += `: ${error.message}`;
     }
-    
+
     throw new ExtendedMcpError(ExtendedErrorCode.InternalError, errorMessage);
   }
 }

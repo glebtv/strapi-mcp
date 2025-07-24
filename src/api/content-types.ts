@@ -10,7 +10,7 @@ function processAndCacheContentTypes(data: any[], source: string): ContentType[]
   console.error(`[API] Successfully fetched collection types from ${source}`);
   const contentTypes = data.map((item: any) => {
     const uid = item.uid;
-    const apiID = uid.split('.').pop() || '';
+    const apiID = uid.split(".").pop() || "";
     // Get pluralName from the API response
     const pluralApiId = item.info?.pluralName || item.pluralName || apiID;
     return {
@@ -18,16 +18,17 @@ function processAndCacheContentTypes(data: any[], source: string): ContentType[]
       apiID: apiID,
       pluralApiId: pluralApiId,
       info: {
-        displayName: item.info?.displayName || apiID.charAt(0).toUpperCase() + apiID.slice(1).replace(/-/g, ' '),
+        displayName:
+          item.info?.displayName ||
+          apiID.charAt(0).toUpperCase() + apiID.slice(1).replace(/-/g, " "),
         description: item.info?.description || `${apiID} content type`,
       },
-      attributes: item.attributes || {}
+      attributes: item.attributes || {},
     };
   });
 
-  const filteredTypes = contentTypes.filter((ct: any) =>
-    !ct.uid.startsWith("admin::") &&
-    !ct.uid.startsWith("plugin::")
+  const filteredTypes = contentTypes.filter(
+    (ct: any) => !ct.uid.startsWith("admin::") && !ct.uid.startsWith("plugin::")
   );
 
   console.error(`[API] Found ${filteredTypes.length} content types via ${source}`);
@@ -38,29 +39,31 @@ function processAndCacheContentTypes(data: any[], source: string): ContentType[]
 export async function fetchContentTypes(): Promise<ContentType[]> {
   try {
     await validateStrapiConnection();
-    
+
     console.error("[API] Fetching content types from Strapi");
 
     // Try content type discovery via known patterns
     console.error(`[API] Trying content type discovery via known patterns...`);
-    
-    const commonTypes = ['article', 'page', 'post', 'user', 'category', 'project', 'technology'];
+
+    const commonTypes = ["article", "page", "post", "user", "category", "project", "technology"];
     const discoveredTypes = [];
-    
+
     for (const type of commonTypes) {
       // Try common plural forms
       const pluralVariants = [
-        `${type}s`,      // articles, pages
-        `${type}es`,     // technologies
-        `${type}ies`,    // categories (category -> categories)
-        type             // user -> user (same)
+        `${type}s`, // articles, pages
+        `${type}es`, // technologies
+        `${type}ies`, // categories (category -> categories)
+        type, // user -> user (same)
       ];
-      
+
       for (const plural of pluralVariants) {
         try {
           const testResponse = await strapiClient.get(`/api/${plural}?pagination[limit]=1`);
           if (testResponse && testResponse.status === 200) {
-            console.error(`[API] Discovered content type: api::${type}.${type} with plural: ${plural}`);
+            console.error(
+              `[API] Discovered content type: api::${type}.${type} with plural: ${plural}`
+            );
             discoveredTypes.push({
               uid: `api::${type}.${type}`,
               apiID: type,
@@ -69,7 +72,7 @@ export async function fetchContentTypes(): Promise<ContentType[]> {
                 displayName: type.charAt(0).toUpperCase() + type.slice(1),
                 description: `${type} content type (discovered)`,
               },
-              attributes: {}
+              attributes: {},
             });
             break; // Found it, move to next type
           }
@@ -78,13 +81,13 @@ export async function fetchContentTypes(): Promise<ContentType[]> {
         }
       }
     }
-    
+
     if (discoveredTypes.length > 0) {
       console.error(`[API] Found ${discoveredTypes.length} content types via discovery`);
       contentTypesCache = discoveredTypes;
       return discoveredTypes;
     }
-    
+
     let errorMessage = "Unable to fetch content types from Strapi. This could be due to:\n";
     errorMessage += "1. Strapi server not running or unreachable\n";
     errorMessage += "2. Invalid API token or insufficient permissions\n";
@@ -95,15 +98,14 @@ export async function fetchContentTypes(): Promise<ContentType[]> {
     errorMessage += "- Your API token has proper permissions\n";
     errorMessage += "- Database is accessible and running\n";
     errorMessage += "- Try creating a test content type in your Strapi admin panel";
-    
+
     throw new ExtendedMcpError(ExtendedErrorCode.InternalError, errorMessage);
-    
   } catch (error: any) {
     console.error("[Error] Failed to fetch content types:", error);
-    
+
     let errorMessage = "Failed to fetch content types";
     let errorCode = ExtendedErrorCode.InternalError;
-    
+
     if (axios.isAxiosError(error)) {
       if (error.response) {
         errorMessage = `Failed to fetch content types: ${error.response.status} - ${JSON.stringify(error.response.data)}`;
@@ -120,7 +122,7 @@ export async function fetchContentTypes(): Promise<ContentType[]> {
     } else {
       errorMessage += `: ${String(error)}`;
     }
-    
+
     throw new ExtendedMcpError(errorCode, errorMessage);
   }
 }
@@ -132,19 +134,19 @@ export async function fetchContentTypeSchema(contentType: string): Promise<any> 
     console.error("[API] Attempting to infer schema from public API");
 
     const collection = contentType.split(".")[1];
-    
+
     try {
       const possiblePaths = [
         `/api/${collection}`,
         `/api/${collection.toLowerCase()}`,
         `/api/v1/${collection}`,
         `/${collection}`,
-        `/${collection.toLowerCase()}`
+        `/${collection.toLowerCase()}`,
       ];
-      
+
       let response;
       let success = false;
-      
+
       for (const path of possiblePaths) {
         try {
           console.error(`[API] Trying path for schema inference: ${path}`);
@@ -159,46 +161,50 @@ export async function fetchContentTypeSchema(contentType: string): Promise<any> 
           throw err;
         }
       }
-      
+
       if (!success || !response) {
         throw new Error(`Could not find any valid API path for ${collection}`);
       }
-      
+
       let sampleEntry;
-      if (response.data.data && Array.isArray(response.data.data) && response.data.data.length > 0) {
+      if (
+        response.data.data &&
+        Array.isArray(response.data.data) &&
+        response.data.data.length > 0
+      ) {
         sampleEntry = response.data.data[0];
       } else if (Array.isArray(response.data) && response.data.length > 0) {
         sampleEntry = response.data[0];
       } else if (response.data) {
         sampleEntry = response.data;
       }
-      
+
       if (!sampleEntry) {
         throw new Error(`No sample entries available to infer schema for ${contentType}`);
       }
-      
+
       const attributes: Record<string, any> = {};
-      
+
       Object.entries(sampleEntry.attributes || sampleEntry).forEach(([key, value]) => {
-        if (key === 'id') return;
-        
+        if (key === "id") return;
+
         let type: string = typeof value;
-        
-        if (type === 'object') {
+
+        if (type === "object") {
           if (value === null) {
-            type = 'string';
+            type = "string";
           } else if (Array.isArray(value)) {
-            type = 'relation';
+            type = "relation";
           } else if (value instanceof Date) {
-            type = 'datetime';
+            type = "datetime";
           } else {
-            type = 'json';
+            type = "json";
           }
         }
-        
+
         attributes[key] = { type };
       });
-      
+
       return {
         uid: contentType,
         apiID: collection,
@@ -206,12 +212,11 @@ export async function fetchContentTypeSchema(contentType: string): Promise<any> 
           displayName: collection.charAt(0).toUpperCase() + collection.slice(1),
           description: `Inferred schema for ${collection}`,
         },
-        attributes
+        attributes,
       };
-      
     } catch (inferError) {
       console.error(`[API] Failed to infer schema:`, inferError);
-      
+
       return {
         uid: contentType,
         apiID: collection,
@@ -219,7 +224,7 @@ export async function fetchContentTypeSchema(contentType: string): Promise<any> 
           displayName: collection.charAt(0).toUpperCase() + collection.slice(1),
           description: `${collection} content type`,
         },
-        attributes: {}
+        attributes: {},
       };
     }
   } catch (error: any) {
@@ -260,7 +265,10 @@ export async function createContentType(contentTypeData: any): Promise<any> {
   );
 }
 
-export async function updateContentType(contentTypeUid: string, attributesToUpdate: Record<string, any>): Promise<any> {
+export async function updateContentType(
+  contentTypeUid: string,
+  attributesToUpdate: Record<string, any>
+): Promise<any> {
   throw new ExtendedMcpError(
     ExtendedErrorCode.AccessDenied,
     "Updating content types requires admin credentials. This operation is not available with API tokens only."

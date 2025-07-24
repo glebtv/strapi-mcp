@@ -5,10 +5,10 @@ export { ExtendedErrorCode };
 
 export class ExtendedMcpError extends McpError {
   public extendedCode: ExtendedErrorCode;
-  
+
   constructor(code: ExtendedErrorCode, message: string) {
     let mcpCode: ErrorCode;
-    
+
     switch (code) {
       case ExtendedErrorCode.ResourceNotFound:
       case ExtendedErrorCode.AccessDenied:
@@ -28,7 +28,7 @@ export class ExtendedMcpError extends McpError {
         mcpCode = ErrorCode.InternalError;
         break;
     }
-    
+
     super(mcpCode, message);
     this.extendedCode = code;
   }

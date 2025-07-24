@@ -1,23 +1,23 @@
 #!/usr/bin/env node
 
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('[FATAL] Unhandled Rejection at:', promise, 'reason:', reason);
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("[FATAL] Unhandled Rejection at:", promise, "reason:", reason);
 });
 
-process.on('uncaughtException', (error) => {
-  console.error('[FATAL] Uncaught Exception:', error);
+process.on("uncaughtException", (error) => {
+  console.error("[FATAL] Uncaught Exception:", error);
   process.exit(1);
 });
 
 /**
  * Strapi MCP Server
- * 
+ *
  * This MCP server integrates with any Strapi CMS instance to provide:
  * - Access to Strapi content types as resources
  * - Tools to create and update content types in Strapi
  * - Tools to manage content entries (create, read, update, delete)
  * - Support for Strapi in development mode
- * 
+ *
  * This server is designed to be generic and work with any Strapi instance,
  * regardless of the content types defined in that instance.
  */
@@ -49,14 +49,14 @@ const server = new Server(
               "POST /api/* (Create)",
               "PUT /api/* (Update)",
               "DELETE /api/* (Delete)",
-              "POST /api/upload (Media Upload)"
+              "POST /api/upload (Media Upload)",
             ],
             requirements: [
               "Valid API token with appropriate permissions",
               "Strapi role-based access control enforced",
-              "All operations validated by Strapi backend"
-            ]
-          }
+              "All operations validated by Strapi backend",
+            ],
+          },
         },
         api_patterns: {
           rest: {
@@ -64,16 +64,16 @@ const server = new Server(
             single: "GET /api/{pluralName}/{documentId}",
             create: "POST /api/{pluralName}",
             update: "PUT /api/{pluralName}/{documentId}",
-            delete: "DELETE /api/{pluralName}/{documentId}"
-          }
+            delete: "DELETE /api/{pluralName}/{documentId}",
+          },
         },
         common_errors: {
           "400": ["Missing required fields", "Invalid data format", "Validation errors"],
           "401": ["Invalid or expired API token"],
           "403": ["Insufficient permissions for resource"],
-          "404": ["Resource not found", "Invalid endpoint path"]
-        }
-      }
+          "404": ["Resource not found", "Invalid endpoint path"],
+        },
+      },
     },
   }
 );

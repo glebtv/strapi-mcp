@@ -10,7 +10,7 @@ import { ensureSlugField } from "../utils/slug.js";
 
 export async function fetchEntries(pluralApiId: string, queryParams?: QueryParams): Promise<any> {
   await validateStrapiConnection();
-  
+
   console.error(`[API] Fetching entries for ${pluralApiId} using API Token`);
   try {
     const params: Record<string, any> = {};
@@ -19,14 +19,14 @@ export async function fetchEntries(pluralApiId: string, queryParams?: QueryParam
     if (queryParams?.sort) params.sort = queryParams.sort;
     if (queryParams?.populate) params.populate = queryParams.populate;
     if (queryParams?.fields) params.fields = queryParams.fields;
-    
+
     // Handle status parameter for Draft & Publish
-    if (queryParams?.status && queryParams.status !== 'all') {
+    if (queryParams?.status && queryParams.status !== "all") {
       params.status = queryParams.status; // 'published' or 'draft'
     }
 
     const apiPath = `/api/${pluralApiId}`;
-    
+
     console.error(`[API] Trying path: ${apiPath}`);
     const response = await strapiClient.get(apiPath, { params });
 
@@ -45,7 +45,14 @@ export async function fetchEntries(pluralApiId: string, queryParams?: QueryParam
       fetchedMeta = response.data.meta || {};
     } else if (Array.isArray(response.data)) {
       fetchedData = response.data;
-      fetchedMeta = { pagination: { page: 1, pageSize: fetchedData.length, pageCount: 1, total: fetchedData.length } };
+      fetchedMeta = {
+        pagination: {
+          page: 1,
+          pageSize: fetchedData.length,
+          pageCount: 1,
+          total: fetchedData.length,
+        },
+      };
     } else {
       console.warn(`[API] Unexpected response format from ${apiPath}:`, response.data);
       fetchedData = response.data ? [response.data] : [];
@@ -56,10 +63,9 @@ export async function fetchEntries(pluralApiId: string, queryParams?: QueryParam
 
     console.error(`[API] Returning data fetched for ${pluralApiId}`);
     return { data: fetchedData, meta: fetchedMeta };
-
   } catch (error: any) {
     console.error(`[API] Error during fetch for ${pluralApiId}:`, error);
-    
+
     let errorMessage = `Failed to fetch entries for ${pluralApiId}`;
     let errorCode = ExtendedErrorCode.InternalError;
 
@@ -81,15 +87,19 @@ export async function fetchEntries(pluralApiId: string, queryParams?: QueryParam
     } else {
       errorMessage += `: ${String(error)}`;
     }
-    
+
     throw new ExtendedMcpError(errorCode, errorMessage);
   }
 }
 
-export async function fetchEntry(pluralApiId: string, documentId: string, queryParams?: QueryParams): Promise<any> {
+export async function fetchEntry(
+  pluralApiId: string,
+  documentId: string,
+  queryParams?: QueryParams
+): Promise<any> {
   try {
     console.error(`[API] Fetching entry ${documentId} for ${pluralApiId}`);
-    
+
     const params: Record<string, any> = {};
     if (queryParams?.populate) {
       params.populate = queryParams.populate;
@@ -100,11 +110,11 @@ export async function fetchEntry(pluralApiId: string, documentId: string, queryP
 
     console.error(`[API] Fetching entry ${documentId} for ${pluralApiId} using API token`);
     const response = await strapiClient.get(`/api/${pluralApiId}/${documentId}`, { params });
-    
+
     return response.data.data;
   } catch (error: any) {
     console.error(`[Error] Failed to fetch entry ${documentId} for ${pluralApiId}:`, error);
-    
+
     let errorMessage = `Failed to fetch entry ${documentId} for ${pluralApiId}`;
     let errorCode = ExtendedErrorCode.InternalError;
 
@@ -125,23 +135,27 @@ export async function fetchEntry(pluralApiId: string, documentId: string, queryP
     } else {
       errorMessage += `: ${String(error)}`;
     }
-    
+
     throw new ExtendedMcpError(errorCode, errorMessage);
   }
 }
 
-export async function createEntry(contentType: string, pluralApiId: string, data: any): Promise<any> {
+export async function createEntry(
+  contentType: string,
+  pluralApiId: string,
+  data: any
+): Promise<any> {
   try {
     console.error(`[API] Creating new entry for ${pluralApiId}`);
-    
+
     // Ensure slug field is present if required
     data = ensureSlugField(contentType, data);
-    
+
     console.error(`[API] Creating entry for ${pluralApiId} using API token`);
     const response = await strapiClient.post(`/api/${pluralApiId}`, {
-      data: data
+      data: data,
     });
-    
+
     if (response.data && response.data.data) {
       console.error(`[API] Successfully created entry via API token.`);
       return response.data.data;
@@ -151,7 +165,6 @@ export async function createEntry(contentType: string, pluralApiId: string, data
         `Failed to create entry for ${pluralApiId}: ${response.status} - ${JSON.stringify(response.data)}`
       );
     }
-    
   } catch (error) {
     console.error(`[Error] Failed to create entry for ${pluralApiId}:`, error);
     if (error instanceof McpError) {
@@ -170,13 +183,17 @@ export async function createEntry(contentType: string, pluralApiId: string, data
   }
 }
 
-export async function updateEntry(pluralApiId: string, documentId: string, data: any): Promise<any> {
+export async function updateEntry(
+  pluralApiId: string,
+  documentId: string,
+  data: any
+): Promise<any> {
   const apiPath = `/api/${pluralApiId}/${documentId}`;
 
   console.error(`[API] Updating entry ${documentId} for ${pluralApiId} using API token`);
   try {
     const response = await strapiClient.put(apiPath, { data });
-    
+
     if (response.data && response.data.data) {
       console.error(`[API] Successfully updated entry via API token.`);
       return response.data.data;
@@ -204,7 +221,7 @@ export async function deleteEntry(pluralApiId: string, documentId: string): Prom
   console.error(`[API] Deleting entry ${documentId} for ${pluralApiId} using API token`);
   try {
     const response = await strapiClient.delete(apiPath);
-    
+
     if (response.status === 200 || response.status === 204) {
       console.error(`[API] Successfully deleted entry via API token.`);
       return { success: true };
@@ -235,10 +252,10 @@ export async function publishEntry(pluralApiId: string, documentId: string): Pro
   try {
     const response = await strapiClient.put(apiPath, {
       data: {
-        publishedAt
-      }
+        publishedAt,
+      },
     });
-    
+
     if (response.data && response.data.data) {
       console.error(`[API] Successfully published entry via API token.`);
       return response.data.data;
@@ -268,10 +285,10 @@ export async function unpublishEntry(pluralApiId: string, documentId: string): P
   try {
     const response = await strapiClient.put(apiPath, {
       data: {
-        publishedAt: null
-      }
+        publishedAt: null,
+      },
     });
-    
+
     if (response.data && response.data.data) {
       console.error(`[API] Successfully unpublished entry via API token.`);
       return response.data.data;
@@ -293,17 +310,22 @@ export async function unpublishEntry(pluralApiId: string, documentId: string): P
   }
 }
 
-export async function connectRelation(pluralApiId: string, documentId: string, relationField: string, relatedIds: string[]): Promise<any> {
+export async function connectRelation(
+  pluralApiId: string,
+  documentId: string,
+  relationField: string,
+  relatedIds: string[]
+): Promise<any> {
   const apiPath = `/api/${pluralApiId}/${documentId}`;
 
   console.error(`[API] Connecting relations for ${documentId} in ${pluralApiId}`);
   try {
     const response = await strapiClient.put(apiPath, {
       data: {
-        [relationField]: relatedIds
-      }
+        [relationField]: relatedIds,
+      },
     });
-    
+
     if (response.data && response.data.data) {
       console.error(`[API] Successfully connected relations via API token.`);
       return response.data.data;
@@ -320,18 +342,28 @@ export async function connectRelation(pluralApiId: string, documentId: string, r
   }
 }
 
-export async function disconnectRelation(pluralApiId: string, documentId: string, relationField: string, relatedIds: string[]): Promise<any> {
+export async function disconnectRelation(
+  pluralApiId: string,
+  documentId: string,
+  relationField: string,
+  relatedIds: string[]
+): Promise<any> {
   // In Strapi, disconnecting is done by updating the relation field
   // We need to fetch current relations and remove the specified ones
   const entry = await fetchEntry(pluralApiId, documentId, { populate: [relationField] });
   const currentRelations = entry[relationField] || [];
   const currentIds = currentRelations.map((rel: any) => rel.documentId || rel.id);
   const newIds = currentIds.filter((id: string) => !relatedIds.includes(id));
-  
+
   return connectRelation(pluralApiId, documentId, relationField, newIds);
 }
 
-export async function setRelation(pluralApiId: string, documentId: string, relationField: string, relatedIds: string[]): Promise<any> {
+export async function setRelation(
+  pluralApiId: string,
+  documentId: string,
+  relationField: string,
+  relatedIds: string[]
+): Promise<any> {
   // Setting relations is the same as connecting in Strapi
   return connectRelation(pluralApiId, documentId, relationField, relatedIds);
 }

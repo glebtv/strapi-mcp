@@ -24,7 +24,10 @@ export async function createComponent(componentData: any): Promise<any> {
   );
 }
 
-export async function updateComponent(componentUid: string, attributesToUpdate: Record<string, any>): Promise<any> {
+export async function updateComponent(
+  componentUid: string,
+  attributesToUpdate: Record<string, any>
+): Promise<any> {
   throw new ExtendedMcpError(
     ExtendedErrorCode.AccessDenied,
     "Component operations require admin credentials. This operation is not available with API tokens only."

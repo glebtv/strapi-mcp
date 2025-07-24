@@ -9,7 +9,7 @@ export interface QueryParams {
   sort?: string[];
   populate?: string | string[] | Record<string, any>;
   fields?: string[];
-  status?: 'published' | 'draft' | 'all';
+  status?: "published" | "draft" | "all";
 }
 
 export interface ContentType {
@@ -36,10 +36,10 @@ export interface StrapiResponse<T = any> {
 }
 
 export enum ExtendedErrorCode {
-  InvalidRequest = 'InvalidRequest',
-  MethodNotFound = 'MethodNotFound',
-  InvalidParams = 'InvalidParams',
-  InternalError = 'InternalError',
-  ResourceNotFound = 'ResourceNotFound',
-  AccessDenied = 'AccessDenied'
+  InvalidRequest = "InvalidRequest",
+  MethodNotFound = "MethodNotFound",
+  InvalidParams = "InvalidParams",
+  InternalError = "InternalError",
+  ResourceNotFound = "ResourceNotFound",
+  AccessDenied = "AccessDenied",
 }
