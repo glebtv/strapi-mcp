@@ -14,21 +14,6 @@ jobs:
       matrix:
         node-version: [18.x, 20.x, 22.x]
     
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: strapi
-          POSTGRES_PASSWORD: strapi
-          POSTGRES_DB: strapi_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-    
     steps:
     - uses: actions/checkout@v4
     
@@ -38,25 +23,43 @@ jobs:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
     
+    - name: Setup environment variables
+      run: |
+        # Generate secure random values for Strapi configuration
+        echo "APP_KEYS=$(openssl rand -base64 32)" >> $GITHUB_ENV
+        echo "API_TOKEN_SALT=$(openssl rand -base64 32)" >> $GITHUB_ENV
+        echo "ADMIN_JWT_SECRET=$(openssl rand -base64 32)" >> $GITHUB_ENV
+        echo "TRANSFER_TOKEN_SALT=$(openssl rand -base64 32)" >> $GITHUB_ENV
+        echo "ADMIN_PASSWORD=$(openssl rand -base64 16)" >> $GITHUB_ENV
+    
     - name: Setup Strapi test instance
       run: |
         # Create a minimal Strapi 5 project for testing
-        npx create-strapi@latest strapi-test \
+        npx -y create-strapi@latest strapi-test \
           --typescript \
           --no-run \
           --no-example \
           --no-git-init \
-          --dbclient=postgres \
-          --dbhost=localhost \
-          --dbport=5432 \
-          --dbname=strapi_test \
-          --dbusername=strapi \
-          --dbpassword=strapi \
-          --dbssl=false \
+          --dbclient=sqlite \
           --skip-cloud \
           --install
         
         cd strapi-test
+        
+        # Create .env file with proper configuration
+        cat > .env << EOF
+        HOST=0.0.0.0
+        PORT=1337
+        APP_KEYS=$APP_KEYS
+        API_TOKEN_SALT=$API_TOKEN_SALT
+        ADMIN_JWT_SECRET=$ADMIN_JWT_SECRET
+        TRANSFER_TOKEN_SALT=$TRANSFER_TOKEN_SALT
+        ADMIN_EMAIL=admin@ci.local
+        ADMIN_PASSWORD=$ADMIN_PASSWORD
+        DATABASE_CLIENT=sqlite
+        DATABASE_FILENAME=.tmp/data.db
+        NODE_ENV=test
+        EOF
         
         # Create required content types
         mkdir -p src/api/project/content-types/project
@@ -171,103 +174,51 @@ jobs:
         module.exports = createCoreService('api::technology.technology');
         EOF
         
-        # Configure Strapi to allow API token generation
-        cat > config/admin.js << 'EOF'
-        module.exports = ({ env }) => ({
-          auth: {
-            secret: env('ADMIN_JWT_SECRET', 'someSecretKey'),
-          },
-          apiToken: {
-            salt: env('API_TOKEN_SALT', 'someRandomSalt'),
-          },
-        });
-        EOF
+        # Copy bootstrap script to create tokens automatically
+        cp ../../scripts/bootstrap-tokens.ts src/index.ts
         
-        # Build and start Strapi
+        # Build Strapi
         npm run build
-        npm run develop &
+        
+        # Start Strapi and capture output to extract token
+        npm run start > strapi_output.log 2>&1 &
         STRAPI_PID=$!
         echo "STRAPI_PID=$STRAPI_PID" >> $GITHUB_ENV
         
-        # Wait for Strapi to be ready
-        echo "Waiting for Strapi to start..."
-        for i in {1..60}; do
-          if curl -s http://localhost:1337/_health | grep -q "ok"; then
-            echo "Strapi is ready!"
+        # Wait for token generation
+        echo "Waiting for Strapi to start and generate tokens..."
+        for i in {1..30}; do
+          if grep -q "🔑 Access Key:" strapi_output.log; then
+            echo "Token generated!"
             break
           fi
-          echo "Waiting... ($i/60)"
-          sleep 2
+          echo "Waiting... ($i/30)"
+          sleep 1
         done
         
-        # Create an API token using Strapi's admin API
-        # First, we need to create an admin user
-        ADMIN_EMAIL="test@example.com"
-        ADMIN_PASSWORD="Test1234!"
+        # Extract the API token with proper pattern
+        FULL_ACCESS_TOKEN=$(grep -A1 "CI/CD Full Access" strapi_output.log | grep "🔑 Access Key:" | sed 's/.*🔑 Access Key: //')
+        READ_ONLY_TOKEN=$(grep -A1 "Testing Read Only" strapi_output.log | grep "🔑 Access Key:" | sed 's/.*🔑 Access Key: //')
         
-        # Register the first admin user
-        ADMIN_JWT=$(curl -s -X POST http://localhost:1337/admin/register-admin \
-          -H "Content-Type: application/json" \
-          -d "{
-            \"email\": \"$ADMIN_EMAIL\",
-            \"password\": \"$ADMIN_PASSWORD\",
-            \"firstname\": \"Test\",
-            \"lastname\": \"Admin\"
-          }" | jq -r '.data.token')
+        if [ -z "$FULL_ACCESS_TOKEN" ]; then
+          echo "Failed to extract API token"
+          echo "=== Strapi Output ==="
+          cat strapi_output.log
+          exit 1
+        fi
         
-        # Create an API token
-        API_TOKEN_RESPONSE=$(curl -s -X POST http://localhost:1337/admin/api-tokens \
-          -H "Content-Type: application/json" \
-          -H "Authorization: Bearer $ADMIN_JWT" \
-          -d '{
-            "name": "CI Test Token",
-            "description": "Token for CI tests",
-            "type": "full-access",
-            "lifespan": null
-          }')
+        echo "STRAPI_API_TOKEN=$FULL_ACCESS_TOKEN" >> $GITHUB_ENV
+        echo "STRAPI_READ_ONLY_TOKEN=$READ_ONLY_TOKEN" >> $GITHUB_ENV
+        echo "API Token extracted successfully"
         
-        API_TOKEN=$(echo $API_TOKEN_RESPONSE | jq -r '.data.accessKey')
-        echo "STRAPI_API_TOKEN=$API_TOKEN" >> $GITHUB_ENV
+        # Test the token
+        sleep 2
+        curl -f -H "Authorization: Bearer $FULL_ACCESS_TOKEN" http://localhost:1337/api/projects || {
+          echo "Token validation failed"
+          cat strapi_output.log
+          exit 1
+        }
         
-        # Ensure public permissions for content types
-        # Get all permissions
-        PERMISSIONS=$(curl -s http://localhost:1337/admin/permissions \
-          -H "Authorization: Bearer $ADMIN_JWT")
-        
-        # Update public role permissions for projects and technologies
-        PUBLIC_ROLE_ID=$(curl -s http://localhost:1337/admin/roles \
-          -H "Authorization: Bearer $ADMIN_JWT" | jq -r '.data[] | select(.type == "public") | .id')
-        
-        # Enable all actions for public role (for testing)
-        curl -s -X PUT http://localhost:1337/admin/roles/$PUBLIC_ROLE_ID \
-          -H "Content-Type: application/json" \
-          -H "Authorization: Bearer $ADMIN_JWT" \
-          -d '{
-            "permissions": {
-              "api::project.project": {
-                "controllers": {
-                  "project": {
-                    "find": { "enabled": true },
-                    "findOne": { "enabled": true },
-                    "create": { "enabled": true },
-                    "update": { "enabled": true },
-                    "delete": { "enabled": true }
-                  }
-                }
-              },
-              "api::technology.technology": {
-                "controllers": {
-                  "technology": {
-                    "find": { "enabled": true },
-                    "findOne": { "enabled": true },
-                    "create": { "enabled": true },
-                    "update": { "enabled": true },
-                    "delete": { "enabled": true }
-                  }
-                }
-              }
-            }
-          }'
     
     - name: Install dependencies
       run: npm ci
