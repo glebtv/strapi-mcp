@@ -20,24 +20,13 @@ This MCP server integrates with any Strapi CMS instance to provide:
 
  ### Environment Variables
  
- It's recommended to use a `.env` file in the project root to store your credentials.
+ Configure the following environment variables:
  
  - `STRAPI_URL`: The URL of your Strapi instance (default: `http://localhost:1337`)
- - `STRAPI_ADMIN_EMAIL`: The email address for a Strapi admin user (Recommended for full functionality, especially schema access).
- - `STRAPI_ADMIN_PASSWORD`: The password for the Strapi admin user (Recommended).
- - `STRAPI_API_TOKEN`: (Optional Fallback) An API token. Can be used if admin credentials are not provided, but may have limited permissions.
- - `STRAPI_DEV_MODE`: Set to `"true"` to enable development mode features (defaults to `false`).
+ - `STRAPI_API_TOKEN`: Your Strapi API token with appropriate permissions (required)
+ - `STRAPI_DEV_MODE`: Set to `"true"` to enable development mode features (defaults to `false`)
  
- **Example `.env` file:**
- ```dotenv
- STRAPI_URL=http://localhost:1337
- STRAPI_ADMIN_EMAIL=your_admin_email@example.com
- STRAPI_ADMIN_PASSWORD=your_admin_password
- # STRAPI_API_TOKEN=your_api_token_here # Optional
- ```
- **Important:** 
- - Add `.env` to your `.gitignore` file to avoid committing credentials
- - Avoid placeholder values like `"strapi_token"` - the server validates and rejects common placeholders
+ **Important:** Avoid placeholder values like `"strapi_token"` - the server validates and rejects common placeholders
  
  ### Installation
 
@@ -67,8 +56,7 @@ For Cursor users, configure the strapi-mcp server in your `~/.cursor/mcp.json` f
   "args": ["strapi-mcp"], 
   "env": {
     "STRAPI_URL": "http://localhost:1337",
-    "STRAPI_ADMIN_EMAIL": "your_admin_email@example.com",
-    "STRAPI_ADMIN_PASSWORD": "your_admin_password"
+    "STRAPI_API_TOKEN": "your_api_token_here"
   }
 }
 ```
@@ -80,29 +68,18 @@ If you installed from source, use the direct path instead:
   "args": ["/path/to/strapi-mcp/build/index.js"], 
   "env": {
     "STRAPI_URL": "http://localhost:1337",
-    "STRAPI_ADMIN_EMAIL": "your_admin_email@example.com",
-    "STRAPI_ADMIN_PASSWORD": "your_admin_password"
+    "STRAPI_API_TOKEN": "your_api_token_here"
   }
 }
 ```
 
 Cursor will manage the server lifecycle automatically when strapi-mcp tools are used.
 
-**Alternative Method (using `.env` file):**
- 
-Make sure you have built the project (`npm run build`). Then run the server using Node.js v20.6.0+ with the `--env-file` flag:
- 
-```bash
-node --env-file=.env build/index.js
-```
- 
-**Alternative (using environment variables directly):**
+**Alternative Method (using environment variables directly):**
  
 ```bash
 export STRAPI_URL=http://localhost:1337
-export STRAPI_ADMIN_EMAIL=your_admin_email@example.com
-export STRAPI_ADMIN_PASSWORD=your_admin_password
-# export STRAPI_API_TOKEN=your-api-token # Optional fallback
+export STRAPI_API_TOKEN=your-api-token
 export STRAPI_DEV_MODE=true # optional
  
 # Run the globally installed package (if installed via npm install -g)
@@ -142,8 +119,8 @@ node build/index.js
  - **Enhanced Admin Authentication:** Better error handling and token management for all API operations
 
  ### 0.1.6
- - **Added `create_content_type` tool:** Allows creating new content types via the Content-Type Builder API (requires admin credentials).
- - **Prioritized Admin Credentials:** Updated logic to prefer admin email/password for fetching content types and schemas, improving reliability.
+ - **Added `create_content_type` tool:** Allows creating new content types via the Content-Type Builder API.
+ - **Enhanced API token handling:** Improved authentication flow for better reliability.
  - **Updated Documentation:** Clarified authentication methods and recommended running procedures.
  
  ### 0.1.5
@@ -220,7 +197,7 @@ This is a TypeScript-based MCP server that integrates with Strapi CMS. It provid
 - `get_content_type_schema` - Get the schema (fields, types, relations) for a specific content type.
 - `connect_relation` - Connect related entries to an entry's relation field.
 - `disconnect_relation` - Disconnect related entries from an entry's relation field.
-- `create_content_type` - Create a new content type using the Content-Type Builder API (Requires Admin privileges).
+- `create_content_type` - Create a new content type using the Content-Type Builder API.
 - `publish_entry` - Publish a specific entry.
 - `unpublish_entry` - Unpublish a specific entry.
 - `list_components` - List all available components in Strapi.
@@ -337,8 +314,7 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
       "args": ["strapi-mcp"],
       "env": {
         "STRAPI_URL": "http://localhost:1337",
-        "STRAPI_ADMIN_EMAIL": "your_admin_email@example.com",
-        "STRAPI_ADMIN_PASSWORD": "your_admin_password"
+        "STRAPI_API_TOKEN": "your_api_token_here"
       }
     }
   }
@@ -353,8 +329,7 @@ If you installed from source, use the direct path:
       "command": "/path/to/strapi-mcp/build/index.js",
       "env": {
         "STRAPI_URL": "http://localhost:1337",
-        "STRAPI_ADMIN_EMAIL": "your_admin_email@example.com",
-        "STRAPI_ADMIN_PASSWORD": "your_admin_password"
+        "STRAPI_API_TOKEN": "your_api_token_here"
       }
     }
   }
@@ -364,22 +339,10 @@ If you installed from source, use the direct path:
 ### Environment Variables
 
 - `STRAPI_URL` (optional): The URL of your Strapi instance (defaults to http://localhost:1337)
- - `STRAPI_ADMIN_EMAIL` & `STRAPI_ADMIN_PASSWORD` (Recommended): Credentials for a Strapi admin user. Required for full functionality like fetching content type schemas.
- - `STRAPI_API_TOKEN` (Optional Fallback): Your Strapi API token. Can be used if admin credentials are not provided, but functionality might be limited based on token permissions.
+ - `STRAPI_API_TOKEN` (required): Your Strapi API token with appropriate permissions
  - `STRAPI_DEV_MODE` (optional): Set to "true" to enable development mode features (defaults to false)
  
- ### Authentication Priority
- 
- The server prioritizes authentication methods in this order:
- 1. Admin Email & Password (`STRAPI_ADMIN_EMAIL`, `STRAPI_ADMIN_PASSWORD`)
- 2. API Token (`STRAPI_API_TOKEN`)
- 
- It's strongly recommended to use Admin Credentials for the best results.
- 
- ### Getting Strapi Credentials
- 
- - **Admin Credentials:** Use the email and password of an existing Super Admin or create a dedicated admin user in your Strapi admin panel (Settings > Administration Panel > Users).
- - **API Token:** (Optional Fallback)
+ ### Getting a Strapi API Token
 
 1. Log in to your Strapi admin panel
 2. Go to Settings > API Tokens
@@ -408,12 +371,12 @@ Cannot connect to Strapi instance: Connection refused. Is Strapi running at http
 
 #### 3. **Authentication Failed**
 ```
-Cannot connect to Strapi instance: Authentication failed. Check your API token or admin credentials.
+Cannot connect to Strapi instance: Authentication failed. Check your API token.
 ```
 **Solution:**
 - Verify your API token has proper permissions (preferably "Full access")
-- Check admin email/password are correct
-- Ensure the admin user exists and is active
+- Ensure the API token is correctly copied from Strapi admin panel
+- Check that the token hasn't expired
 
 #### 4. **Context Window Overflow with File Uploads**
 ```
@@ -439,9 +402,9 @@ As of v0.1.8, the server now clearly distinguishes between:
 Access forbidden. Your API token may lack necessary permissions.
 ```
 **Solution:**
-- Use admin credentials instead of API token for full functionality
-- If using API token, ensure it has "Full access" permissions
-- Check that the content type allows public access if using limited API token
+- Ensure your API token has "Full access" permissions
+- Check that the content type allows access for the API token's permissions
+- Verify the specific action is allowed for your token's scope
 
 ### Debugging
 
