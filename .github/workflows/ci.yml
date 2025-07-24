@@ -41,14 +41,15 @@ jobs:
     - name: Setup Strapi test instance
       run: |
         # Create a minimal Strapi project for testing
-        npx create-strapi-app@latest strapi-test --quickstart --no-run \
+        npx create-strapi-app@latest strapi-test --no-run \
           --dbclient=postgres \
           --dbhost=localhost \
           --dbport=5432 \
           --dbname=strapi_test \
           --dbusername=strapi \
           --dbpassword=strapi \
-          --dbssl=false
+          --dbssl=false \
+          --skip-cloud
         
         cd strapi-test
         
