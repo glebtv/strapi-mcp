@@ -1087,10 +1087,17 @@ export function setupHandlers(server: Server) {
         }
 
         case "strapi_get_components": {
-          throw new McpError(
-            ErrorCode.MethodNotFound,
-            "Component operations require admin credentials. This operation is not available with API tokens only."
-          );
+          const page = Number(request.params.arguments?.page) || 1;
+          const pageSize = Number(request.params.arguments?.pageSize) || 25;
+          const result = await components.strapiGetComponents(page, pageSize);
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+          };
         }
 
         case "list_components": {

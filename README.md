@@ -53,8 +53,18 @@ npm run build
 Configure the following environment variables:
 
 - `STRAPI_URL`: The URL of your Strapi instance (default: `http://localhost:1337`)
-- `STRAPI_API_TOKEN`: Your Strapi API token with appropriate permissions (required)
 - `STRAPI_DEV_MODE`: Set to `"true"` to enable development mode features (defaults to `false`)
+
+#### Authentication (choose one):
+
+**Option 1: API Token (recommended for most use cases)**
+- `STRAPI_API_TOKEN`: Your Strapi API token with appropriate permissions
+
+**Option 2: Admin Credentials (required for component management)**
+- `STRAPI_ADMIN_EMAIL`: Admin email for your Strapi instance
+- `STRAPI_ADMIN_PASSWORD`: Admin password for your Strapi instance
+
+**Note:** Admin credentials are required for component management operations. If both authentication methods are provided, admin credentials take priority.
 
 **Important:** Avoid placeholder values like `"strapi_token"` - the server validates and rejects common placeholders
 
@@ -84,6 +94,9 @@ Configure the strapi-mcp server in your MCP settings file:
       "env": {
         "STRAPI_URL": "http://localhost:1337",
         "STRAPI_API_TOKEN": "your_api_token_here"
+        // Or use admin credentials for full functionality:
+        // "STRAPI_ADMIN_EMAIL": "admin@example.com",
+        // "STRAPI_ADMIN_PASSWORD": "your_admin_password"
       }
     }
   }
@@ -100,6 +113,9 @@ If you installed from source:
       "env": {
         "STRAPI_URL": "http://localhost:1337",
         "STRAPI_API_TOKEN": "your_api_token_here"
+        // Or use admin credentials for full functionality:
+        // "STRAPI_ADMIN_EMAIL": "admin@example.com",
+        // "STRAPI_ADMIN_PASSWORD": "your_admin_password"
       }
     }
   }
