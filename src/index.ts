@@ -1319,23 +1319,55 @@ function filterBase64FromResponse(data: any): any {
 async function connectRelation(contentType: string, id: string, relationField: string, relatedIds: number[] | string[]): Promise<any> {
   try {
     console.error(`[API] Connecting relations for ${contentType} ${id}, field ${relationField}`);
+    
+    // Validate that we have valid IDs
+    if (!relatedIds || relatedIds.length === 0) {
+      throw new Error("At least one related ID is required to connect");
+    }
+    
+    // Convert string IDs to numbers and validate they're valid
+    const validIds = relatedIds.map(rid => {
+      const numId = Number(rid);
+      if (isNaN(numId) || numId <= 0) {
+        throw new Error(`Invalid related ID: ${rid}. IDs must be positive numbers.`);
+      }
+      return numId;
+    });
+    
     const updateData = {
       data: { // Strapi v4 expects relation updates within the 'data' object for PUT
         [relationField]: {
-          connect: relatedIds.map(rid => ({ id: Number(rid) })) // Ensure IDs are numbers
+          connect: validIds.map(rid => ({ id: rid }))
         }
       }
     };
+    
     // Reuse updateEntry logic which correctly wraps payload in { data: ... }
     return await updateEntry(contentType, id, updateData.data); 
   } catch (error) {
     // Rethrow McpError or wrap others
     if (error instanceof McpError) throw error;
+    
     console.error(`[Error] Failed to connect relation ${relationField} for ${contentType} ${id}:`, error);
-    throw new McpError(
-      ErrorCode.InternalError,
-      `Failed to connect relation: ${error instanceof Error ? error.message : String(error)}`
-    );
+    
+    let errorMessage = `Failed to connect relation '${relationField}': `;
+    
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 400) {
+        errorMessage += `Bad request - this could mean: (1) The relation field '${relationField}' doesn't exist on ${contentType}, (2) One or more of the related IDs don't exist, or (3) The relation field type doesn't support 'connect' operations. Please verify the field exists and the IDs are valid.`;
+      } else if (error.response?.status === 404) {
+        errorMessage += `Entry ${id} not found in ${contentType}. Make sure the entry exists before trying to connect relations.`;
+      } else {
+        errorMessage += `${error.response?.status} ${error.response?.statusText}`;
+      }
+      errorMessage += ` Raw error: ${JSON.stringify(error.response?.data)}`;
+    } else if (error instanceof Error) {
+      errorMessage += error.message;
+    } else {
+      errorMessage += String(error);
+    }
+    
+    throw new McpError(ErrorCode.InternalError, errorMessage);
   }
 }
 
@@ -1345,26 +1377,58 @@ async function connectRelation(contentType: string, id: string, relationField: s
 async function disconnectRelation(contentType: string, id: string, relationField: string, relatedIds: number[] | string[]): Promise<any> {
   try {
     console.error(`[API] Disconnecting relations for ${contentType} ${id}, field ${relationField}`);
-     const updateData = {
+    
+    // Validate that we have valid IDs
+    if (!relatedIds || relatedIds.length === 0) {
+      throw new Error("At least one related ID is required to disconnect");
+    }
+    
+    // Convert string IDs to numbers and validate they're valid
+    const validIds = relatedIds.map(rid => {
+      const numId = Number(rid);
+      if (isNaN(numId) || numId <= 0) {
+        throw new Error(`Invalid related ID: ${rid}. IDs must be positive numbers.`);
+      }
+      return numId;
+    });
+    
+    const updateData = {
       data: { // Strapi v4 expects relation updates within the 'data' object for PUT
         [relationField]: {
-          disconnect: relatedIds.map(rid => ({ id: Number(rid) })) // Ensure IDs are numbers
+          disconnect: validIds.map(rid => ({ id: rid }))
         }
       }
     };
+    
     // Reuse updateEntry logic which correctly wraps payload in { data: ... }
     return await updateEntry(contentType, id, updateData.data); 
 
   } catch (error) {
-     // Rethrow McpError or wrap others
-     if (error instanceof McpError) throw error;
+    // Rethrow McpError or wrap others
+    if (error instanceof McpError) throw error;
+    
     console.error(`[Error] Failed to disconnect relation ${relationField} for ${contentType} ${id}:`, error);
-    throw new McpError(
-      ErrorCode.InternalError,
-      `Failed to disconnect relation: ${error instanceof Error ? error.message : String(error)}`
-   );
- }
- }
+    
+    let errorMessage = `Failed to disconnect relation '${relationField}': `;
+    
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 400) {
+        errorMessage += `Bad request - this could mean: (1) The relation field '${relationField}' doesn't exist on ${contentType}, (2) One or more of the related IDs don't exist or aren't currently connected, or (3) The relation field type doesn't support 'disconnect' operations. Please verify the field exists and the IDs are currently connected.`;
+      } else if (error.response?.status === 404) {
+        errorMessage += `Entry ${id} not found in ${contentType}. Make sure the entry exists before trying to disconnect relations.`;
+      } else {
+        errorMessage += `${error.response?.status} ${error.response?.statusText}`;
+      }
+      errorMessage += ` Raw error: ${JSON.stringify(error.response?.data)}`;
+    } else if (error instanceof Error) {
+      errorMessage += error.message;
+    } else {
+      errorMessage += String(error);
+    }
+    
+    throw new McpError(ErrorCode.InternalError, errorMessage);
+  }
+}
  
  /**
   * Update an existing content type in Strapi. Requires admin privileges.
@@ -2306,12 +2370,32 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
          inputSchema: {
            type: "object",
            properties: {
-             componentData: {
+             displayName: {
+               type: "string",
+               description: "Display name for the component"
+             },
+             category: {
+               type: "string",
+               description: "Category name for the component (e.g., 'basic', 'layout', 'content')"
+             },
+             icon: {
+               type: "string",
+               description: "Icon name for the component (default: 'brush')"
+             },
+             attributes: {
                type: "object",
-               description: "The data for the new component"
+               description: "Component attributes definition. E.g., { \"title\": { \"type\": \"string\" }, \"content\": { \"type\": \"text\" } }",
+               additionalProperties: {
+                 type: "object",
+                 properties: {
+                   type: { type: "string", description: "Field type (string, text, number, etc.)" },
+                   required: { type: "boolean", description: "Is this field required?" }
+                 },
+                 required: ["type"]
+               }
              }
            },
-           required: ["componentData"]
+           required: ["displayName", "category", "attributes"]
          }
        },
        {
@@ -2693,10 +2777,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
       }
 
       case "create_component": {
-        const componentData = request.params.arguments;
-        if (!componentData || typeof componentData !== 'object') {
-          throw new McpError(ErrorCode.InvalidParams, "Component data object is required.");
+        const { displayName, category, icon, attributes } = request.params.arguments as any;
+        if (!displayName || !category || !attributes || typeof attributes !== 'object') {
+          throw new McpError(ErrorCode.InvalidParams, "displayName, category, and attributes are required.");
         }
+        const componentData = { displayName, category, icon, attributes };
         const creationResult = await createComponent(componentData);
         return {
           content: [{
