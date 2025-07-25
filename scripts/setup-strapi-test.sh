@@ -3,10 +3,13 @@
 # Exit on error
 set -e
 
-# Load nvm and use Node 22
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-nvm use 22
+# Skip nvm if running in CI (GitHub Actions already has Node set up)
+if [ -z "$CI" ]; then
+  # Load nvm and use Node 22
+  export NVM_DIR="$HOME/.nvm"
+  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+  nvm use 22
+fi
 
 echo "Using Node version: $(node --version)"
 echo "🚀 Setting up Strapi test instance..."
@@ -21,6 +24,15 @@ export JWT_SECRET=$(openssl rand -base64 32)
 
 # Create a minimal Strapi 5 project for testing
 echo "📦 Creating Strapi project..."
+
+# Set CI environment for non-interactive mode
+if [ ! -z "$CI" ]; then
+  export FORCE_COLOR=0
+  npm config set fund false
+  npm config set audit false
+  npm config set update-notifier false
+fi
+
 npx -y create-strapi@latest strapi-test \
   --typescript \
   --no-run \
@@ -216,6 +228,13 @@ fi
 echo "✅ API Tokens extracted successfully"
 echo "📝 Full Access Token: $FULL_ACCESS_TOKEN"
 echo "📝 Read Only Token: $READ_ONLY_TOKEN"
+
+# Export variables for GitHub Actions
+if [ ! -z "$GITHUB_ENV" ]; then
+  echo "STRAPI_API_TOKEN=$FULL_ACCESS_TOKEN" >> $GITHUB_ENV
+  echo "STRAPI_READ_ONLY_TOKEN=$READ_ONLY_TOKEN" >> $GITHUB_ENV
+  echo "STRAPI_PID=$STRAPI_PID" >> $GITHUB_ENV
+fi
 
 # Test the token
 echo "🧪 Testing API token..."
