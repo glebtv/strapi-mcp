@@ -147,6 +147,21 @@ for i in {1..30}; do
 done
 
 echo ""
+# Setup i18n locales
+echo "🌍 Setting up i18n locales..."
+cd ..
+if [ -f "scripts/setup-i18n-locales.ts" ]; then
+  # First compile the TypeScript file
+  npx tsc scripts/setup-i18n-locales.ts --module esnext --target es2022 --moduleResolution node --skipLibCheck
+  # Then run it
+  node scripts/setup-i18n-locales.js
+  # Clean up
+  rm -f scripts/setup-i18n-locales.js
+else
+  echo "⚠️  i18n setup script not found, skipping locale setup"
+fi
+
+echo ""
 echo "🎉 Strapi test instance is ready!"
 echo ""
 echo "📋 Configuration:"
@@ -162,3 +177,5 @@ echo "🔧 For testing strapi-mcp, export these variables:"
 echo "export STRAPI_URL=http://localhost:1337"
 echo "export STRAPI_API_TOKEN=$FULL_ACCESS_TOKEN"
 echo "export STRAPI_READ_ONLY_TOKEN=$READ_ONLY_TOKEN"
+echo "export STRAPI_ADMIN_EMAIL=admin@ci.local"
+echo "export STRAPI_ADMIN_PASSWORD=$ADMIN_PASSWORD"

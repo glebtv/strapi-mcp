@@ -40,7 +40,13 @@ jobs:
       run: npm run typecheck
     
     - name: Run tests
-      run: npm test
+      run: |
+        # Load test tokens which includes admin credentials
+        if [ -f test-tokens.json ]; then
+          export STRAPI_ADMIN_EMAIL=$(jq -r .adminEmail test-tokens.json)
+          export STRAPI_ADMIN_PASSWORD=$(jq -r .adminPassword test-tokens.json)
+        fi
+        npm test
       env:
         STRAPI_URL: http://localhost:1337
     

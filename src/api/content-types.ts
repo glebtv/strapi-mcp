@@ -1,5 +1,5 @@
 import axios from "axios";
-import { strapiClient, validateStrapiConnection } from "./client.js";
+import { strapiClient, validateStrapiConnection, makeAdminApiRequest } from "./client.js";
 import { config } from "../config/index.js";
 import { ContentType } from "../types/index.js";
 import { ExtendedMcpError, ExtendedErrorCode } from "../errors/index.js";
@@ -234,26 +234,225 @@ export async function fetchContentTypeSchema(contentType: string): Promise<any> 
 }
 
 // Note: The following functions require admin permissions and are not available with API tokens only
-export async function createContentType(_contentTypeData: any): Promise<any> {
-  throw new ExtendedMcpError(
-    ExtendedErrorCode.AccessDenied,
-    "Creating content types requires admin credentials. This operation is not available with API tokens only."
-  );
+export async function createContentType(contentTypeData: any): Promise<any> {
+  try {
+    // Admin credentials are required for content type operations
+    if (!config.strapi.adminEmail || !config.strapi.adminPassword) {
+      throw new ExtendedMcpError(
+        ExtendedErrorCode.AccessDenied,
+        "Admin credentials are required for content type operations"
+      );
+    }
+    
+    // Extract the fields from the contentTypeData
+    const { displayName, singularName, pluralName, kind = 'collectionType', draftAndPublish = false, attributes } = contentTypeData;
+    
+    if (!displayName || !singularName || !pluralName || !attributes) {
+      throw new ExtendedMcpError(
+        ExtendedErrorCode.InvalidParams,
+        "displayName, singularName, pluralName, and attributes are required for content type creation"
+      );
+    }
+    
+    // Build the payload for the Content-Type Builder API
+    const payload = {
+      contentType: {
+        displayName,
+        singularName,
+        pluralName,
+        kind,
+        draftAndPublish,
+        attributes
+      }
+    };
+    
+    console.error(`[API] Creating new content type: ${displayName}`);
+    console.error(`[API] Attempting to create content type with payload: ${JSON.stringify(payload, null, 2)}`);
+    
+    // Make sure we're using the correct Content-Type Builder endpoint
+    const endpoint = '/content-type-builder/content-types';
+    console.error(`[API] Using endpoint: ${endpoint}`);
+    
+    const response = await makeAdminApiRequest(endpoint, 'post', payload);
+    console.error(`[API] Content type creation response:`, response);
+    
+    // Strapi might restart after schema changes, response might vary
+    return response?.data || { message: "Content type creation initiated. Strapi might be restarting." };
+  } catch (error: any) {
+    console.error(`[Error] Failed to create content type:`, error);
+    
+    let errorMessage = `Failed to create content type`;
+    let errorCode = ExtendedErrorCode.InternalError;
+    
+    if (axios.isAxiosError(error)) {
+      errorMessage += `: ${error.response?.status} ${error.response?.statusText}`;
+      const responseData = JSON.stringify(error.response?.data);
+      if (error.response?.status === 400) {
+        errorCode = ExtendedErrorCode.InvalidParams;
+        errorMessage += ` (Bad Request - Check payload/attributes): ${responseData}`;
+      } else if (error.response?.status === 403 || error.response?.status === 401) {
+        errorCode = ExtendedErrorCode.AccessDenied;
+        errorMessage += ` (Permission Denied - Admin credentials might lack permissions): ${responseData}`;
+      } else {
+        errorMessage += `: ${responseData}`;
+      }
+    } else if (error instanceof Error) {
+      errorMessage += `: ${error.message}`;
+    } else {
+      errorMessage += `: ${String(error)}`;
+    }
+    
+    throw new ExtendedMcpError(errorCode, errorMessage);
+  }
 }
 
 export async function updateContentType(
-  _contentTypeUid: string,
-  _attributesToUpdate: Record<string, any>
+  contentTypeUid: string,
+  attributesToUpdate: Record<string, any>
 ): Promise<any> {
-  throw new ExtendedMcpError(
-    ExtendedErrorCode.AccessDenied,
-    "Updating content types requires admin credentials. This operation is not available with API tokens only."
-  );
+  try {
+    console.error(`[API] Updating content type: ${contentTypeUid}`);
+
+    // Admin credentials are required for content type operations
+    if (!config.strapi.adminEmail || !config.strapi.adminPassword) {
+      throw new ExtendedMcpError(
+        ExtendedErrorCode.AccessDenied,
+        "Admin credentials are required for content type operations"
+      );
+    }
+
+    if (!contentTypeUid || !attributesToUpdate || typeof attributesToUpdate !== 'object') {
+      throw new ExtendedMcpError(
+        ExtendedErrorCode.InvalidParams,
+        "Missing required fields: contentTypeUid, attributesToUpdate (object)"
+      );
+    }
+
+    // 1. Fetch the current schema
+    console.error(`[API] Fetching current schema for ${contentTypeUid}`);
+    const currentSchemaData = await fetchContentTypeSchema(contentTypeUid);
+
+    // Ensure we have the schema structure
+    const currentSchema = currentSchemaData.schema || currentSchemaData;
+    if (!currentSchema || !currentSchema.attributes) {
+      console.error("[API] Could not retrieve a valid current schema structure.", currentSchemaData);
+      throw new ExtendedMcpError(
+        ExtendedErrorCode.ResourceNotFound,
+        `Could not retrieve a valid schema structure for ${contentTypeUid}`
+      );
+    }
+    console.error(`[API] Current attributes: ${Object.keys(currentSchema.attributes).join(', ')}`);
+
+    // 2. Merge new/updated attributes into the current schema's attributes
+    const updatedAttributes = { ...currentSchema.attributes, ...attributesToUpdate };
+    console.error(`[API] Attributes after update: ${Object.keys(updatedAttributes).join(', ')}`);
+
+    // 3. Construct the payload for the PUT request
+    const payload = {
+      contentType: {
+        ...currentSchema, // Spread the existing schema details
+        attributes: updatedAttributes // Use the merged attributes
+      }
+    };
+
+    // Remove potentially problematic fields
+    delete payload.contentType.uid; // UID is usually in the URL, not body for PUT
+
+    console.error(`[API] Update Payload for PUT /content-type-builder/content-types/${contentTypeUid}: ${JSON.stringify(payload, null, 2)}`);
+
+    // 4. Make the PUT request using admin credentials
+    const endpoint = `/content-type-builder/content-types/${contentTypeUid}`;
+    const response = await makeAdminApiRequest(endpoint, 'put', payload);
+
+    console.error(`[API] Content type update response:`, response);
+
+    // Response might vary, often includes the updated UID or a success message
+    return response?.data || { message: `Content type ${contentTypeUid} update initiated. Strapi might be restarting.` };
+
+  } catch (error: any) {
+    console.error(`[Error] Failed to update content type ${contentTypeUid}:`, error);
+
+    let errorMessage = `Failed to update content type ${contentTypeUid}`;
+    let errorCode = ExtendedErrorCode.InternalError;
+
+    if (axios.isAxiosError(error)) {
+      errorMessage += `: ${error.response?.status} ${error.response?.statusText}`;
+      const responseData = JSON.stringify(error.response?.data);
+      if (error.response?.status === 400) {
+        errorCode = ExtendedErrorCode.InvalidParams;
+        errorMessage += ` (Bad Request - Check payload/attributes): ${responseData}`;
+      } else if (error.response?.status === 404) {
+        errorCode = ExtendedErrorCode.ResourceNotFound;
+        errorMessage += ` (Content Type Not Found)`;
+      } else if (error.response?.status === 403 || error.response?.status === 401) {
+        errorCode = ExtendedErrorCode.AccessDenied;
+        errorMessage += ` (Permission Denied - Admin credentials might lack permissions): ${responseData}`;
+      } else {
+        errorMessage += `: ${responseData}`;
+      }
+    } else if (error instanceof Error) {
+      errorMessage += `: ${error.message}`;
+    } else {
+      errorMessage += `: ${String(error)}`;
+    }
+
+    throw new ExtendedMcpError(errorCode, errorMessage);
+  }
 }
 
-export async function deleteContentType(_contentTypeUid: string): Promise<any> {
-  throw new ExtendedMcpError(
-    ExtendedErrorCode.AccessDenied,
-    "Deleting content types requires admin credentials. This operation is not available with API tokens only."
-  );
+export async function deleteContentType(contentTypeUid: string): Promise<any> {
+  try {
+    console.error(`[API] Deleting content type: ${contentTypeUid}`);
+    
+    // Admin credentials are required for content type operations
+    if (!config.strapi.adminEmail || !config.strapi.adminPassword) {
+      throw new ExtendedMcpError(
+        ExtendedErrorCode.AccessDenied,
+        "Admin credentials are required for content type operations"
+      );
+    }
+    
+    // Validate that this is a proper content type UID
+    if (!contentTypeUid || !contentTypeUid.includes('.')) {
+      throw new ExtendedMcpError(
+        ExtendedErrorCode.InvalidParams,
+        `Invalid content type UID: ${contentTypeUid}. UID should be in the format 'api::name.name'`
+      );
+    }
+    
+    // Make the DELETE request using admin credentials
+    const endpoint = `/content-type-builder/content-types/${contentTypeUid}`;
+    console.error(`[API] Sending DELETE request to: ${endpoint}`);
+    
+    const response = await makeAdminApiRequest(endpoint, 'delete');
+    console.error(`[API] Content type deletion response:`, response);
+    
+    // Return the response data or a success message
+    return response?.data || { message: `Content type ${contentTypeUid} deleted. Strapi might be restarting.` };
+  } catch (error: any) {
+    console.error(`[Error] Failed to delete content type ${contentTypeUid}:`, error);
+    
+    let errorMessage = `Failed to delete content type ${contentTypeUid}`;
+    let errorCode = ExtendedErrorCode.InternalError;
+    
+    if (axios.isAxiosError(error)) {
+      errorMessage += `: ${error.response?.status} ${error.response?.statusText}`;
+      if (error.response?.status === 404) {
+        errorCode = ExtendedErrorCode.ResourceNotFound;
+        errorMessage += ` (Content type not found)`;
+      } else if (error.response?.status === 400) {
+        errorCode = ExtendedErrorCode.InvalidParams;
+        errorMessage += ` (Bad Request): ${JSON.stringify(error.response?.data)}`;
+      } else if (error.response?.status === 403 || error.response?.status === 401) {
+        errorCode = ExtendedErrorCode.AccessDenied;
+        errorMessage += ` (Permission Denied - Admin credentials might lack permissions)`;
+      }
+    } else if (error instanceof Error) {
+      errorMessage += `: ${error.message}`;
+    } else {
+      errorMessage += `: ${String(error)}`;
+    }
+    
+    throw new ExtendedMcpError(errorCode, errorMessage);
+  }
 }

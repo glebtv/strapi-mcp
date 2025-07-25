@@ -187,4 +187,78 @@ describe('Error Handling', () => {
       }
     });
   });
+
+  describe('Authentication Errors', () => {
+    it('should handle component operations without admin credentials', async () => {
+      // Create a client with only API token
+      const tokenOnlyTransport = new StdioClientTransport({
+        command: 'node',
+        args: ['build/index.js'],
+        env: {
+          ...process.env,
+          STRAPI_URL: process.env.STRAPI_URL,
+          STRAPI_API_TOKEN: process.env.STRAPI_API_TOKEN,
+          STRAPI_ADMIN_EMAIL: undefined,
+          STRAPI_ADMIN_PASSWORD: undefined
+        }
+      });
+
+      const tokenOnlyClient = new Client({
+        name: 'token-only-test',
+        version: '1.0.0'
+      }, {
+        capabilities: {}
+      });
+
+      await tokenOnlyClient.connect(tokenOnlyTransport);
+
+      try {
+        await tokenOnlyClient.callTool({
+          name: 'list_components',
+          arguments: {}
+        });
+        expect.fail('Should have thrown an error');
+      } catch (error: any) {
+        expect(error.message).toContain('Admin credentials are required');
+      } finally {
+        await tokenOnlyTransport.close();
+      }
+    });
+
+    it('should handle invalid admin credentials', async () => {
+      const invalidAdminTransport = new StdioClientTransport({
+        command: 'node',
+        args: ['build/index.js'],
+        env: {
+          ...process.env,
+          STRAPI_URL: process.env.STRAPI_URL,
+          STRAPI_ADMIN_EMAIL: 'invalid@example.com',
+          STRAPI_ADMIN_PASSWORD: 'wrongpassword',
+          STRAPI_API_TOKEN: undefined
+        }
+      });
+
+      const invalidAdminClient = new Client({
+        name: 'invalid-admin-test',
+        version: '1.0.0'
+      }, {
+        capabilities: {}
+      });
+
+      try {
+        await invalidAdminClient.connect(invalidAdminTransport);
+        // Try a component operation which requires admin auth
+        await invalidAdminClient.callTool({
+          name: 'list_components',
+          arguments: {}
+        });
+        expect.fail('Should have thrown an error');
+      } catch (error: any) {
+        // Should fail during connection or operation
+        expect(error.message).toMatch(/authentication|401|credentials/i);
+      } finally {
+        await invalidAdminTransport.close();
+      }
+    });
+  });
 });

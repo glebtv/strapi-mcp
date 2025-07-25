@@ -6,15 +6,24 @@ dotenv.config();
 
 // Ensure required environment variables are set
 beforeAll(() => {
-  const requiredEnvVars = ['STRAPI_URL', 'STRAPI_API_TOKEN'];
+  // Check that we have at least one authentication method
+  const hasApiToken = !!process.env.STRAPI_API_TOKEN;
+  const hasAdminCreds = !!(process.env.STRAPI_ADMIN_EMAIL && process.env.STRAPI_ADMIN_PASSWORD);
   
-  for (const envVar of requiredEnvVars) {
-    if (!process.env[envVar]) {
-      throw new Error(`Missing required environment variable: ${envVar}`);
-    }
+  if (!process.env.STRAPI_URL) {
+    throw new Error('Missing required environment variable: STRAPI_URL');
+  }
+  
+  if (!hasApiToken && !hasAdminCreds) {
+    throw new Error('Missing authentication: Either STRAPI_API_TOKEN or both STRAPI_ADMIN_EMAIL and STRAPI_ADMIN_PASSWORD must be set');
   }
   
   console.log('Test environment configured:');
   console.log(`- Strapi URL: ${process.env.STRAPI_URL}`);
-  console.log(`- API Token: ${process.env.STRAPI_API_TOKEN ? 'Set' : 'Not set'}`);
+  console.log(`- API Token: ${hasApiToken ? 'Set' : 'Not set'}`);
+  console.log(`- Admin Credentials: ${hasAdminCreds ? 'Set' : 'Not set'}`);
+  
+  if (hasAdminCreds && hasApiToken) {
+    console.log('- Priority: Admin credentials will be used when both are available');
+  }
 });
