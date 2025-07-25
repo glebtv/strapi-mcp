@@ -904,8 +904,47 @@ async function deleteEntry(contentType: string, id: string): Promise<void> {
     // Extract the collection name from the content type UID
     const collection = contentType.split(".")[1];
     
-    // Delete the entry from Strapi
-    await strapiClient.delete(`/api/${collection}/${id}`);
+    // --- Attempt 1: Use Admin Credentials via makeAdminApiRequest ---
+    if (STRAPI_ADMIN_EMAIL && STRAPI_ADMIN_PASSWORD) {
+      console.error(`[API] Attempt 1: Deleting entry ${id} for ${contentType} using makeAdminApiRequest`);
+      try {
+        // Admin API for content management often uses a different path structure
+        const adminEndpoint = `/content-manager/collection-types/${contentType}/${id}`;
+        console.error(`[API] Trying admin delete endpoint: ${adminEndpoint}`);
+        
+        // Admin API DELETE request
+        const adminResponse = await makeAdminApiRequest(adminEndpoint, 'delete');
+
+        // Check response from admin API
+        console.error(`[API] Successfully deleted entry ${id} via makeAdminApiRequest.`);
+        return; // Success - exit early
+      } catch (adminError) {
+        console.error(`[API] Failed to delete entry ${id} using admin credentials:`, adminError);
+        console.error(`[API] Admin credentials failed, attempting to use API token as fallback.`);
+      }
+    } else {
+      console.error("[API] Admin credentials not provided, falling back to API token.");
+    }
+    
+    // --- Attempt 2: Use API Token via strapiClient (as fallback) ---
+    console.error(`[API] Attempt 2: Deleting entry ${id} for ${contentType} using strapiClient`);
+    try {
+      // Delete the entry from Strapi using API token
+      const response = await strapiClient.delete(`/api/${collection}/${id}`);
+      
+      if (response.status >= 200 && response.status < 300) {
+        console.error(`[API] Successfully deleted entry ${id} via strapiClient.`);
+        return; // Success
+      } else {
+        throw new Error(`Unexpected response status: ${response.status}`);
+      }
+    } catch (error) {
+      console.error(`[API] Failed to delete entry ${id} via strapiClient:`, error);
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to delete entry ${id} for ${contentType} via strapiClient: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
   } catch (error) {
     console.error(`[Error] Failed to delete entry ${id} for ${contentType}:`, error);
     throw new McpError(
@@ -943,6 +982,40 @@ async function uploadMedia(fileData: string, fileName: string, fileType: string)
     
     const buffer = Buffer.from(fileData, 'base64');
     
+    // --- Attempt 1: Use Admin Credentials if available ---
+    if (STRAPI_ADMIN_EMAIL && STRAPI_ADMIN_PASSWORD) {
+      console.error(`[API] Attempt 1: Uploading media file using admin credentials`);
+      try {
+        // For admin uploads, we need to use axios directly with admin token
+        // since makeAdminApiRequest doesn't handle FormData well
+        if (!adminJwtToken) {
+          await loginToStrapiAdmin();
+        }
+        
+        const formData = new FormData();
+        const blob = new Blob([buffer], { type: fileType });
+        formData.append('files', blob, fileName);
+
+        const adminResponse = await axios.post(`${STRAPI_URL}/api/upload`, formData, {
+          headers: {
+            'Authorization': `Bearer ${adminJwtToken}`,
+            // Don't set Content-Type, let axios handle it for FormData
+          }
+        });
+        
+        const cleanResponse = filterBase64FromResponse(adminResponse.data);
+        console.error(`[API] Successfully uploaded media file via admin credentials`);
+        return cleanResponse;
+      } catch (adminError) {
+        console.error(`[API] Failed to upload media file using admin credentials:`, adminError);
+        console.error(`[API] Falling back to API token...`);
+      }
+    } else {
+      console.error("[API] Admin credentials not provided, using API token.");
+    }
+    
+    // --- Attempt 2: Use API Token via strapiClient (as fallback) ---
+    console.error(`[API] Attempt 2: Uploading media file using API token`);
     // Use FormData for file upload
     const formData = new FormData();
     // Convert Buffer to Blob with the correct content type
@@ -1021,7 +1094,7 @@ async function uploadMediaFromPath(filePath: string, fileName?: string, fileType
     const fileBuffer = fs.readFileSync(filePath);
     const base64Data = fileBuffer.toString('base64');
     
-    // Use the existing uploadMedia function
+    // Use the existing uploadMedia function (which now has admin credential support)
     return await uploadMedia(base64Data, actualFileName, actualFileType);
     
   } catch (error) {
