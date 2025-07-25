@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2025-07-25
+
+### Added
+- **Strapi Test Fixtures**: Created reusable fixture templates in `/fixtures/strapi-test/`
+  - Content type schemas for Project and Technology
+  - TypeScript route, controller, and service files
+  - Configuration files for plugins and admin
+- **TypeScript Support for Test Content Types**: Fixed API endpoint registration
+  - Migrated route files from JavaScript to TypeScript format
+  - Uses proper `factories.createCoreRouter()` syntax
+
+### Fixed
+- **CI Test Failures**: Resolved 404 errors on `/api/projects` endpoint
+  - Content types now properly register with Users & Permissions plugin
+  - API routes are correctly exposed and accessible
+- **Test Setup Script**: Improved reliability and maintainability
+  - Removed hardcoded nvm paths for better portability
+  - Added double build step to ensure content type registration
+  - Extracted inline templates to fixture files for reusability
+
+### Changed
+- **Test Infrastructure**: Refactored setup scripts to use fixture templates
+  - Content types and configuration now copied from `/fixtures/strapi-test/`
+  - Cleaner, more maintainable setup process
+  - Better separation of concerns
+
 ## [0.2.0] - 2025-07-24
 
 ### Added

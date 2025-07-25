@@ -569,12 +569,32 @@ export function setupHandlers(server: Server) {
           inputSchema: {
             type: "object",
             properties: {
-              componentData: {
-                type: "object",
-                description: "The data for the new component",
+              displayName: {
+                type: "string",
+                description: "Display name for the component"
               },
+              category: {
+                type: "string",
+                description: "Category name for the component (e.g., 'basic', 'layout', 'content')"
+              },
+              icon: {
+                type: "string",
+                description: "Icon name for the component (default: 'brush')"
+              },
+              attributes: {
+                type: "object",
+                description: "Component attributes definition. E.g., { \"title\": { \"type\": \"string\" }, \"content\": { \"type\": \"text\" } }",
+                additionalProperties: {
+                  type: "object",
+                  properties: {
+                    type: { type: "string", description: "Field type (string, text, number, etc.)" },
+                    required: { type: "boolean", description: "Is this field required?" }
+                  },
+                  required: ["type"]
+                }
+              }
             },
-            required: ["componentData"],
+            required: ["displayName", "category", "attributes"]
           },
         },
         {
@@ -1102,12 +1122,11 @@ export function setupHandlers(server: Server) {
         }
 
         case "create_component": {
-          const componentData = request.params.arguments?.componentData;
-
-          if (!componentData) {
-            throw new McpError(ErrorCode.InvalidParams, "Component data is required");
+          const { displayName, category, icon, attributes } = request.params.arguments as any;
+          if (!displayName || !category || !attributes || typeof attributes !== 'object') {
+            throw new McpError(ErrorCode.InvalidParams, "displayName, category, and attributes are required.");
           }
-
+          const componentData = { displayName, category, icon, attributes };
           const result = await components.createComponent(componentData);
 
           return {
@@ -1149,14 +1168,11 @@ export function setupHandlers(server: Server) {
     } catch (error: any) {
       console.error(`[Error] Tool execution failed for ${request.params.name}:`, error);
 
-      if (error instanceof McpError) {
-        throw error;
-      }
-
+      // Handle both McpError and regular errors the same way - return error response
       let errorMessage = `Tool execution failed`;
 
       if (error instanceof ExtendedMcpError) {
-        throw new McpError(ErrorCode.InternalError, `${error.code}: ${error.message}`);
+        errorMessage = `${error.code}: ${error.message}`;
       } else if (axios.isAxiosError(error)) {
         if (error.response) {
           errorMessage = `${error.response.status} - ${JSON.stringify(error.response.data)}`;
@@ -1169,7 +1185,13 @@ export function setupHandlers(server: Server) {
         errorMessage = String(error);
       }
 
-      throw new McpError(ErrorCode.InternalError, errorMessage);
+      return {
+        content: [{
+          type: "text",
+          text: `Error: ${errorMessage}`
+        }],
+        isError: true
+      };
     }
   });
 }

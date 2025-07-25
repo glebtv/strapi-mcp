@@ -3,13 +3,7 @@
 # Exit on error
 set -e
 
-# Skip nvm if running in CI (GitHub Actions already has Node set up)
-if [ -z "$CI" ]; then
-  # Load nvm and use Node 22
-  export NVM_DIR="$HOME/.nvm"
-  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-  nvm use 22
-fi
+# Node should already be set up in the environment
 
 echo "Using Node version: $(node --version)"
 echo "🚀 Setting up Strapi test instance..."
@@ -61,139 +55,21 @@ DATABASE_FILENAME=.tmp/data.db
 NODE_ENV=test
 EOF
 
-# Create config/plugins.js to configure the JWT secret
-echo "🔧 Creating plugins configuration..."
-mkdir -p config
-cat > config/plugins.js << 'EOF'
-module.exports = ({ env }) => ({
-  'users-permissions': {
-    config: {
-      jwtSecret: env('JWT_SECRET'),
-    },
-  },
-});
-EOF
-
-# Create required content types
-echo "📝 Creating content types..."
-mkdir -p src/api/project/content-types/project
-mkdir -p src/api/project/controllers
-mkdir -p src/api/project/routes
-mkdir -p src/api/project/services
-
-cat > src/api/project/content-types/project/schema.json << 'EOF'
-{
-  "kind": "collectionType",
-  "collectionName": "projects",
-  "info": {
-    "singularName": "project",
-    "pluralName": "projects",
-    "displayName": "Project",
-    "description": ""
-  },
-  "options": {
-    "draftAndPublish": true
-  },
-  "pluginOptions": {},
-  "attributes": {
-    "name": {
-      "type": "string",
-      "required": true
-    },
-    "description": {
-      "type": "text"
-    },
-    "slug": {
-      "type": "uid",
-      "targetField": "name"
-    },
-    "technologies": {
-      "type": "relation",
-      "relation": "manyToMany",
-      "target": "api::technology.technology",
-      "inversedBy": "projects"
-    }
-  }
-}
-EOF
-
-mkdir -p src/api/technology/content-types/technology
-mkdir -p src/api/technology/controllers
-mkdir -p src/api/technology/routes
-mkdir -p src/api/technology/services
-
-cat > src/api/technology/content-types/technology/schema.json << 'EOF'
-{
-  "kind": "collectionType",
-  "collectionName": "technologies",
-  "info": {
-    "singularName": "technology",
-    "pluralName": "technologies",
-    "displayName": "Technology",
-    "description": ""
-  },
-  "options": {
-    "draftAndPublish": true
-  },
-  "pluginOptions": {},
-  "attributes": {
-    "name": {
-      "type": "string",
-      "required": true
-    },
-    "projects": {
-      "type": "relation",
-      "relation": "manyToMany",
-      "target": "api::project.project",
-      "mappedBy": "technologies"
-    }
-  }
-}
-EOF
-
-# Generate routes and controllers
-cat > src/api/project/routes/project.js << 'EOF'
-'use strict';
-const { createCoreRouter } = require('@strapi/strapi').factories;
-module.exports = createCoreRouter('api::project.project');
-EOF
-
-cat > src/api/project/controllers/project.js << 'EOF'
-'use strict';
-const { createCoreController } = require('@strapi/strapi').factories;
-module.exports = createCoreController('api::project.project');
-EOF
-
-cat > src/api/project/services/project.js << 'EOF'
-'use strict';
-const { createCoreService } = require('@strapi/strapi').factories;
-module.exports = createCoreService('api::project.project');
-EOF
-
-cat > src/api/technology/routes/technology.js << 'EOF'
-'use strict';
-const { createCoreRouter } = require('@strapi/strapi').factories;
-module.exports = createCoreRouter('api::technology.technology');
-EOF
-
-cat > src/api/technology/controllers/technology.js << 'EOF'
-'use strict';
-const { createCoreController } = require('@strapi/strapi').factories;
-module.exports = createCoreController('api::technology.technology');
-EOF
-
-cat > src/api/technology/services/technology.js << 'EOF'
-'use strict';
-const { createCoreService } = require('@strapi/strapi').factories;
-module.exports = createCoreService('api::technology.technology');
-EOF
+# Copy configuration and content types from fixtures
+echo "🔧 Copying configuration and content types..."
+cp -r ../fixtures/strapi-test/config/* config/
+cp -r ../fixtures/strapi-test/api/* src/api/
 
 # Copy bootstrap script to create tokens automatically
 echo "📋 Copying bootstrap script..."
 cp ../scripts/bootstrap-tokens.ts src/index.ts
 
-# Build Strapi
+# Build Strapi (first build)
 echo "🔨 Building Strapi..."
+npm run build
+
+# Now rebuild to ensure content types are properly registered
+echo "🔨 Rebuilding to register content types..."
 npm run build
 
 # Start Strapi and capture output to extract token
@@ -236,17 +112,26 @@ if [ ! -z "$GITHUB_ENV" ]; then
   echo "STRAPI_PID=$STRAPI_PID" >> $GITHUB_ENV
 fi
 
-# Test the token
+# Test the token and wait for API to be ready
 echo "🧪 Testing API token..."
-sleep 2
-if curl -f -H "Authorization: Bearer $FULL_ACCESS_TOKEN" http://localhost:1337/api/projects; then
-  echo "✅ Token validation successful!"
-else
-  echo "❌ Token validation failed"
-  cat strapi_output.log
-  kill $STRAPI_PID 2>/dev/null || true
-  exit 1
-fi
+for i in {1..30}; do
+  if curl -s -f -H "Authorization: Bearer $FULL_ACCESS_TOKEN" http://localhost:1337/api/projects >/dev/null 2>&1; then
+    echo "✅ Token validation successful!"
+    break
+  elif [ $i -eq 30 ]; then
+    echo "❌ Token validation failed after 30 attempts"
+    echo "=== Last curl attempt ==="
+    curl -v -H "Authorization: Bearer $FULL_ACCESS_TOKEN" http://localhost:1337/api/projects
+    echo ""
+    echo "=== Strapi Output ==="
+    tail -50 strapi_output.log
+    kill $STRAPI_PID 2>/dev/null || true
+    exit 1
+  else
+    echo "Waiting for API to be ready... ($i/30)"
+    sleep 1
+  fi
+done
 
 echo ""
 echo "🎉 Strapi test instance is ready!"
