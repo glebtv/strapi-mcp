@@ -174,8 +174,9 @@ jobs:
         module.exports = createCoreService('api::technology.technology');
         EOF
         
+        pwd
         # Copy bootstrap script to create tokens automatically
-        cp ../../scripts/bootstrap-tokens.ts src/index.ts
+        cp ../scripts/bootstrap-tokens.ts src/index.ts
         
         # Build Strapi
         npm run build
