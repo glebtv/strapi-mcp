@@ -85,3 +85,7 @@ Key architectural decisions:
 ## Coding Guidelines
 
 - No 'simplifying' any tests
+
+## Development Environment Notes
+
+- USE NVM

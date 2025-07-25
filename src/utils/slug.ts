@@ -10,12 +10,7 @@ export function generateSlug(text: string | number): string {
 
 export function ensureSlugField(contentType: string, data: any, _schema?: any): any {
   // For now, handle known content types that require slugs
-  const slugRequiredTypes = [
-    "api::project.project",
-    "api::technology.technology",
-    "api::service.service",
-    "api::client.client",
-  ];
+  const slugRequiredTypes = ["api::project.project", "api::service.service", "api::client.client"];
 
   if (slugRequiredTypes.includes(contentType)) {
     // If slug is missing but we have a name/title field, generate it

@@ -1175,14 +1175,21 @@ export function setupHandlers(server: Server) {
     } catch (error: any) {
       console.error(`[Error] Tool execution failed for ${request.params.name}:`, error);
 
-      // Handle both McpError and regular errors the same way - return error response
+      // Re-throw McpError instances as they should be handled by the MCP SDK
+      if (error instanceof McpError || error instanceof ExtendedMcpError) {
+        throw error;
+      }
+
+      // Convert other errors to McpError
+      let errorCode = ErrorCode.InternalError;
       let errorMessage = `Tool execution failed`;
 
-      if (error instanceof ExtendedMcpError) {
-        errorMessage = `${error.code}: ${error.message}`;
-      } else if (axios.isAxiosError(error)) {
+      if (axios.isAxiosError(error)) {
         if (error.response) {
           errorMessage = `${error.response.status} - ${JSON.stringify(error.response.data)}`;
+          if (error.response.status === 404) {
+            errorCode = ErrorCode.InvalidRequest;
+          }
         } else {
           errorMessage = error.message;
         }
@@ -1192,15 +1199,7 @@ export function setupHandlers(server: Server) {
         errorMessage = String(error);
       }
 
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error: ${errorMessage}`,
-          },
-        ],
-        isError: true,
-      };
+      throw new McpError(errorCode, errorMessage);
     }
   });
 }

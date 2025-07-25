@@ -271,9 +271,7 @@ describe('Strapi MCP Server', () => {
           contentType: 'api::technology.technology',
           pluralApiId: 'technologies',
           data: {
-            name: 'Test Technology ' + Date.now(),
-            slug: 'test-technology-' + Date.now(),
-            category: 'backend' // Use valid category
+            name: 'Test Technology ' + Date.now()
           }
         }
       });

@@ -323,9 +323,12 @@ export async function connectRelation(
   }
 
   try {
+    // Use Strapi's connect parameter as per API docs
     const response = await strapiClient.put(apiPath, {
       data: {
-        [relationField]: relatedIds,
+        [relationField]: {
+          connect: relatedIds,
+        },
       },
     });
 
@@ -362,14 +365,53 @@ export async function disconnectRelation(
   relationField: string,
   relatedIds: string[]
 ): Promise<any> {
-  // In Strapi, disconnecting is done by updating the relation field
-  // We need to fetch current relations and remove the specified ones
-  const entry = await fetchEntry(pluralApiId, documentId, { populate: [relationField] });
-  const currentRelations = entry[relationField] || [];
-  const currentIds = currentRelations.map((rel: any) => rel.documentId || rel.id);
-  const newIds = currentIds.filter((id: string) => !relatedIds.includes(id));
+  const apiPath = `/api/${pluralApiId}/${documentId}`;
 
-  return connectRelation(pluralApiId, documentId, relationField, newIds);
+  console.error(`[API] Disconnecting relations for ${documentId} in ${pluralApiId}`);
+
+  // Validate that we have valid IDs
+  if (!relatedIds || relatedIds.length === 0) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      "At least one related ID is required to disconnect"
+    );
+  }
+
+  try {
+    // Use Strapi's disconnect parameter as per API docs
+    const response = await strapiClient.put(apiPath, {
+      data: {
+        [relationField]: {
+          disconnect: relatedIds,
+        },
+      },
+    });
+
+    if (response.data && response.data.data) {
+      console.error(`[API] Successfully disconnected relations via API token.`);
+      return response.data.data;
+    }
+  } catch (error: any) {
+    console.error(`[API] Failed to disconnect relations:`, error);
+
+    let errorMessage = `Failed to disconnect relation '${relationField}': `;
+
+    if (axios.isAxiosError(error) && error.response) {
+      if (error.response.status === 400) {
+        errorMessage += `Bad request - this could mean: (1) The relation field '${relationField}' doesn't exist on ${pluralApiId}, (2) One or more of the related IDs don't exist, or (3) The relation field type doesn't support this operation. Please verify the field exists and the IDs are valid.`;
+      } else if (error.response.status === 404) {
+        errorMessage += `Entry ${documentId} not found in ${pluralApiId}. Make sure the entry exists before trying to disconnect relations.`;
+      } else {
+        errorMessage += `${error.response.status} - ${JSON.stringify(error.response.data)}`;
+      }
+    } else if (error instanceof Error) {
+      errorMessage += error.message;
+    } else {
+      errorMessage += String(error);
+    }
+
+    throw new McpError(ErrorCode.InternalError, errorMessage);
+  }
 }
 
 export async function setRelation(

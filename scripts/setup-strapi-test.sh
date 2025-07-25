@@ -105,6 +105,19 @@ echo "✅ API Tokens extracted successfully"
 echo "📝 Full Access Token: $FULL_ACCESS_TOKEN"
 echo "📝 Read Only Token: $READ_ONLY_TOKEN"
 
+# Save tokens to file for later use
+echo "💾 Saving tokens to test-tokens.json..."
+cat > ../test-tokens.json << EOF
+{
+  "fullAccessToken": "$FULL_ACCESS_TOKEN",
+  "readOnlyToken": "$READ_ONLY_TOKEN",
+  "strapiUrl": "http://localhost:1337",
+  "adminEmail": "admin@ci.local",
+  "adminPassword": "$ADMIN_PASSWORD"
+}
+EOF
+echo "✅ Tokens saved to test-tokens.json"
+
 # Export variables for GitHub Actions
 if [ ! -z "$GITHUB_ENV" ]; then
   echo "STRAPI_API_TOKEN=$FULL_ACCESS_TOKEN" >> $GITHUB_ENV
