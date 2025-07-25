@@ -119,7 +119,7 @@ node build/index.js
 
  ## Changelog
  
- ### 0.2.2 - 2025-01-XX
+ ### 0.2.2 - 2025-07-25
  - **ENHANCED RELATION TOOLS:** Improved error handling for `connect_relation` and `disconnect_relation` with detailed validation and troubleshooting messages
  - **FIXED CREATE_COMPONENT:** Fixed parameter validation bug - now properly validates individual parameters instead of single object
  - **BETTER ERROR DIAGNOSTICS:** Added specific error messages for invalid relation fields, non-existent entries, and malformed IDs
