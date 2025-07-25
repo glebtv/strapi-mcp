@@ -119,6 +119,12 @@ node build/index.js
 
  ## Changelog
  
+ ### 0.2.0 - 2025-07-25
+ - **CRITICAL BUG FIX:** Fixed validateStrapiConnection causing "undefined response status" error
+ - **RESOLVED MCP CONNECTION ISSUE:** Fixed the "green light but doesn't work" problem with AI tools
+ - **IMPROVED ERROR HANDLING:** Better connection validation logic with proper admin auth handling
+ - Users should update to this version if experiencing MCP connection issues with AI tools
+ 
  ### 0.1.9 - 2025-01-XX
  - **CONTEXT WINDOW OVERFLOW FIX:** Added size limits and response filtering to prevent base64 files from overwhelming context window
  - **NEW TOOL:** Added `upload_media_from_path` - Upload files from local file paths (max 10MB) to avoid base64 context issues
