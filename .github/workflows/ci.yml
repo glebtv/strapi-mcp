@@ -31,11 +31,25 @@ jobs:
         echo "ADMIN_JWT_SECRET=$(openssl rand -base64 32)" >> $GITHUB_ENV
         echo "TRANSFER_TOKEN_SALT=$(openssl rand -base64 32)" >> $GITHUB_ENV
         echo "ADMIN_PASSWORD=$(openssl rand -base64 16)" >> $GITHUB_ENV
+        echo "JWT_SECRET=$(openssl rand -base64 32)" >> $GITHUB_ENV
     
     - name: Setup Strapi test instance
       run: |
+        # Debug info for act
+        echo "Running in directory: $(pwd)"
+        echo "Node version: $(node --version)"
+        echo "NPM version: $(npm --version)"
+        
         # Create a minimal Strapi 5 project for testing
-        npx -y create-strapi@latest strapi-test \
+        # Use --yes flag and set npm config to avoid any prompts
+        export CI=true
+        export FORCE_COLOR=0
+        npm config set fund false
+        npm config set audit false
+        npm config set update-notifier false
+        
+        # Run create-strapi with explicit non-interactive settings
+        npx --yes create-strapi@latest strapi-test \
           --typescript \
           --no-run \
           --no-example \
@@ -54,11 +68,24 @@ jobs:
         API_TOKEN_SALT=$API_TOKEN_SALT
         ADMIN_JWT_SECRET=$ADMIN_JWT_SECRET
         TRANSFER_TOKEN_SALT=$TRANSFER_TOKEN_SALT
+        JWT_SECRET=$JWT_SECRET
         ADMIN_EMAIL=admin@ci.local
         ADMIN_PASSWORD=$ADMIN_PASSWORD
         DATABASE_CLIENT=sqlite
         DATABASE_FILENAME=.tmp/data.db
         NODE_ENV=test
+        EOF
+        
+        # Create config/plugins.js to configure the JWT secret
+        mkdir -p config
+        cat > config/plugins.js << 'EOF'
+        module.exports = ({ env }) => ({
+          'users-permissions': {
+            config: {
+              jwtSecret: env('JWT_SECRET'),
+            },
+          },
+        });
         EOF
         
         # Create required content types
