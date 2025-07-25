@@ -119,6 +119,10 @@ node build/index.js
 
  ## Changelog
  
+ ### 0.2.3 - 2025-07-25
+ - **CRITICAL FIX:** Fixed timeout issue in relation tools - connect_relation and disconnect_relation now properly handle validation errors instead of timing out
+ - **IMPROVED ERROR HANDLING:** All validation errors now return proper error messages instead of causing tool timeouts
+ 
  ### 0.2.2 - 2025-07-25
  - **ENHANCED RELATION TOOLS:** Improved error handling for `connect_relation` and `disconnect_relation` with detailed validation and troubleshooting messages
  - **FIXED CREATE_COMPONENT:** Fixed parameter validation bug - now properly validates individual parameters instead of single object

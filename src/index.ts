@@ -1392,7 +1392,7 @@ async function disconnectRelation(contentType: string, id: string, relationField
       return numId;
     });
     
-    const updateData = {
+     const updateData = {
       data: { // Strapi v4 expects relation updates within the 'data' object for PUT
         [relationField]: {
           disconnect: validIds.map(rid => ({ id: rid }))
@@ -1404,8 +1404,8 @@ async function disconnectRelation(contentType: string, id: string, relationField
     return await updateEntry(contentType, id, updateData.data); 
 
   } catch (error) {
-    // Rethrow McpError or wrap others
-    if (error instanceof McpError) throw error;
+     // Rethrow McpError or wrap others
+     if (error instanceof McpError) throw error;
     
     console.error(`[Error] Failed to disconnect relation ${relationField} for ${contentType} ${id}:`, error);
     
@@ -1427,8 +1427,8 @@ async function disconnectRelation(contentType: string, id: string, relationField
     }
     
     throw new McpError(ErrorCode.InternalError, errorMessage);
-  }
-}
+ }
+ }
  
  /**
   * Update an existing content type in Strapi. Requires admin privileges.
@@ -2854,14 +2854,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
   } catch (error) {
     console.error(`[Error] Tool execution failed: ${error instanceof Error ? error.message : String(error)}`);
     
-    if (error instanceof McpError) {
-      throw error;
-    }
+    // Handle both McpError and regular errors the same way - return error response
+    const errorMessage = error instanceof Error ? error.message : String(error);
     
     return {
       content: [{
         type: "text",
-        text: `Error: ${error instanceof Error ? error.message : String(error)}`
+        text: `Error: ${errorMessage}`
       }],
       isError: true
     };
