@@ -2797,34 +2797,40 @@ async function validateStrapiConnection(): Promise<void> {
       try {
         // Test admin login
         await loginToStrapiAdmin();
-        response = await makeAdminApiRequest('/admin/users/me');
-        authMethod = "admin credentials";
-        console.error("[Setup] ✓ Admin authentication successful");
+        const adminData = await makeAdminApiRequest('/admin/users/me');
+        // makeAdminApiRequest returns data, not full response - if we get data, auth worked
+        if (adminData) {
+          authMethod = "admin credentials";
+          console.error("[Setup] ✓ Admin authentication successful");
+          console.error(`[Setup] ✓ Connection to Strapi successful using ${authMethod}`);
+          connectionValidated = true;
+          return; // Success - exit early
+        }
       } catch (adminError) {
         console.error("[Setup] Admin authentication failed, trying API token...");
-        throw adminError; // Fall through to API token test
+        // Fall through to API token test
       }
-    } else {
-      throw new Error("No admin credentials, trying API token");
     }
     
     // If admin failed or not available, try API token
-    if (!response) {
+    try {
+      // Try a simple endpoint that should exist - use upload/files to test API token
+      response = await strapiClient.get('/api/upload/files?pagination[limit]=1');
+      authMethod = "API token";
+      console.error("[Setup] ✓ API token authentication successful");
+    } catch (apiError) {
+      console.error("[Setup] API token test failed, trying root endpoint...");
       try {
-        // Try a simple endpoint that should exist - use upload/files to test API token
-        response = await strapiClient.get('/api/upload/files?pagination[limit]=1');
-        authMethod = "API token";
-        console.error("[Setup] ✓ API token authentication successful");
-      } catch (apiError) {
-        console.error("[Setup] API token test failed, trying root endpoint...");
         // Last resort - try to hit the root to see if server is running
         response = await strapiClient.get('/');
         authMethod = "server connection";
         console.error("[Setup] ✓ Server is reachable");
+      } catch (rootError) {
+        throw new Error("All connection tests failed");
       }
     }
     
-    // Check if we got a proper response
+    // Check if we got a proper response from strapiClient calls
     if (response && response.status >= 200 && response.status < 300) {
       console.error(`[Setup] ✓ Connection to Strapi successful using ${authMethod}`);
       connectionValidated = true;
