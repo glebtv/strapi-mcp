@@ -571,30 +571,34 @@ export function setupHandlers(server: Server) {
             properties: {
               displayName: {
                 type: "string",
-                description: "Display name for the component"
+                description: "Display name for the component",
               },
               category: {
                 type: "string",
-                description: "Category name for the component (e.g., 'basic', 'layout', 'content')"
+                description: "Category name for the component (e.g., 'basic', 'layout', 'content')",
               },
               icon: {
                 type: "string",
-                description: "Icon name for the component (default: 'brush')"
+                description: "Icon name for the component (default: 'brush')",
               },
               attributes: {
                 type: "object",
-                description: "Component attributes definition. E.g., { \"title\": { \"type\": \"string\" }, \"content\": { \"type\": \"text\" } }",
+                description:
+                  'Component attributes definition. E.g., { "title": { "type": "string" }, "content": { "type": "text" } }',
                 additionalProperties: {
                   type: "object",
                   properties: {
-                    type: { type: "string", description: "Field type (string, text, number, etc.)" },
-                    required: { type: "boolean", description: "Is this field required?" }
+                    type: {
+                      type: "string",
+                      description: "Field type (string, text, number, etc.)",
+                    },
+                    required: { type: "boolean", description: "Is this field required?" },
                   },
-                  required: ["type"]
-                }
-              }
+                  required: ["type"],
+                },
+              },
             },
-            required: ["displayName", "category", "attributes"]
+            required: ["displayName", "category", "attributes"],
           },
         },
         {
@@ -1123,8 +1127,11 @@ export function setupHandlers(server: Server) {
 
         case "create_component": {
           const { displayName, category, icon, attributes } = request.params.arguments as any;
-          if (!displayName || !category || !attributes || typeof attributes !== 'object') {
-            throw new McpError(ErrorCode.InvalidParams, "displayName, category, and attributes are required.");
+          if (!displayName || !category || !attributes || typeof attributes !== "object") {
+            throw new McpError(
+              ErrorCode.InvalidParams,
+              "displayName, category, and attributes are required."
+            );
           }
           const componentData = { displayName, category, icon, attributes };
           const result = await components.createComponent(componentData);
@@ -1186,11 +1193,13 @@ export function setupHandlers(server: Server) {
       }
 
       return {
-        content: [{
-          type: "text",
-          text: `Error: ${errorMessage}`
-        }],
-        isError: true
+        content: [
+          {
+            type: "text",
+            text: `Error: ${errorMessage}`,
+          },
+        ],
+        isError: true,
       };
     }
   });

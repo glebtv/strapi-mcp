@@ -316,12 +316,12 @@ export async function connectRelation(
   const apiPath = `/api/${pluralApiId}/${documentId}`;
 
   console.error(`[API] Connecting relations for ${documentId} in ${pluralApiId}`);
-  
+
   // Validate that we have valid IDs
   if (!relatedIds || relatedIds.length === 0) {
     throw new McpError(ErrorCode.InvalidParams, "At least one related ID is required to connect");
   }
-  
+
   try {
     const response = await strapiClient.put(apiPath, {
       data: {
@@ -335,9 +335,9 @@ export async function connectRelation(
     }
   } catch (error: any) {
     console.error(`[API] Failed to connect relations:`, error);
-    
+
     let errorMessage = `Failed to connect relation '${relationField}': `;
-    
+
     if (axios.isAxiosError(error) && error.response) {
       if (error.response.status === 400) {
         errorMessage += `Bad request - this could mean: (1) The relation field '${relationField}' doesn't exist on ${pluralApiId}, (2) One or more of the related IDs don't exist, or (3) The relation field type doesn't support this operation. Please verify the field exists and the IDs are valid.`;
@@ -351,7 +351,7 @@ export async function connectRelation(
     } else {
       errorMessage += String(error);
     }
-    
+
     throw new McpError(ErrorCode.InternalError, errorMessage);
   }
 }
