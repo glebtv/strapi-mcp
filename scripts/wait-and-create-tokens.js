@@ -167,6 +167,56 @@ async function createTokensWithPermissions(url, adminToken) {
   return tokens;
 }
 
+async function createI18nLocales(url, adminToken) {
+  console.log('\n🌍 Setting up i18n locales...');
+  
+  const adminHeaders = {
+    'Authorization': `Bearer ${adminToken}`,
+    'Content-Type': 'application/json'
+  };
+
+  // Check current locales
+  try {
+    const localesResponse = await axios.get(`${url}/i18n/locales`, {
+      headers: adminHeaders
+    });
+    
+    const existingLocales = localesResponse.data.map(locale => locale.code);
+    console.log('📋 Existing locales:', existingLocales.join(', '));
+    
+    // Add Russian locale if not exists
+    if (!existingLocales.includes('ru')) {
+      console.log('🔤 Creating Russian locale...');
+      await axios.post(`${url}/i18n/locales`, {
+        code: 'ru',
+        name: 'Russian',
+        isDefault: false
+      }, {
+        headers: adminHeaders
+      });
+      console.log('✅ Russian locale created');
+    }
+    
+    // Add Chinese locale if not exists
+    if (!existingLocales.includes('zh')) {
+      console.log('🔤 Creating Chinese locale...');
+      await axios.post(`${url}/i18n/locales`, {
+        code: 'zh',
+        name: 'Chinese',
+        isDefault: false
+      }, {
+        headers: adminHeaders
+      });
+      console.log('✅ Chinese locale created');
+    }
+    
+    console.log('✅ i18n locales setup complete');
+  } catch (error) {
+    console.error('⚠️  Failed to setup i18n locales:', error.response?.data?.error?.message || error.message);
+    // Non-fatal error, continue
+  }
+}
+
 async function main() {
   const STRAPI_URL = process.env.STRAPI_URL || 'http://localhost:1337';
   const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@ci.local';
@@ -184,6 +234,9 @@ async function main() {
 
     // Create API tokens with permissions
     const tokens = await createTokensWithPermissions(STRAPI_URL, adminToken);
+
+    // Setup i18n locales
+    await createI18nLocales(STRAPI_URL, adminToken);
 
     // Output tokens for CI
     console.log('\n📝 Token Summary:');

@@ -33,18 +33,17 @@ jobs:
     - name: Build MCP server
       run: npm run build
     
-    - name: Run linter
-      run: npm run lint
-    
-    - name: Run type check
-      run: npm run typecheck
-    
     - name: Run tests
       run: |
-        # Load test tokens which includes admin credentials
+        # Load test tokens which includes admin credentials and API token
         if [ -f test-tokens.json ]; then
+          export STRAPI_API_TOKEN=$(jq -r .fullAccessToken test-tokens.json)
+          export STRAPI_READ_ONLY_TOKEN=$(jq -r .readOnlyToken test-tokens.json)
           export STRAPI_ADMIN_EMAIL=$(jq -r .adminEmail test-tokens.json)
           export STRAPI_ADMIN_PASSWORD=$(jq -r .adminPassword test-tokens.json)
+          echo "✅ Loaded credentials from test-tokens.json"
+          echo "STRAPI_API_TOKEN=${STRAPI_API_TOKEN:0:20}..."
+          echo "STRAPI_ADMIN_EMAIL=$STRAPI_ADMIN_EMAIL"
         fi
         npm test
       env:

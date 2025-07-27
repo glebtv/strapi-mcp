@@ -126,15 +126,7 @@ fi
 cd strapi-test
 
 echo ""
-# Setup i18n locales
-echo "🌍 Setting up i18n locales..."
-cd ..
-if [ -f "scripts/setup-i18n-locales.js" ]; then
-  # Run the JS version directly with the required env vars
-  STRAPI_ADMIN_EMAIL="admin@ci.local" STRAPI_ADMIN_PASSWORD="$ADMIN_PASSWORD" STRAPI_URL="http://localhost:1337" node scripts/setup-i18n-locales.js
-else
-  echo "⚠️  i18n setup script not found, skipping locale setup"
-fi
+# i18n locales are now set up by wait-and-create-tokens.js
 
 echo ""
 echo "🎉 Strapi test instance is ready!"
