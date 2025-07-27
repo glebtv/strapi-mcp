@@ -1,11 +1,12 @@
 // Strapi 5 bootstrap script to create admin user and API tokens with proper permissions
+import type { Strapi } from '@strapi/strapi';
 
-export default async function bootstrap({ strapi }: { strapi: any }) {
+export default async function bootstrap({ strapi }: { strapi: Strapi }) {
   console.log('🚀 Starting Strapi 5 token automation...');
 
   // Create admin user if it doesn't exist
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@ci.local';
-  const adminPassword = process.env.ADMIN_PASSWORD || 'Admin123456'; // Updated to meet password requirements
+  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123456';
 
   try {
     const existingAdmin = await strapi.db.query('admin::user').findOne({
@@ -15,16 +16,6 @@ export default async function bootstrap({ strapi }: { strapi: any }) {
     if (!existingAdmin) {
       const hashedPassword = await strapi.service('admin::auth').hashPassword(adminPassword);
       
-      // First, get the super admin role
-      const superAdminRole = await strapi.db.query('admin::role').findOne({
-        where: { code: 'strapi-super-admin' }
-      });
-
-      if (!superAdminRole) {
-        console.error('❌ Super admin role not found');
-        return;
-      }
-      
       await strapi.db.query('admin::user').create({
         data: {
           firstname: 'Admin',
@@ -33,7 +24,7 @@ export default async function bootstrap({ strapi }: { strapi: any }) {
           password: hashedPassword,
           isActive: true,
           blocked: false,
-          roles: [superAdminRole.id]
+          roles: [1] // Super admin role
         }
       });
       console.log('✅ Admin user created successfully');
@@ -44,33 +35,13 @@ export default async function bootstrap({ strapi }: { strapi: any }) {
     console.error('❌ Failed to create admin user:', error);
   }
 
-  // Create API tokens with proper permissions
+  // Create API tokens
   const tokens = [
     {
       name: 'CI/CD Full Access',
       description: 'Full access token for CI/CD pipelines',
       type: 'custom' as const,
-      permissions: [
-        // Project permissions
-        'api::project.project.find',
-        'api::project.project.findOne',
-        'api::project.project.create',
-        'api::project.project.update',
-        'api::project.project.delete',
-        // Technology permissions
-        'api::technology.technology.find',
-        'api::technology.technology.findOne',
-        'api::technology.technology.create',
-        'api::technology.technology.update',
-        'api::technology.technology.delete',
-        // Upload permissions
-        'plugin::upload.content-api.find',
-        'plugin::upload.content-api.findOne',
-        'plugin::upload.content-api.upload',
-        'plugin::upload.content-api.destroy',
-        // i18n permissions
-        'plugin::i18n.locales.listLocales'
-      ],
+      permissions: [] as any[], // Will be populated below
       expiresAt: null
     },
     {
@@ -81,6 +52,34 @@ export default async function bootstrap({ strapi }: { strapi: any }) {
     }
   ];
 
+  // Get all content type permissions for full access token
+  const contentTypes = ['api::project.project', 'api::technology.technology'];
+  const actions = ['find', 'findOne', 'create', 'update', 'delete'];
+  
+  // Build permissions array for full access token
+  const fullPermissions: string[] = [];
+  
+  for (const contentType of contentTypes) {
+    for (const action of actions) {
+      fullPermissions.push(`${contentType}.${action}`);
+    }
+  }
+  
+  // Add upload permissions
+  fullPermissions.push(
+    'plugin::upload.content-api.find',
+    'plugin::upload.content-api.findOne',
+    'plugin::upload.content-api.upload',
+    'plugin::upload.content-api.destroy'
+  );
+  
+  // Add i18n permissions
+  fullPermissions.push('plugin::i18n.locales.listLocales');
+  
+  // Set permissions for full access token
+  tokens[0].permissions = fullPermissions;
+
+  // Create tokens
   for (const tokenConfig of tokens) {
     const existingToken = await strapi.db.query('admin::api-token').findOne({
       where: { name: tokenConfig.name }
@@ -89,8 +88,8 @@ export default async function bootstrap({ strapi }: { strapi: any }) {
     if (existingToken) {
       console.log(`⚠️  Token "${tokenConfig.name}" already exists`);
       
-      // Update permissions for full access token if needed
-      if (tokenConfig.name === 'CI/CD Full Access' && tokenConfig.type === 'custom') {
+      // Update permissions if it's the full access token
+      if (tokenConfig.name === 'CI/CD Full Access' && tokenConfig.permissions) {
         try {
           await strapi.db.query('admin::api-token').update({
             where: { id: existingToken.id },
@@ -117,7 +116,7 @@ export default async function bootstrap({ strapi }: { strapi: any }) {
     };
     
     // Add permissions if custom type
-    if (tokenConfig.type === 'custom' && 'permissions' in tokenConfig) {
+    if (tokenConfig.type === 'custom' && tokenConfig.permissions) {
       tokenData.permissions = tokenConfig.permissions;
     }
     

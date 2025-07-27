@@ -163,9 +163,13 @@ export async function createEntry(
     }
 
     console.error(`[API] Creating entry for ${pluralApiId} using API token`);
-    const response = await strapiClient.post(`/api/${pluralApiId}`, {
-      data: data,
-    }, { params });
+    const response = await strapiClient.post(
+      `/api/${pluralApiId}`,
+      {
+        data: data,
+      },
+      { params }
+    );
 
     if (response.data && response.data.data) {
       console.error(`[API] Successfully created entry via API token.`);
@@ -232,7 +236,11 @@ export async function updateEntry(
   }
 }
 
-export async function deleteEntry(pluralApiId: string, documentId: string, locale?: string): Promise<any> {
+export async function deleteEntry(
+  pluralApiId: string,
+  documentId: string,
+  locale?: string
+): Promise<any> {
   const apiPath = `/api/${pluralApiId}/${documentId}`;
 
   const params: Record<string, any> = {};

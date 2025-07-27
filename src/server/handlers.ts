@@ -247,7 +247,8 @@ export function setupHandlers(server: Server) {
         },
         {
           name: "create_entry",
-          description: "Create a new entry for a content type. For i18n content types, you can specify the locale to create an entry in a specific language.",
+          description:
+            "Create a new entry for a content type. For i18n content types, you can specify the locale to create an entry in a specific language.",
           inputSchema: {
             type: "object",
             properties: {
@@ -267,7 +268,8 @@ export function setupHandlers(server: Server) {
               },
               locale: {
                 type: "string",
-                description: "Optional: Locale for i18n content types (e.g., 'en', 'ru', 'zh'). If not specified, uses the default locale.",
+                description:
+                  "Optional: Locale for i18n content types (e.g., 'en', 'ru', 'zh'). If not specified, uses the default locale.",
               },
             },
             required: ["contentType", "pluralApiId", "data"],
@@ -275,7 +277,8 @@ export function setupHandlers(server: Server) {
         },
         {
           name: "update_entry",
-          description: "Update an existing entry. For i18n content types, you can specify the locale to update a specific language version.",
+          description:
+            "Update an existing entry. For i18n content types, you can specify the locale to update a specific language version.",
           inputSchema: {
             type: "object",
             properties: {
@@ -294,7 +297,8 @@ export function setupHandlers(server: Server) {
               },
               locale: {
                 type: "string",
-                description: "Optional: Locale for i18n content types (e.g., 'en', 'ru', 'zh'). If not specified, updates the default locale.",
+                description:
+                  "Optional: Locale for i18n content types (e.g., 'en', 'ru', 'zh'). If not specified, updates the default locale.",
               },
             },
             required: ["pluralApiId", "documentId", "data"],
@@ -302,7 +306,8 @@ export function setupHandlers(server: Server) {
         },
         {
           name: "delete_entry",
-          description: "Deletes a specific entry. For i18n content types, you can specify the locale to delete a specific language version.",
+          description:
+            "Deletes a specific entry. For i18n content types, you can specify the locale to delete a specific language version.",
           inputSchema: {
             type: "object",
             properties: {
@@ -317,7 +322,8 @@ export function setupHandlers(server: Server) {
               },
               locale: {
                 type: "string",
-                description: "Optional: Locale for i18n content types (e.g., 'en', 'ru', 'zh'). If not specified, deletes all locales.",
+                description:
+                  "Optional: Locale for i18n content types (e.g., 'en', 'ru', 'zh'). If not specified, deletes all locales.",
               },
             },
             required: ["pluralApiId", "documentId"],
@@ -459,7 +465,8 @@ export function setupHandlers(server: Server) {
         },
         {
           name: "create_content_type",
-          description: "Creates a new content type (Admin privileges required). For i18n-enabled content types, include pluginOptions.i18n.localized: true.",
+          description:
+            "Creates a new content type (Admin privileges required). For i18n-enabled content types, include pluginOptions.i18n.localized: true.",
           inputSchema: {
             type: "object",
             properties: {
@@ -480,7 +487,8 @@ export function setupHandlers(server: Server) {
               },
               attributes: {
                 type: "object",
-                description: 'Fields for the content type. E.g., { "title": { "type": "string", "pluginOptions": { "i18n": { "localized": true } } } } for localized fields',
+                description:
+                  'Fields for the content type. E.g., { "title": { "type": "string", "pluginOptions": { "i18n": { "localized": true } } } } for localized fields',
                 additionalProperties: {
                   type: "object",
                   properties: {
@@ -491,7 +499,8 @@ export function setupHandlers(server: Server) {
                     required: { type: "boolean", description: "Is this field required?" },
                     pluginOptions: {
                       type: "object",
-                      description: "Plugin options, e.g., { i18n: { localized: true } } for localized fields",
+                      description:
+                        "Plugin options, e.g., { i18n: { localized: true } } for localized fields",
                     },
                   },
                   required: ["type"],
@@ -499,7 +508,8 @@ export function setupHandlers(server: Server) {
               },
               pluginOptions: {
                 type: "object",
-                description: "Plugin options for the content type. For i18n: { i18n: { localized: true } }",
+                description:
+                  "Plugin options for the content type. For i18n: { i18n: { localized: true } }",
               },
             },
             required: ["displayName", "singularName", "pluralName", "attributes"],
@@ -680,7 +690,8 @@ export function setupHandlers(server: Server) {
         },
         {
           name: "update_content_type_permissions",
-          description: "Update permissions for a content type. Allows setting read/write permissions for public and authenticated roles (Admin privileges required).",
+          description:
+            "Update permissions for a content type. Allows setting read/write permissions for public and authenticated roles (Admin privileges required).",
           inputSchema: {
             type: "object",
             properties: {
@@ -1247,13 +1258,13 @@ export function setupHandlers(server: Server) {
           const permissionsConfig = request.params.arguments?.permissions;
 
           if (!contentType || !permissionsConfig) {
-            throw new McpError(
-              ErrorCode.InvalidParams,
-              "contentType and permissions are required"
-            );
+            throw new McpError(ErrorCode.InvalidParams, "contentType and permissions are required");
           }
 
-          const result = await permissions.updateContentTypePermissions(contentType, permissionsConfig);
+          const result = await permissions.updateContentTypePermissions(
+            contentType,
+            permissionsConfig
+          );
 
           return {
             content: [

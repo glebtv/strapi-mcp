@@ -48,13 +48,15 @@ export async function loginToStrapiAdmin(): Promise<boolean> {
   }
 
   try {
-    console.error(`[Auth] Attempting login to Strapi admin at ${config.strapi.url}/admin/login as ${email}`);
-    
-    const response = await axios.post(`${config.strapi.url}/admin/login`, { 
-      email, 
-      password 
+    console.error(
+      `[Auth] Attempting login to Strapi admin at ${config.strapi.url}/admin/login as ${email}`
+    );
+
+    const response = await axios.post(`${config.strapi.url}/admin/login`, {
+      email,
+      password,
     });
-    
+
     if (response.data && response.data.data && response.data.data.token) {
       adminJwtToken = response.data.data.token;
       console.error("[Auth] Successfully logged in to Strapi admin");
@@ -78,7 +80,12 @@ export async function loginToStrapiAdmin(): Promise<boolean> {
 /**
  * Make a request to the admin API using the admin JWT token
  */
-export async function makeAdminApiRequest(endpoint: string, method: string = 'get', data?: any, params?: Record<string, any>): Promise<any> {
+export async function makeAdminApiRequest(
+  endpoint: string,
+  method: string = "get",
+  data?: any,
+  params?: Record<string, any>
+): Promise<any> {
   if (!adminJwtToken) {
     console.error(`[Admin API] No token available, attempting login...`);
     const success = await loginToStrapiAdmin();
@@ -88,36 +95,36 @@ export async function makeAdminApiRequest(endpoint: string, method: string = 'ge
     }
     console.error(`[Admin API] Login successful, proceeding with request.`);
   }
-  
+
   const fullUrl = `${config.strapi.url}${endpoint}`;
   console.error(`[Admin API] Making ${method.toUpperCase()} request to: ${fullUrl}`);
-  
+
   if (data) {
     console.error(`[Admin API] Request payload: ${JSON.stringify(data, null, 2)}`);
   }
-  
+
   try {
     const response = await axios({
       method,
       url: fullUrl,
       headers: {
-        'Authorization': `Bearer ${adminJwtToken}`,
-        'Content-Type': 'application/json'
+        Authorization: `Bearer ${adminJwtToken}`,
+        "Content-Type": "application/json",
       },
       data,
       params,
-      timeout: 30000 // 30 second timeout
+      timeout: 30000, // 30 second timeout
     });
 
     console.error(`[Admin API] Response status: ${response.status}`);
     return response.data;
   } catch (error) {
     console.error(`[Admin API] Request to ${endpoint} failed:`);
-    
+
     if (axios.isAxiosError(error)) {
       console.error(`[Admin API] Status: ${error.response?.status}`);
       console.error(`[Admin API] Error data: ${JSON.stringify(error.response?.data)}`);
-      
+
       // Check if it's an auth error (e.g., token expired)
       if (error.response?.status === 401 && adminJwtToken) {
         console.error("[Admin API] Admin token might be expired. Attempting re-login...");
@@ -131,11 +138,11 @@ export async function makeAdminApiRequest(endpoint: string, method: string = 'ge
               method,
               url: fullUrl,
               headers: {
-                'Authorization': `Bearer ${adminJwtToken}`,
-                'Content-Type': 'application/json'
+                Authorization: `Bearer ${adminJwtToken}`,
+                "Content-Type": "application/json",
               },
               data,
-              params
+              params,
             });
             console.error(`[Admin API] Retry successful, status: ${retryResponse.status}`);
             return retryResponse.data;
@@ -167,7 +174,7 @@ export async function validateStrapiConnection(): Promise<void> {
       try {
         // Test admin login
         await loginToStrapiAdmin();
-        const adminData = await makeAdminApiRequest('/admin/users/me');
+        const adminData = await makeAdminApiRequest("/admin/users/me");
         if (adminData) {
           authMethod = "admin credentials";
           console.error("[Setup] ✓ Admin authentication successful");
@@ -175,7 +182,7 @@ export async function validateStrapiConnection(): Promise<void> {
           connectionValidated = true;
           return;
         }
-      } catch (adminError) {
+      } catch {
         console.error("[Setup] Admin authentication failed, trying API token...");
       }
     }

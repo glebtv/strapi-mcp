@@ -11,7 +11,7 @@ let contentTypesCache: ContentType[] = [];
 export async function listContentTypes(): Promise<ContentType[]> {
   // Ensure config is loaded
   validateConfig();
-  
+
   // First try to get content types via admin API if available
   if (config.strapi.adminEmail && config.strapi.adminPassword) {
     try {
@@ -19,21 +19,21 @@ export async function listContentTypes(): Promise<ContentType[]> {
       console.error(`[API] Admin credentials available: ${!!config.strapi.adminEmail}`);
       const adminEndpoint = `/content-type-builder/content-types`;
       const response = await makeAdminApiRequest(adminEndpoint);
-      
+
       console.error(`[API] Admin API response:`, JSON.stringify(response, null, 2));
-      
+
       if (response && response.data) {
         const contentTypes = Array.isArray(response.data) ? response.data : [response.data];
-        
+
         console.error(`[API] Found ${contentTypes.length} content types via admin API`);
-        
+
         // Filter and format content types
         const formatted = contentTypes
-          .filter((ct: any) => ct.uid && ct.uid.startsWith('api::'))
+          .filter((ct: any) => ct.uid && ct.uid.startsWith("api::"))
           .map((ct: any) => {
-            const [, apiId] = ct.uid.split('::');
-            const [singular] = apiId.split('.');
-            
+            const [, apiId] = ct.uid.split("::");
+            const [singular] = apiId.split(".");
+
             return {
               uid: ct.uid,
               apiID: singular,
@@ -44,22 +44,25 @@ export async function listContentTypes(): Promise<ContentType[]> {
                 displayName: ct.info?.displayName || singular,
                 description: ct.info?.description || `${singular} content type`,
                 singularName: ct.info?.singularName || singular,
-                pluralName: ct.info?.pluralName || `${singular}s`
+                pluralName: ct.info?.pluralName || `${singular}s`,
               },
-              attributes: ct.attributes || {}
+              attributes: ct.attributes || {},
             };
           });
-          
+
         console.error(`[API] Returning ${formatted.length} formatted content types`);
         return formatted;
       }
     } catch (error) {
-      console.error("[API] Failed to fetch content types via admin API, falling back to discovery:", error);
+      console.error(
+        "[API] Failed to fetch content types via admin API, falling back to discovery:",
+        error
+      );
     }
   } else {
     console.error("[API] No admin credentials available, using discovery method");
   }
-  
+
   // Fall back to discovery method
   return fetchContentTypes();
 }
@@ -165,21 +168,24 @@ export async function fetchContentTypeSchema(contentType: string): Promise<any> 
         console.error(`[API] Attempting to fetch schema via admin API for ${contentType}`);
         const endpoint = `/content-type-builder/content-types/${contentType}`;
         const response = await makeAdminApiRequest(endpoint);
-        
+
         if (response?.data) {
           console.error(`[API] Successfully fetched schema via admin API`);
           // Extract the schema from the response
           const schema = response.data.schema || response.data;
           return {
             uid: schema.uid || contentType,
-            apiID: schema.apiID || contentType.split('::')[1]?.split('.')[0],
+            apiID: schema.apiID || contentType.split("::")[1]?.split(".")[0],
             info: schema.info || {},
             attributes: schema.attributes || {},
-            pluginOptions: schema.pluginOptions || {}
+            pluginOptions: schema.pluginOptions || {},
           };
         }
       } catch (adminError) {
-        console.error(`[API] Failed to fetch schema via admin API, falling back to inference:`, adminError);
+        console.error(
+          `[API] Failed to fetch schema via admin API, falling back to inference:`,
+          adminError
+        );
       }
     }
 
@@ -319,17 +325,25 @@ export async function createContentType(contentTypeData: any): Promise<any> {
         "Admin credentials are required for content type operations"
       );
     }
-    
+
     // Extract the fields from the contentTypeData
-    const { displayName, singularName, pluralName, kind = 'collectionType', draftAndPublish = false, attributes, pluginOptions } = contentTypeData;
-    
+    const {
+      displayName,
+      singularName,
+      pluralName,
+      kind = "collectionType",
+      draftAndPublish = false,
+      attributes,
+      pluginOptions,
+    } = contentTypeData;
+
     if (!displayName || !singularName || !pluralName || !attributes) {
       throw new ExtendedMcpError(
         ExtendedErrorCode.InvalidParams,
         "displayName, singularName, pluralName, and attributes are required for content type creation"
       );
     }
-    
+
     // Build the payload for the Content-Type Builder API
     const payload = {
       contentType: {
@@ -339,28 +353,32 @@ export async function createContentType(contentTypeData: any): Promise<any> {
         kind,
         draftAndPublish,
         attributes,
-        pluginOptions
-      }
+        pluginOptions,
+      },
     };
-    
+
     console.error(`[API] Creating new content type: ${displayName}`);
-    console.error(`[API] Attempting to create content type with payload: ${JSON.stringify(payload, null, 2)}`);
-    
+    console.error(
+      `[API] Attempting to create content type with payload: ${JSON.stringify(payload, null, 2)}`
+    );
+
     // Make sure we're using the correct Content-Type Builder endpoint
-    const endpoint = '/content-type-builder/content-types';
+    const endpoint = "/content-type-builder/content-types";
     console.error(`[API] Using endpoint: ${endpoint}`);
-    
-    const response = await makeAdminApiRequest(endpoint, 'post', payload);
+
+    const response = await makeAdminApiRequest(endpoint, "post", payload);
     console.error(`[API] Content type creation response:`, response);
-    
+
     // Strapi might restart after schema changes, response might vary
-    return response?.data || { message: "Content type creation initiated. Strapi might be restarting." };
+    return (
+      response?.data || { message: "Content type creation initiated. Strapi might be restarting." }
+    );
   } catch (error: any) {
     console.error(`[Error] Failed to create content type:`, error);
-    
+
     let errorMessage = `Failed to create content type`;
     let errorCode = ExtendedErrorCode.InternalError;
-    
+
     if (axios.isAxiosError(error)) {
       errorMessage += `: ${error.response?.status} ${error.response?.statusText}`;
       const responseData = JSON.stringify(error.response?.data);
@@ -378,7 +396,7 @@ export async function createContentType(contentTypeData: any): Promise<any> {
     } else {
       errorMessage += `: ${String(error)}`;
     }
-    
+
     throw new ExtendedMcpError(errorCode, errorMessage);
   }
 }
@@ -398,7 +416,7 @@ export async function updateContentType(
       );
     }
 
-    if (!contentTypeUid || !attributesToUpdate || typeof attributesToUpdate !== 'object') {
+    if (!contentTypeUid || !attributesToUpdate || typeof attributesToUpdate !== "object") {
       throw new ExtendedMcpError(
         ExtendedErrorCode.InvalidParams,
         "Missing required fields: contentTypeUid, attributesToUpdate (object)"
@@ -412,40 +430,48 @@ export async function updateContentType(
     // Ensure we have the schema structure
     const currentSchema = currentSchemaData.schema || currentSchemaData;
     if (!currentSchema || !currentSchema.attributes) {
-      console.error("[API] Could not retrieve a valid current schema structure.", currentSchemaData);
+      console.error(
+        "[API] Could not retrieve a valid current schema structure.",
+        currentSchemaData
+      );
       throw new ExtendedMcpError(
         ExtendedErrorCode.ResourceNotFound,
         `Could not retrieve a valid schema structure for ${contentTypeUid}`
       );
     }
-    console.error(`[API] Current attributes: ${Object.keys(currentSchema.attributes).join(', ')}`);
+    console.error(`[API] Current attributes: ${Object.keys(currentSchema.attributes).join(", ")}`);
 
     // 2. Merge new/updated attributes into the current schema's attributes
     const updatedAttributes = { ...currentSchema.attributes, ...attributesToUpdate };
-    console.error(`[API] Attributes after update: ${Object.keys(updatedAttributes).join(', ')}`);
+    console.error(`[API] Attributes after update: ${Object.keys(updatedAttributes).join(", ")}`);
 
     // 3. Construct the payload for the PUT request
     const payload = {
       contentType: {
         ...currentSchema, // Spread the existing schema details
-        attributes: updatedAttributes // Use the merged attributes
-      }
+        attributes: updatedAttributes, // Use the merged attributes
+      },
     };
 
     // Remove potentially problematic fields
     delete payload.contentType.uid; // UID is usually in the URL, not body for PUT
 
-    console.error(`[API] Update Payload for PUT /content-type-builder/content-types/${contentTypeUid}: ${JSON.stringify(payload, null, 2)}`);
+    console.error(
+      `[API] Update Payload for PUT /content-type-builder/content-types/${contentTypeUid}: ${JSON.stringify(payload, null, 2)}`
+    );
 
     // 4. Make the PUT request using admin credentials
     const endpoint = `/content-type-builder/content-types/${contentTypeUid}`;
-    const response = await makeAdminApiRequest(endpoint, 'put', payload);
+    const response = await makeAdminApiRequest(endpoint, "put", payload);
 
     console.error(`[API] Content type update response:`, response);
 
     // Response might vary, often includes the updated UID or a success message
-    return response?.data || { message: `Content type ${contentTypeUid} update initiated. Strapi might be restarting.` };
-
+    return (
+      response?.data || {
+        message: `Content type ${contentTypeUid} update initiated. Strapi might be restarting.`,
+      }
+    );
   } catch (error: any) {
     console.error(`[Error] Failed to update content type ${contentTypeUid}:`, error);
 
@@ -480,7 +506,7 @@ export async function updateContentType(
 export async function deleteContentType(contentTypeUid: string): Promise<any> {
   try {
     console.error(`[API] Deleting content type: ${contentTypeUid}`);
-    
+
     // Admin credentials are required for content type operations
     if (!config.strapi.adminEmail || !config.strapi.adminPassword) {
       throw new ExtendedMcpError(
@@ -488,30 +514,34 @@ export async function deleteContentType(contentTypeUid: string): Promise<any> {
         "Admin credentials are required for content type operations"
       );
     }
-    
+
     // Validate that this is a proper content type UID
-    if (!contentTypeUid || !contentTypeUid.includes('.')) {
+    if (!contentTypeUid || !contentTypeUid.includes(".")) {
       throw new ExtendedMcpError(
         ExtendedErrorCode.InvalidParams,
         `Invalid content type UID: ${contentTypeUid}. UID should be in the format 'api::name.name'`
       );
     }
-    
+
     // Make the DELETE request using admin credentials
     const endpoint = `/content-type-builder/content-types/${contentTypeUid}`;
     console.error(`[API] Sending DELETE request to: ${endpoint}`);
-    
-    const response = await makeAdminApiRequest(endpoint, 'delete');
+
+    const response = await makeAdminApiRequest(endpoint, "delete");
     console.error(`[API] Content type deletion response:`, response);
-    
+
     // Return the response data or a success message
-    return response?.data || { message: `Content type ${contentTypeUid} deleted. Strapi might be restarting.` };
+    return (
+      response?.data || {
+        message: `Content type ${contentTypeUid} deleted. Strapi might be restarting.`,
+      }
+    );
   } catch (error: any) {
     console.error(`[Error] Failed to delete content type ${contentTypeUid}:`, error);
-    
+
     let errorMessage = `Failed to delete content type ${contentTypeUid}`;
     let errorCode = ExtendedErrorCode.InternalError;
-    
+
     if (axios.isAxiosError(error)) {
       errorMessage += `: ${error.response?.status} ${error.response?.statusText}`;
       if (error.response?.status === 404) {
@@ -529,7 +559,7 @@ export async function deleteContentType(contentTypeUid: string): Promise<any> {
     } else {
       errorMessage += `: ${String(error)}`;
     }
-    
+
     throw new ExtendedMcpError(errorCode, errorMessage);
   }
 }

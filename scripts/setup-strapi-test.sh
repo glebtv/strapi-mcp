@@ -19,8 +19,8 @@ export APP_KEYS=$(openssl rand -base64 32)
 export API_TOKEN_SALT=$(openssl rand -base64 32)
 export ADMIN_JWT_SECRET=$(openssl rand -base64 32)
 export TRANSFER_TOKEN_SALT=$(openssl rand -base64 32)
-# Use static password from .env.test or default
-export ADMIN_PASSWORD=${STRAPI_ADMIN_PASSWORD:-admin123456}
+# Use static password from .env.test or default (with uppercase to meet requirements)
+export ADMIN_PASSWORD=${STRAPI_ADMIN_PASSWORD:-Admin123456}
 export JWT_SECRET=$(openssl rand -base64 32)
 
 # Create a minimal Strapi 5 project for testing
@@ -85,80 +85,45 @@ npm run develop > strapi_output.log 2>&1 &
 STRAPI_PID=$!
 echo "Strapi PID: $STRAPI_PID"
 
-# Wait for token generation
-echo "⏳ Waiting for Strapi to start and generate tokens..."
-for i in {1..60}; do
-  if grep -q "🔑 Access Key:" strapi_output.log; then
-    echo "✅ Token generated!"
-    break
-  fi
-  echo "Waiting... ($i/60)"
-  sleep 1
-done
+# Export variables for GitHub Actions early
+if [ ! -z "$GITHUB_ENV" ]; then
+  echo "STRAPI_PID=$STRAPI_PID" >> $GITHUB_ENV
+fi
 
-# Extract the API token with proper pattern
-FULL_ACCESS_TOKEN=$(grep -A1 "CI/CD Full Access" strapi_output.log | grep "🔑 Access Key:" | sed 's/.*🔑 Access Key: //')
-READ_ONLY_TOKEN=$(grep -A1 "Testing Read Only" strapi_output.log | grep "🔑 Access Key:" | sed 's/.*🔑 Access Key: //')
+# Wait for Strapi and create tokens
+echo "⏳ Waiting for Strapi to start and creating tokens..."
+cd ..
+STRAPI_URL=http://localhost:1337 ADMIN_EMAIL=admin@ci.local ADMIN_PASSWORD=$ADMIN_PASSWORD node scripts/wait-and-create-tokens.js
 
-if [ -z "$FULL_ACCESS_TOKEN" ]; then
-  echo "❌ Failed to extract API token"
+if [ $? -ne 0 ]; then
+  echo "❌ Failed to create tokens"
   echo "=== Strapi Output ==="
-  cat strapi_output.log
+  tail -50 strapi-test/strapi_output.log
   kill $STRAPI_PID 2>/dev/null || true
   exit 1
 fi
 
-echo "✅ API Tokens extracted successfully"
-echo "📝 Full Access Token: $FULL_ACCESS_TOKEN"
-echo "📝 Read Only Token: $READ_ONLY_TOKEN"
-
-# Save tokens and all environment variables to file for later use
-echo "💾 Saving tokens and environment to test-tokens.json..."
-cat > ../test-tokens.json << EOF
-{
-  "fullAccessToken": "$FULL_ACCESS_TOKEN",
-  "readOnlyToken": "$READ_ONLY_TOKEN",
-  "strapiUrl": "http://localhost:1337",
-  "adminEmail": "admin@ci.local",
-  "adminPassword": "$ADMIN_PASSWORD",
-  "env": {
-    "APP_KEYS": "$APP_KEYS",
-    "API_TOKEN_SALT": "$API_TOKEN_SALT",
-    "ADMIN_JWT_SECRET": "$ADMIN_JWT_SECRET",
-    "TRANSFER_TOKEN_SALT": "$TRANSFER_TOKEN_SALT",
-    "JWT_SECRET": "$JWT_SECRET"
-  }
-}
-EOF
-echo "✅ Tokens and environment saved to test-tokens.json"
-
-# Export variables for GitHub Actions
-if [ ! -z "$GITHUB_ENV" ]; then
-  echo "STRAPI_API_TOKEN=$FULL_ACCESS_TOKEN" >> $GITHUB_ENV
-  echo "STRAPI_READ_ONLY_TOKEN=$READ_ONLY_TOKEN" >> $GITHUB_ENV
-  echo "STRAPI_PID=$STRAPI_PID" >> $GITHUB_ENV
+# Load tokens from test-tokens.json
+if [ -f test-tokens.json ]; then
+  FULL_ACCESS_TOKEN=$(jq -r .fullAccessToken test-tokens.json)
+  READ_ONLY_TOKEN=$(jq -r .readOnlyToken test-tokens.json)
+  
+  echo "✅ Tokens loaded from test-tokens.json"
+  echo "📝 Full Access Token: ${FULL_ACCESS_TOKEN:0:20}..."
+  echo "📝 Read Only Token: ${READ_ONLY_TOKEN:0:20}..."
+  
+  # Export variables for GitHub Actions
+  if [ ! -z "$GITHUB_ENV" ]; then
+    echo "STRAPI_API_TOKEN=$FULL_ACCESS_TOKEN" >> $GITHUB_ENV
+    echo "STRAPI_READ_ONLY_TOKEN=$READ_ONLY_TOKEN" >> $GITHUB_ENV
+  fi
+else
+  echo "❌ test-tokens.json not found"
+  kill $STRAPI_PID 2>/dev/null || true
+  exit 1
 fi
 
-# Test the token and wait for API to be ready
-echo "🧪 Testing API token..."
-for i in {1..30}; do
-  if curl -s -f -H "Authorization: Bearer $FULL_ACCESS_TOKEN" http://localhost:1337/api/projects >/dev/null 2>&1; then
-    echo "✅ Token validation successful!"
-    break
-  elif [ $i -eq 30 ]; then
-    echo "❌ Token validation failed after 30 attempts"
-    echo "=== Last curl attempt ==="
-    curl -v -H "Authorization: Bearer $FULL_ACCESS_TOKEN" http://localhost:1337/api/projects
-    echo ""
-    echo "=== Strapi Output ==="
-    tail -50 strapi_output.log
-    kill $STRAPI_PID 2>/dev/null || true
-    exit 1
-  else
-    echo "Waiting for API to be ready... ($i/30)"
-    sleep 1
-  fi
-done
+cd strapi-test
 
 echo ""
 # Setup i18n locales
