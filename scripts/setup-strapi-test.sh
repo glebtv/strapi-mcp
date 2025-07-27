@@ -93,7 +93,7 @@ fi
 # Wait for Strapi and create tokens
 echo "⏳ Waiting for Strapi to start and creating tokens..."
 cd ..
-STRAPI_URL=http://localhost:1337 ADMIN_EMAIL=admin@ci.local ADMIN_PASSWORD=$ADMIN_PASSWORD node scripts/wait-and-create-tokens.js
+STRAPI_URL=http://localhost:1337 ADMIN_EMAIL=admin@ci.local ADMIN_PASSWORD=$ADMIN_PASSWORD npm run wait-and-create-tokens
 
 if [ $? -ne 0 ]; then
   echo "❌ Failed to create tokens"

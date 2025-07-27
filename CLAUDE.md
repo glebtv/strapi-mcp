@@ -89,3 +89,8 @@ Key architectural decisions:
 ## Development Environment Notes
 
 - USE NVM
+
+## Tools and Workflow
+
+- Use github tool and any other tools you have
+- Use read-website-fast and brave search if you need to look up stuff

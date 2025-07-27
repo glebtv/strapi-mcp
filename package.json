@@ -34,6 +34,7 @@
       "inspector": "npx @modelcontextprotocol/inspector build/index.js",
       "generate-test-image": "node scripts/generate-test-image.js",
       "context-window-info": "node scripts/context-window-example.js",
+      "wait-and-create-tokens": "node scripts/wait-and-create-tokens.js",
       "test": "vitest",
       "test:ui": "vitest --ui",
       "test:coverage": "vitest --coverage",
