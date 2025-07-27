@@ -105,7 +105,8 @@ export async function makeAdminApiRequest(endpoint: string, method: string = 'ge
         'Content-Type': 'application/json'
       },
       data,
-      params
+      params,
+      timeout: 30000 // 30 second timeout
     });
 
     console.error(`[Admin API] Response status: ${response.status}`);

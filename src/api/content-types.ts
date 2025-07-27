@@ -1,6 +1,6 @@
 import axios from "axios";
 import { strapiClient, validateStrapiConnection, makeAdminApiRequest } from "./client.js";
-import { config } from "../config/index.js";
+import { config, validateConfig } from "../config/index.js";
 import { ContentType } from "../types/index.js";
 import { ExtendedMcpError, ExtendedErrorCode } from "../errors/index.js";
 
@@ -9,6 +9,58 @@ import { ExtendedMcpError, ExtendedErrorCode } from "../errors/index.js";
 let contentTypesCache: ContentType[] = [];
 
 export async function listContentTypes(): Promise<ContentType[]> {
+  // Ensure config is loaded
+  validateConfig();
+  
+  // First try to get content types via admin API if available
+  if (config.strapi.adminEmail && config.strapi.adminPassword) {
+    try {
+      console.error("[API] Attempting to fetch content types via admin API");
+      console.error(`[API] Admin credentials available: ${!!config.strapi.adminEmail}`);
+      const adminEndpoint = `/content-type-builder/content-types`;
+      const response = await makeAdminApiRequest(adminEndpoint);
+      
+      console.error(`[API] Admin API response:`, JSON.stringify(response, null, 2));
+      
+      if (response && response.data) {
+        const contentTypes = Array.isArray(response.data) ? response.data : [response.data];
+        
+        console.error(`[API] Found ${contentTypes.length} content types via admin API`);
+        
+        // Filter and format content types
+        const formatted = contentTypes
+          .filter((ct: any) => ct.uid && ct.uid.startsWith('api::'))
+          .map((ct: any) => {
+            const [, apiId] = ct.uid.split('::');
+            const [singular] = apiId.split('.');
+            
+            return {
+              uid: ct.uid,
+              apiID: singular,
+              pluralApiId: ct.info?.pluralName || `${singular}s`,
+              displayName: ct.info?.displayName || singular,
+              isLocalized: ct.pluginOptions?.i18n?.localized || false,
+              info: {
+                displayName: ct.info?.displayName || singular,
+                description: ct.info?.description || `${singular} content type`,
+                singularName: ct.info?.singularName || singular,
+                pluralName: ct.info?.pluralName || `${singular}s`
+              },
+              attributes: ct.attributes || {}
+            };
+          });
+          
+        console.error(`[API] Returning ${formatted.length} formatted content types`);
+        return formatted;
+      }
+    } catch (error) {
+      console.error("[API] Failed to fetch content types via admin API, falling back to discovery:", error);
+    }
+  } else {
+    console.error("[API] No admin credentials available, using discovery method");
+  }
+  
+  // Fall back to discovery method
   return fetchContentTypes();
 }
 
@@ -106,6 +158,30 @@ export async function fetchContentTypes(): Promise<ContentType[]> {
 export async function fetchContentTypeSchema(contentType: string): Promise<any> {
   try {
     console.error(`[API] Fetching schema for content type: ${contentType}`);
+
+    // Try admin API first if credentials are available
+    if (config.strapi.adminEmail && config.strapi.adminPassword) {
+      try {
+        console.error(`[API] Attempting to fetch schema via admin API for ${contentType}`);
+        const endpoint = `/content-type-builder/content-types/${contentType}`;
+        const response = await makeAdminApiRequest(endpoint);
+        
+        if (response?.data) {
+          console.error(`[API] Successfully fetched schema via admin API`);
+          // Extract the schema from the response
+          const schema = response.data.schema || response.data;
+          return {
+            uid: schema.uid || contentType,
+            apiID: schema.apiID || contentType.split('::')[1]?.split('.')[0],
+            info: schema.info || {},
+            attributes: schema.attributes || {},
+            pluginOptions: schema.pluginOptions || {}
+          };
+        }
+      } catch (adminError) {
+        console.error(`[API] Failed to fetch schema via admin API, falling back to inference:`, adminError);
+      }
+    }
 
     console.error("[API] Attempting to infer schema from public API");
 

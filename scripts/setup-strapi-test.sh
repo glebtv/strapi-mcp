@@ -8,12 +8,19 @@ set -e
 echo "Using Node version: $(node --version)"
 echo "🚀 Setting up Strapi test instance..."
 
+# Load test environment variables if they exist
+if [ -f ../.env.test ]; then
+  echo "📋 Loading test environment variables from .env.test"
+  export $(grep -v '^#' ../.env.test | xargs)
+fi
+
 # Generate secure random values for Strapi configuration
 export APP_KEYS=$(openssl rand -base64 32)
 export API_TOKEN_SALT=$(openssl rand -base64 32)
 export ADMIN_JWT_SECRET=$(openssl rand -base64 32)
 export TRANSFER_TOKEN_SALT=$(openssl rand -base64 32)
-export ADMIN_PASSWORD=$(openssl rand -base64 16)
+# Use static password from .env.test or default
+export ADMIN_PASSWORD=${STRAPI_ADMIN_PASSWORD:-admin123456}
 export JWT_SECRET=$(openssl rand -base64 32)
 
 # Create a minimal Strapi 5 project for testing
@@ -72,9 +79,9 @@ npm run build
 echo "🔨 Rebuilding to register content types..."
 npm run build
 
-# Start Strapi and capture output to extract token
-echo "🚀 Starting Strapi..."
-npm run start > strapi_output.log 2>&1 &
+# Start Strapi in development mode for auto-reload functionality
+echo "🚀 Starting Strapi in development mode..."
+npm run develop > strapi_output.log 2>&1 &
 STRAPI_PID=$!
 echo "Strapi PID: $STRAPI_PID"
 
@@ -105,18 +112,25 @@ echo "✅ API Tokens extracted successfully"
 echo "📝 Full Access Token: $FULL_ACCESS_TOKEN"
 echo "📝 Read Only Token: $READ_ONLY_TOKEN"
 
-# Save tokens to file for later use
-echo "💾 Saving tokens to test-tokens.json..."
+# Save tokens and all environment variables to file for later use
+echo "💾 Saving tokens and environment to test-tokens.json..."
 cat > ../test-tokens.json << EOF
 {
   "fullAccessToken": "$FULL_ACCESS_TOKEN",
   "readOnlyToken": "$READ_ONLY_TOKEN",
   "strapiUrl": "http://localhost:1337",
   "adminEmail": "admin@ci.local",
-  "adminPassword": "$ADMIN_PASSWORD"
+  "adminPassword": "$ADMIN_PASSWORD",
+  "env": {
+    "APP_KEYS": "$APP_KEYS",
+    "API_TOKEN_SALT": "$API_TOKEN_SALT",
+    "ADMIN_JWT_SECRET": "$ADMIN_JWT_SECRET",
+    "TRANSFER_TOKEN_SALT": "$TRANSFER_TOKEN_SALT",
+    "JWT_SECRET": "$JWT_SECRET"
+  }
 }
 EOF
-echo "✅ Tokens saved to test-tokens.json"
+echo "✅ Tokens and environment saved to test-tokens.json"
 
 # Export variables for GitHub Actions
 if [ ! -z "$GITHUB_ENV" ]; then

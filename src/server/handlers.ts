@@ -12,6 +12,7 @@ import * as contentTypes from "../api/content-types.js";
 import * as entries from "../api/entries.js";
 import * as media from "../api/media.js";
 import * as components from "../api/components.js";
+import * as permissions from "../api/permissions.js";
 import { QueryParams } from "../types/index.js";
 import { ExtendedMcpError, ExtendedErrorCode } from "../errors/index.js";
 import { strapiClient } from "../api/client.js";
@@ -657,6 +658,48 @@ export function setupHandlers(server: Server) {
             required: ["pluralApiId", "documentId"],
           },
         },
+        {
+          name: "update_content_type_permissions",
+          description: "Update permissions for a content type. Allows setting read/write permissions for public and authenticated roles (Admin privileges required).",
+          inputSchema: {
+            type: "object",
+            properties: {
+              contentType: {
+                type: "string",
+                description: "The content type UID (e.g., 'api::article.article')",
+              },
+              permissions: {
+                type: "object",
+                description: "Permissions to set for public and authenticated roles",
+                properties: {
+                  public: {
+                    type: "object",
+                    description: "Permissions for public (unauthenticated) users",
+                    properties: {
+                      find: { type: "boolean", description: "Allow listing entries" },
+                      findOne: { type: "boolean", description: "Allow viewing single entries" },
+                      create: { type: "boolean", description: "Allow creating entries" },
+                      update: { type: "boolean", description: "Allow updating entries" },
+                      delete: { type: "boolean", description: "Allow deleting entries" },
+                    },
+                  },
+                  authenticated: {
+                    type: "object",
+                    description: "Permissions for authenticated users",
+                    properties: {
+                      find: { type: "boolean", description: "Allow listing entries" },
+                      findOne: { type: "boolean", description: "Allow viewing single entries" },
+                      create: { type: "boolean", description: "Allow creating entries" },
+                      update: { type: "boolean", description: "Allow updating entries" },
+                      delete: { type: "boolean", description: "Allow deleting entries" },
+                    },
+                  },
+                },
+              },
+            },
+            required: ["contentType", "permissions"],
+          },
+        },
       ],
     };
   });
@@ -1165,6 +1208,29 @@ export function setupHandlers(server: Server) {
           }
 
           const result = await components.updateComponent(componentUid, attributesToUpdate);
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+          };
+        }
+
+        case "update_content_type_permissions": {
+          const contentType = String(request.params.arguments?.contentType);
+          const permissionsConfig = request.params.arguments?.permissions;
+
+          if (!contentType || !permissionsConfig) {
+            throw new McpError(
+              ErrorCode.InvalidParams,
+              "contentType and permissions are required"
+            );
+          }
+
+          const result = await permissions.updateContentTypePermissions(contentType, permissionsConfig);
 
           return {
             content: [

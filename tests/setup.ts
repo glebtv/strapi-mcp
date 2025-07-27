@@ -1,8 +1,9 @@
 import { beforeAll } from 'vitest';
 import dotenv from 'dotenv';
 
-// Load environment variables
-dotenv.config();
+// Load environment variables - prioritize .env.test
+dotenv.config({ path: '.env.test' });
+dotenv.config(); // Load .env as fallback
 
 // Ensure required environment variables are set
 beforeAll(() => {
