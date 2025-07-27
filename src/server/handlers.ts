@@ -172,7 +172,7 @@ export function setupHandlers(server: Server) {
         {
           name: "strapi_rest",
           description:
-            "Execute REST API requests against Strapi endpoints. Supports all CRUD operations with advanced query options.\n\n1. Reading components:\nparams: { populate: ['SEO'] } // Populate a component\nparams: { populate: { SEO: { fields: ['Title', 'seoDescription'] } } } // With field selection\n\n2. Updating components:\nbody: {\n  data: {\n    // For single components:\n    componentName: {\n      Title: 'value',\n      seoDescription: 'value'\n    },\n    // For repeatable components:\n    componentName: [\n      { field: 'value' }\n    ]\n  }\n}\n\n3. Other parameters:\n- fields: Select specific fields\n- filters: Filter results\n- sort: Sort results\n- pagination: Page through results",
+            "Execute REST API requests against Strapi endpoints. Supports all CRUD operations with advanced query options.\n\n1. Reading components:\nparams: { populate: ['SEO'] } // Populate a component\nparams: { populate: { SEO: { fields: ['Title', 'seoDescription'] } } } // With field selection\n\n2. Updating components:\nbody: {\n  data: {\n    // For single components:\n    componentName: {\n      Title: 'value',\n      seoDescription: 'value'\n    },\n    // For repeatable components:\n    componentName: [\n      { field: 'value' }\n    ]\n  }\n}\n\n3. Locale parameter for i18n:\n- params: { locale: 'en' } // Fetch English locale\n- params: { locale: 'ru' } // Fetch Russian locale\n- params: { locale: 'all' } // Fetch all locales\n- For updates: PUT /api/articles/id?locale=ru\n\n4. Other parameters:\n- fields: Select specific fields\n- filters: Filter results\n- sort: Sort results\n- pagination: Page through results",
           inputSchema: {
             type: "object",
             properties: {
@@ -189,7 +189,7 @@ export function setupHandlers(server: Server) {
               params: {
                 type: "object",
                 description:
-                  "Optional query parameters for GET requests. For components, use populate: ['componentName'] or populate: { componentName: { fields: ['field1'] } }. For Draft & Publish, use status: 'published' (default), 'draft', or 'all'",
+                  "Optional query parameters for GET requests. For components, use populate: ['componentName'] or populate: { componentName: { fields: ['field1'] } }. For Draft & Publish, use status: 'published' (default), 'draft', or 'all'. For i18n, use locale: 'en', 'ru', 'zh', 'all', etc.",
               },
               body: {
                 type: "object",
@@ -215,7 +215,7 @@ export function setupHandlers(server: Server) {
               options: {
                 type: "string",
                 description:
-                  'JSON string with query options including filters, pagination, sort, populate, fields, and status. Status can be \'published\' (default), \'draft\', or \'all\'. Example: \'{"filters":{"title":{"$contains":"hello"}},"pagination":{"page":1,"pageSize":10},"sort":["title:asc"],"populate":["author","categories"],"fields":["title","content"],"status":"draft"}\'',
+                  'JSON string with query options including filters, pagination, sort, populate, fields, status, and locale. Status can be \'published\' (default), \'draft\', or \'all\'. Locale can be \'en\', \'ru\', \'zh\', \'all\', etc. Example: \'{"filters":{"title":{"$contains":"hello"}},"pagination":{"page":1,"pageSize":10},"sort":["title:asc"],"populate":["author","categories"],"fields":["title","content"],"status":"draft","locale":"ru"}\'',
               },
             },
             required: ["pluralApiId"],
@@ -239,7 +239,7 @@ export function setupHandlers(server: Server) {
               options: {
                 type: "string",
                 description:
-                  'JSON string with query options including populate and fields. Example: \'{"populate":["author","categories"],"fields":["title","content"]}\'',
+                  'JSON string with query options including populate, fields, and locale. For i18n, use locale: \'en\', \'ru\', \'zh\', etc. Example: \'{"populate":["author","categories"],"fields":["title","content"],"locale":"ru"}\'',
               },
             },
             required: ["pluralApiId", "documentId"],
@@ -247,7 +247,7 @@ export function setupHandlers(server: Server) {
         },
         {
           name: "create_entry",
-          description: "Create a new entry for a content type",
+          description: "Create a new entry for a content type. For i18n content types, you can specify the locale to create an entry in a specific language.",
           inputSchema: {
             type: "object",
             properties: {
@@ -265,13 +265,17 @@ export function setupHandlers(server: Server) {
                 type: "object",
                 description: "The data for the new entry",
               },
+              locale: {
+                type: "string",
+                description: "Optional: Locale for i18n content types (e.g., 'en', 'ru', 'zh'). If not specified, uses the default locale.",
+              },
             },
             required: ["contentType", "pluralApiId", "data"],
           },
         },
         {
           name: "update_entry",
-          description: "Update an existing entry",
+          description: "Update an existing entry. For i18n content types, you can specify the locale to update a specific language version.",
           inputSchema: {
             type: "object",
             properties: {
@@ -288,13 +292,17 @@ export function setupHandlers(server: Server) {
                 type: "object",
                 description: "The updated data for the entry",
               },
+              locale: {
+                type: "string",
+                description: "Optional: Locale for i18n content types (e.g., 'en', 'ru', 'zh'). If not specified, updates the default locale.",
+              },
             },
             required: ["pluralApiId", "documentId", "data"],
           },
         },
         {
           name: "delete_entry",
-          description: "Deletes a specific entry.",
+          description: "Deletes a specific entry. For i18n content types, you can specify the locale to delete a specific language version.",
           inputSchema: {
             type: "object",
             properties: {
@@ -306,6 +314,10 @@ export function setupHandlers(server: Server) {
               documentId: {
                 type: "string",
                 description: "The documentId of the entry.",
+              },
+              locale: {
+                type: "string",
+                description: "Optional: Locale for i18n content types (e.g., 'en', 'ru', 'zh'). If not specified, deletes all locales.",
               },
             },
             required: ["pluralApiId", "documentId"],
@@ -447,7 +459,7 @@ export function setupHandlers(server: Server) {
         },
         {
           name: "create_content_type",
-          description: "Creates a new content type (Admin privileges required).",
+          description: "Creates a new content type (Admin privileges required). For i18n-enabled content types, include pluginOptions.i18n.localized: true.",
           inputSchema: {
             type: "object",
             properties: {
@@ -468,7 +480,7 @@ export function setupHandlers(server: Server) {
               },
               attributes: {
                 type: "object",
-                description: 'Fields for the content type. E.g., { "title": { "type": "string" } }',
+                description: 'Fields for the content type. E.g., { "title": { "type": "string", "pluginOptions": { "i18n": { "localized": true } } } } for localized fields',
                 additionalProperties: {
                   type: "object",
                   properties: {
@@ -477,9 +489,17 @@ export function setupHandlers(server: Server) {
                       description: "Field type (string, text, number, etc.)",
                     },
                     required: { type: "boolean", description: "Is this field required?" },
+                    pluginOptions: {
+                      type: "object",
+                      description: "Plugin options, e.g., { i18n: { localized: true } } for localized fields",
+                    },
                   },
                   required: ["type"],
                 },
+              },
+              pluginOptions: {
+                type: "object",
+                description: "Plugin options for the content type. For i18n: { i18n: { localized: true } }",
               },
             },
             required: ["displayName", "singularName", "pluralName", "attributes"],
@@ -817,6 +837,7 @@ export function setupHandlers(server: Server) {
           const contentType = String(request.params.arguments?.contentType);
           const pluralApiId = String(request.params.arguments?.pluralApiId);
           const data = request.params.arguments?.data;
+          const locale = request.params.arguments?.locale as string | undefined;
 
           if (!contentType || !pluralApiId || !data) {
             throw new McpError(
@@ -825,7 +846,7 @@ export function setupHandlers(server: Server) {
             );
           }
 
-          const entry = await entries.createEntry(contentType, pluralApiId, data);
+          const entry = await entries.createEntry(contentType, pluralApiId, data, locale);
 
           return {
             content: [
@@ -841,6 +862,7 @@ export function setupHandlers(server: Server) {
           const pluralApiId = String(request.params.arguments?.pluralApiId);
           const documentId = String(request.params.arguments?.documentId);
           const data = request.params.arguments?.data;
+          const locale = request.params.arguments?.locale as string | undefined;
 
           if (!pluralApiId || !documentId || !data) {
             throw new McpError(
@@ -849,7 +871,7 @@ export function setupHandlers(server: Server) {
             );
           }
 
-          const entry = await entries.updateEntry(pluralApiId, documentId, data);
+          const entry = await entries.updateEntry(pluralApiId, documentId, data, locale);
 
           return {
             content: [
@@ -864,12 +886,13 @@ export function setupHandlers(server: Server) {
         case "delete_entry": {
           const pluralApiId = String(request.params.arguments?.pluralApiId);
           const documentId = String(request.params.arguments?.documentId);
+          const locale = request.params.arguments?.locale as string | undefined;
 
           if (!pluralApiId || !documentId) {
             throw new McpError(ErrorCode.InvalidParams, "pluralApiId and documentId are required");
           }
 
-          const result = await entries.deleteEntry(pluralApiId, documentId);
+          const result = await entries.deleteEntry(pluralApiId, documentId, locale);
 
           return {
             content: [

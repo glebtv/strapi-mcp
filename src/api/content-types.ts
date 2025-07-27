@@ -321,7 +321,7 @@ export async function createContentType(contentTypeData: any): Promise<any> {
     }
     
     // Extract the fields from the contentTypeData
-    const { displayName, singularName, pluralName, kind = 'collectionType', draftAndPublish = false, attributes } = contentTypeData;
+    const { displayName, singularName, pluralName, kind = 'collectionType', draftAndPublish = false, attributes, pluginOptions } = contentTypeData;
     
     if (!displayName || !singularName || !pluralName || !attributes) {
       throw new ExtendedMcpError(
@@ -338,7 +338,8 @@ export async function createContentType(contentTypeData: any): Promise<any> {
         pluralName,
         kind,
         draftAndPublish,
-        attributes
+        attributes,
+        pluginOptions
       }
     };
     

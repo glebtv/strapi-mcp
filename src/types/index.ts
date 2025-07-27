@@ -8,6 +8,7 @@ export interface QueryParams {
   populate?: string | string[] | Record<string, any>;
   fields?: string[];
   status?: "published" | "draft" | "all";
+  locale?: string; // For i18n: 'en', 'ru', 'zh', 'all', etc.
 }
 
 export interface ContentType {

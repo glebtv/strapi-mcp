@@ -31,6 +31,8 @@ This TypeScript-based MCP server integrates with Strapi v5 instances to provide:
 
 For detailed information about all tools and resources, see the [Tools and Resources Reference](./docs/TOOLS.md).
 
+For internationalization (i18n) support and locale parameter usage, see the [Locale Usage Guide](./docs/locale-usage.md).
+
 ## Installation
 
 ### Install from npm (Recommended)

@@ -22,6 +22,11 @@ export async function fetchEntries(pluralApiId: string, queryParams?: QueryParam
       params.status = queryParams.status; // 'published' or 'draft'
     }
 
+    // Handle locale parameter for i18n
+    if (queryParams?.locale) {
+      params.locale = queryParams.locale; // 'en', 'ru', 'zh', 'all', etc.
+    }
+
     const apiPath = `/api/${pluralApiId}`;
 
     console.error(`[API] Trying path: ${apiPath}`);
@@ -104,6 +109,9 @@ export async function fetchEntry(
     if (queryParams?.fields) {
       params.fields = queryParams.fields;
     }
+    if (queryParams?.locale) {
+      params.locale = queryParams.locale; // For i18n: 'en', 'ru', 'zh', etc.
+    }
 
     console.error(`[API] Fetching entry ${documentId} for ${pluralApiId} using API token`);
     const response = await strapiClient.get(`/api/${pluralApiId}/${documentId}`, { params });
@@ -140,7 +148,8 @@ export async function fetchEntry(
 export async function createEntry(
   contentType: string,
   pluralApiId: string,
-  data: any
+  data: any,
+  locale?: string
 ): Promise<any> {
   try {
     console.error(`[API] Creating new entry for ${pluralApiId}`);
@@ -148,10 +157,15 @@ export async function createEntry(
     // Ensure slug field is present if required
     data = ensureSlugField(contentType, data);
 
+    const params: Record<string, any> = {};
+    if (locale) {
+      params.locale = locale;
+    }
+
     console.error(`[API] Creating entry for ${pluralApiId} using API token`);
     const response = await strapiClient.post(`/api/${pluralApiId}`, {
       data: data,
-    });
+    }, { params });
 
     if (response.data && response.data.data) {
       console.error(`[API] Successfully created entry via API token.`);
@@ -183,13 +197,19 @@ export async function createEntry(
 export async function updateEntry(
   pluralApiId: string,
   documentId: string,
-  data: any
+  data: any,
+  locale?: string
 ): Promise<any> {
   const apiPath = `/api/${pluralApiId}/${documentId}`;
 
+  const params: Record<string, any> = {};
+  if (locale) {
+    params.locale = locale;
+  }
+
   console.error(`[API] Updating entry ${documentId} for ${pluralApiId} using API token`);
   try {
-    const response = await strapiClient.put(apiPath, { data });
+    const response = await strapiClient.put(apiPath, { data }, { params });
 
     if (response.data && response.data.data) {
       console.error(`[API] Successfully updated entry via API token.`);
@@ -212,12 +232,17 @@ export async function updateEntry(
   }
 }
 
-export async function deleteEntry(pluralApiId: string, documentId: string): Promise<any> {
+export async function deleteEntry(pluralApiId: string, documentId: string, locale?: string): Promise<any> {
   const apiPath = `/api/${pluralApiId}/${documentId}`;
+
+  const params: Record<string, any> = {};
+  if (locale) {
+    params.locale = locale;
+  }
 
   console.error(`[API] Deleting entry ${documentId} for ${pluralApiId} using API token`);
   try {
-    const response = await strapiClient.delete(apiPath);
+    const response = await strapiClient.delete(apiPath, { params });
 
     if (response.status === 200 || response.status === 204) {
       console.error(`[API] Successfully deleted entry via API token.`);
