@@ -78,8 +78,9 @@ fi
 # Add our bootstrap function to the existing file
 cat ../scripts/bootstrap-tokens.ts >> src/index.ts
 
-# Skip build when Strapi is in development mode - it will auto-reload
-echo "⚡ Skipping build - Strapi will auto-reload in development mode"
+# Build Strapi first to speed up startup
+echo "🔨 Building Strapi..."
+npm run build
 
 # Start Strapi in development mode for auto-reload functionality
 echo "🚀 Starting Strapi in development mode..."
