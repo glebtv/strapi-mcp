@@ -1,9 +1,8 @@
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
-import { strapiClient } from "./client.js";
+import { validateStrapiConnection, strapiClient } from "./client.js";
 import { filterBase64FromResponse, logger } from "../utils/index.js";
 import axios from "axios";
 import { config } from "../config/index.js";
-import { setTimeout } from "timers/promises";
 
 export async function uploadMedia(
   fileData: string,
@@ -27,199 +26,47 @@ export async function uploadMedia(
       );
     }
 
-    if (base64Size > 100000) {
-      // 100KB of base64 text
-      logger.warn(
-        `[API] Warning: Large file detected (~${estimatedFileSizeMB}MB). This may cause context window issues.`
-      );
-    }
-
     // Validate base64 format
     const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
     if (!base64Regex.test(fileData)) {
       throw new Error("Invalid base64 data: contains invalid characters");
     }
 
-    let buffer: Buffer;
-    try {
-      buffer = Buffer.from(fileData, "base64");
-      // Verify the buffer can be re-encoded to base64 to catch subtle issues
-      const reencoded = buffer.toString("base64");
-      // If the re-encoded length doesn't match (accounting for padding), the input was invalid
-      const originalWithoutPadding = fileData.replace(/=+$/, "");
-      const reencodedWithoutPadding = reencoded.replace(/=+$/, "");
-      if (
-        originalWithoutPadding.length !== reencodedWithoutPadding.length &&
-        originalWithoutPadding !== ""
-      ) {
-        throw new Error("Invalid base64 data: failed verification");
-      }
-    } catch (error) {
-      throw new Error(
-        `Invalid base64 data: ${error instanceof Error ? error.message : String(error)}`
-      );
+    // Decode base64 to buffer
+    const buffer = Buffer.from(fileData, "base64");
+
+    // Ensure we're connected and authenticated first
+    await validateStrapiConnection();
+    
+    // Get auth token from config
+    const authToken = config.strapi.apiToken;
+    if (!authToken) {
+      throw new Error("No API token available for upload");
     }
 
-    const formData = new FormData();
-    const blob = new Blob([buffer], { type: fileType });
-    formData.append("files", blob, fileName);
+    // Use form-data package for Node.js
+    const FormData = (await import("form-data")).default;
+    const form = new FormData();
+    
+    // Append buffer directly with metadata
+    form.append('files', buffer, {
+      filename: fileName,
+      contentType: fileType
+    });
 
-    // Log current authentication state
-    logger.debug(`[Upload Debug] Current auth config:`);
-    logger.debug(`[Upload Debug] - Has API Token: ${!!config.strapi.apiToken}`);
-    logger.debug(
-      `[Upload Debug] - Has Admin Credentials: ${!!(config.strapi.adminEmail && config.strapi.adminPassword)}`
-    );
-    logger.debug(
-      `[Upload Debug] - Current strapiClient auth header: ${strapiClient.defaults.headers.common["Authorization"] ? "Set" : "Not set"}`
-    );
+    const response = await axios.post(`${config.strapi.url}/api/upload`, form, {
+      headers: {
+        ...form.getHeaders(),
+        Authorization: `Bearer ${authToken}`,
+      },
+    });
 
-    // Helper function to perform upload with retry logic
-    const performUpload = async (
-      client: any,
-      url: string,
-      formData: FormData,
-      headers?: any,
-      retries = 3
-    ) => {
-      for (let attempt = 1; attempt <= retries; attempt++) {
-        try {
-          // For axios.post, the third parameter should be the config object, not wrapped
-          const config = headers ? { headers } : undefined;
-          const response = await client.post(url, formData, config);
-
-          // Check if the response is actually successful
-          if (response.status >= 400) {
-            logger.error(
-              `[Upload Debug] Upload failed with status ${response.status}: ${JSON.stringify(response.data)}`
-            );
-            throw new Error(`Upload failed: ${response.status} - ${JSON.stringify(response.data)}`);
-          }
-
-          return response;
-        } catch (error) {
-          if (
-            axios.isAxiosError(error) &&
-            (error.code === "ECONNRESET" || error.code === "ECONNREFUSED") &&
-            attempt < retries
-          ) {
-            logger.debug(
-              `[Upload Debug] Connection error on attempt ${attempt}, retrying in ${attempt}s...`
-            );
-            await setTimeout(attempt * 1000);
-            continue;
-          }
-          throw error;
-        }
-      }
-      throw new Error("Upload failed after all retries");
-    };
-
-    // Try upload with current strapiClient configuration first
-    try {
-      logger.debug(`[Upload Debug] Attempting upload with current strapiClient configuration...`);
-
-      // Note: We need to remove the Content-Type header for FormData uploads
-      // axios will set it automatically with the correct boundary
-      // Prepare upload config without Content-Type
-      const uploadHeaders = {
-        ...strapiClient.defaults.headers.common,
-        "Content-Type": undefined as any, // Remove Content-Type to let axios set it for FormData
-      };
-
-      const response = await performUpload(strapiClient, "/api/upload", formData, uploadHeaders);
-
-      logger.debug(`[Upload Debug] Upload successful with current strapiClient configuration`);
+    if (response.data && response.data.length > 0) {
+      logger.info(`[API] Successfully uploaded media file: ${fileName}`);
       const cleanResponse = filterBase64FromResponse(response.data);
-
-      // Strapi returns an array of uploaded files
-      if (Array.isArray(cleanResponse) && cleanResponse.length > 0) {
-        return cleanResponse[0];
-      }
-
-      return cleanResponse;
-    } catch (firstError) {
-      logger.debug(
-        `[Upload Debug] First attempt failed:`,
-        axios.isAxiosError(firstError)
-          ? `${firstError.response?.status} - ${JSON.stringify(firstError.response?.data)}`
-          : firstError
-      );
-
-      // If we have an API token, try it explicitly
-      if (config.strapi.apiToken) {
-        try {
-          logger.debug(`[Upload Debug] Attempting with explicit API token...`);
-          const response = await performUpload(axios, `${config.strapi.url}/api/upload`, formData, {
-            Authorization: `Bearer ${config.strapi.apiToken}`,
-          });
-
-          logger.debug(`[Upload Debug] Upload successful with API token`);
-          const cleanResponse = filterBase64FromResponse(response.data);
-
-          if (Array.isArray(cleanResponse) && cleanResponse.length > 0) {
-            return cleanResponse[0];
-          }
-
-          return cleanResponse;
-        } catch (apiTokenError) {
-          logger.debug(
-            `[Upload Debug] API token attempt failed:`,
-            axios.isAxiosError(apiTokenError)
-              ? `${apiTokenError.response?.status} - ${JSON.stringify(apiTokenError.response?.data)}`
-              : apiTokenError
-          );
-        }
-      }
-
-      // If we have admin credentials, try to get a user JWT token
-      if (config.strapi.adminEmail && config.strapi.adminPassword) {
-        try {
-          logger.debug(
-            `[Upload Debug] Attempting to get user JWT token using admin credentials...`
-          );
-
-          // Try to authenticate via Users & Permissions plugin
-          const authResponse = await axios.post(`${config.strapi.url}/api/auth/local`, {
-            identifier: config.strapi.adminEmail,
-            password: config.strapi.adminPassword,
-          });
-
-          if (authResponse.data && authResponse.data.jwt) {
-            logger.debug(`[Upload Debug] Got user JWT token, attempting upload...`);
-
-            const response = await performUpload(
-              axios,
-              `${config.strapi.url}/api/upload`,
-              formData,
-              { Authorization: `Bearer ${authResponse.data.jwt}` }
-            );
-
-            logger.debug(`[Upload Debug] Upload successful with user JWT token`);
-            const cleanResponse = filterBase64FromResponse(response.data);
-
-            if (Array.isArray(cleanResponse) && cleanResponse.length > 0) {
-              return cleanResponse[0];
-            }
-
-            return cleanResponse;
-          }
-        } catch (userAuthError) {
-          logger.debug(
-            `[Upload Debug] User auth attempt failed:`,
-            axios.isAxiosError(userAuthError)
-              ? `${userAuthError.response?.status} - ${JSON.stringify(userAuthError.response?.data)}`
-              : userAuthError
-          );
-        }
-      }
-
-      // If all attempts fail, throw the original error with a proper message
-      if (axios.isAxiosError(firstError) && firstError.message) {
-        throw firstError;
-      } else {
-        throw new Error(`Upload failed: ${firstError}`);
-      }
+      return cleanResponse[0];
+    } else {
+      throw new Error("No data returned from upload");
     }
   } catch (error) {
     logger.error(`[Error] Failed to upload media file ${fileName}:`, error);
@@ -229,19 +76,9 @@ export async function uploadMedia(
         `Failed to upload media file ${fileName}: ${error.response.status} - ${JSON.stringify(error.response.data)}`
       );
     }
-    // Extract a meaningful error message
-    let errorMessage = "Unknown error occurred";
-    if (error instanceof Error && error.message) {
-      errorMessage = error.message;
-    } else if (typeof error === "string" && error) {
-      errorMessage = error;
-    } else if (error && typeof error === "object" && "toString" in error) {
-      errorMessage = error.toString();
-    }
-
     throw new McpError(
       ErrorCode.InternalError,
-      `Failed to upload media file ${fileName}: ${errorMessage}`
+      `Failed to upload media file ${fileName}: ${error instanceof Error ? error.message : String(error)}`
     );
   }
 }
@@ -254,6 +91,7 @@ export async function uploadMediaFromPath(
   try {
     const fs = await import("fs");
     const path = await import("path");
+    const FormData = (await import("form-data")).default;
 
     if (!fs.existsSync(filePath)) {
       throw new Error(`File not found: ${filePath}`);
@@ -290,15 +128,152 @@ export async function uploadMediaFromPath(
       actualFileType = mimeTypes[extension] || "application/octet-stream";
     }
 
-    const fileBuffer = fs.readFileSync(filePath);
-    const base64Data = fileBuffer.toString("base64");
+    // Ensure we're connected and authenticated first
+    await validateStrapiConnection();
+    
+    // Get auth token from config
+    const authToken = config.strapi.apiToken;
+    if (!authToken) {
+      throw new Error("No API token available for upload");
+    }
 
-    return await uploadMedia(base64Data, actualFileName, actualFileType);
+    // Create FormData and append the file stream
+    const form = new FormData();
+    const fileStream = fs.createReadStream(filePath);
+    form.append('files', fileStream, {
+      filename: actualFileName,
+      contentType: actualFileType
+    });
+
+    const response = await axios.post(`${config.strapi.url}/api/upload`, form, {
+      headers: {
+        ...form.getHeaders(),
+        Authorization: `Bearer ${authToken}`,
+      },
+    });
+
+    if (response.data && response.data.length > 0) {
+      logger.info(`[API] Successfully uploaded media file: ${actualFileName}`);
+      return response.data[0];
+    } else {
+      throw new Error("No data returned from upload");
+    }
   } catch (error) {
     logger.error(`[Error] Failed to upload media file from path ${filePath}:`, error);
+    if (axios.isAxiosError(error) && error.response) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to upload media file: ${error.response.status} - ${JSON.stringify(error.response.data)}`
+      );
+    }
     throw new McpError(
       ErrorCode.InternalError,
       `Failed to upload media file from path: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
+export async function listMedia(): Promise<any[]> {
+  try {
+    logger.debug(`[API] Listing all media files`);
+    
+    // Ensure we're connected and authenticated first
+    await validateStrapiConnection();
+    
+    // Get auth token from config
+    const authToken = config.strapi.apiToken;
+    if (!authToken) {
+      throw new Error("No API token available for upload");
+    }
+
+    const response = await axios.get(`${config.strapi.url}/api/upload/files`, {
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+      },
+    });
+
+    return response.data;
+  } catch (error) {
+    logger.error(`[Error] Failed to list media files:`, error);
+    if (axios.isAxiosError(error) && error.response) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to list media files: ${error.response.status} - ${JSON.stringify(error.response.data)}`
+      );
+    }
+    throw new McpError(
+      ErrorCode.InternalError,
+      `Failed to list media files: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
+export async function getMedia(id: string): Promise<any> {
+  try {
+    logger.debug(`[API] Getting media file: ${id}`);
+    
+    // Ensure we're connected and authenticated first
+    await validateStrapiConnection();
+    
+    // Get auth token from config
+    const authToken = config.strapi.apiToken;
+    if (!authToken) {
+      throw new Error("No API token available for upload");
+    }
+
+    const response = await axios.get(`${config.strapi.url}/api/upload/files/${id}`, {
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+      },
+    });
+
+    return response.data;
+  } catch (error) {
+    logger.error(`[Error] Failed to get media file ${id}:`, error);
+    if (axios.isAxiosError(error) && error.response) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to get media file: ${error.response.status} - ${JSON.stringify(error.response.data)}`
+      );
+    }
+    throw new McpError(
+      ErrorCode.InternalError,
+      `Failed to get media file: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
+export async function deleteMedia(id: string): Promise<void> {
+  try {
+    logger.debug(`[API] Deleting media file: ${id}`);
+    
+    // Ensure we're connected and authenticated first
+    await validateStrapiConnection();
+    
+    // Get auth token from config
+    const authToken = config.strapi.apiToken;
+    if (!authToken) {
+      throw new Error("No API token available for upload");
+    }
+
+    await axios.delete(`${config.strapi.url}/api/upload/files/${id}`, {
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+      },
+    });
+
+    logger.info(`[API] Successfully deleted media file: ${id}`);
+  } catch (error) {
+    logger.error(`[Error] Failed to delete media file ${id}:`, error);
+    if (axios.isAxiosError(error) && error.response) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to delete media file: ${error.response.status} - ${JSON.stringify(error.response.data)}`
+      );
+    }
+    throw new McpError(
+      ErrorCode.InternalError,
+      `Failed to delete media file: ${error instanceof Error ? error.message : String(error)}`
     );
   }
 }
