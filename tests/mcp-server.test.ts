@@ -359,7 +359,7 @@ describe('Strapi MCP Server', () => {
     });
   });
 
-  describe.skip('Media Upload', () => {
+  describe('Media Upload', () => {
     it('should upload media from base64', async () => {
       // Create a small test image
       const testImageBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
@@ -382,7 +382,7 @@ describe('Strapi MCP Server', () => {
 
   // TODO: Publishing in Strapi 5 works differently - need to investigate the correct approach
   // Setting publishedAt to null doesn't seem to unpublish entries
-  describe.skip('Publishing', () => {
+  describe('Publishing', () => {
     it('should publish an entry', async () => {
       // Create entry to publish with unique name
       const uniqueName = 'Draft Project ' + Date.now();

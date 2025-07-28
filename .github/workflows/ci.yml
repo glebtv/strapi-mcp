@@ -68,8 +68,8 @@ jobs:
         
         # Check Strapi is still running before tests
         echo "🔍 Checking Strapi status before tests..."
-        curl -s http://localhost:1337/_health || echo "⚠️  Strapi health check failed"
-        ps aux | grep -E "(strapi|node.*develop)" | grep -v grep || echo "⚠️  No Strapi processes found"
+        curl -s http://localhost:1337/_health && echo "✅ Strapi health check passed" || echo "⚠️  Strapi health check failed"
+        ps aux | grep -E "(strapi|node.*start)" | grep -v grep && echo "✅ Strapi process found" || echo "⚠️  No Strapi processes found"
         
         # Run tests with timeout
         timeout 600 npm test || (echo "❌ Tests failed or timed out"; exit 1)

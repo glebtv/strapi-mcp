@@ -203,8 +203,8 @@ async function createTokensWithPermissions(url, adminToken) {
       console.log(`🔑 Access Key: ${fullAccessToken}`);
     } else {
       const errorData = await tokenResponse.json();
-      if (errorData?.error?.message?.includes('already exists')) {
-        console.log('⚠️  Token "CI/CD Full Access" already exists');
+      if (errorData?.error?.message?.includes('already exists') || errorData?.error?.message?.includes('already taken')) {
+        console.log('⚠️  Token "CI/CD Full Access" already exists, fetching existing token...');
         // Get existing token
         const tokensResponse = await fetch(`${url}/admin/api-tokens`, {
           headers: adminHeaders
@@ -212,7 +212,12 @@ async function createTokensWithPermissions(url, adminToken) {
         const tokensData = await tokensResponse.json();
         const existingToken = tokensData.data.find(t => t.name === 'CI/CD Full Access');
         if (existingToken) {
-          console.log('⚠️  Using existing token ID:', existingToken.id);
+          console.log('✅ Found existing token');
+          tokens.push({
+            name: 'CI/CD Full Access',
+            token: existingToken.accessKey,
+            envVar: 'CI_CD_FULL_ACCESS_TOKEN'
+          });
         }
       } else {
         throw new Error(errorData?.error?.message || tokenResponse.statusText);
@@ -253,8 +258,22 @@ async function createTokensWithPermissions(url, adminToken) {
       console.log(`🔑 Access Key: ${readOnlyToken}`);
     } else {
       const errorData = await tokenResponse.json();
-      if (errorData?.error?.message?.includes('already exists')) {
-        console.log('⚠️  Token "Testing Read Only" already exists');
+      if (errorData?.error?.message?.includes('already exists') || errorData?.error?.message?.includes('already taken')) {
+        console.log('⚠️  Token "Testing Read Only" already exists, fetching existing token...');
+        // Get existing token
+        const tokensResponse = await fetch(`${url}/admin/api-tokens`, {
+          headers: adminHeaders
+        });
+        const tokensData = await tokensResponse.json();
+        const existingToken = tokensData.data.find(t => t.name === 'Testing Read Only');
+        if (existingToken) {
+          console.log('✅ Found existing token');
+          tokens.push({
+            name: 'Testing Read Only',
+            token: existingToken.accessKey,
+            envVar: 'TESTING_READ_ONLY_TOKEN'
+          });
+        }
       } else {
         throw new Error(errorData?.error?.message || tokenResponse.statusText);
       }

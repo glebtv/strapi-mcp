@@ -4,7 +4,7 @@ import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import type { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import axios from 'axios';
 
-describe.skip('Internationalization (i18n) Content Type Creation and Management', { timeout: 120000 }, () => {
+describe('Internationalization (i18n) Content Type Creation and Management', { timeout: 120000 }, () => {
   let adminClient: Client;
   let adminTransport: StdioClientTransport;
   let apiClient: Client;

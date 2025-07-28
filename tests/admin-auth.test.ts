@@ -205,8 +205,7 @@ describe('Admin Authentication Tests', () => {
       throw new Error(`Expected 'Admin credentials are required' error, but got: ${lastError.message}`);
     });
 
-    it.skip('should succeed with regular operations using API token', async () => {
-      // Skipping due to intermittent connection issues in test environment
+    it('should succeed with regular operations using API token', async () => {
       const result = await clientWithToken.callTool({
         name: 'list_content_types',
         arguments: {}
