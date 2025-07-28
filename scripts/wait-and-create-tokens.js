@@ -3,13 +3,42 @@
 // Using fetch instead of axios for better compatibility
 
 async function waitForStrapi(url, maxAttempts = null) {
-  // Use 30 seconds max as requested
+  // Use 60 seconds timeout
   if (!maxAttempts) {
-    maxAttempts = 30; // 30 seconds max for both CI and local
+    maxAttempts = 60; // 60 seconds for both CI and local
   }
   console.log(`⏳ Waiting for Strapi to be ready (max ${maxAttempts} seconds)...`);
   
+  // Check if we have the PID to monitor process
+  const strapiPid = process.env.STRAPI_PID;
+  
   for (let i = 1; i <= maxAttempts; i++) {
+    // First check if Strapi process is still running
+    if (strapiPid) {
+      try {
+        // Check if process exists (kill -0 doesn't actually kill)
+        process.kill(parseInt(strapiPid), 0);
+      } catch (error) {
+        console.error('\n❌ Strapi process crashed!');
+        
+        // Try to read the logs
+        const fs = await import('fs');
+        const path = await import('path');
+        const logPath = path.join(process.cwd(), 'strapi-test/strapi_output.log');
+        
+        if (fs.existsSync(logPath)) {
+          console.error('\n=== Last 50 lines of Strapi logs ===');
+          const logs = fs.readFileSync(logPath, 'utf8');
+          const lines = logs.split('\n');
+          const lastLines = lines.slice(-50).join('\n');
+          console.error(lastLines);
+          console.error('=== End of logs ===\n');
+        }
+        
+        return false;
+      }
+    }
+    
     try {
       // Try multiple endpoints since _health might not be available in development
       const endpoints = [
@@ -41,6 +70,21 @@ async function waitForStrapi(url, maxAttempts = null) {
   }
   
   console.error('❌ Strapi did not become ready in time');
+  
+  // Show logs on timeout too
+  const fs = await import('fs');
+  const path = await import('path');
+  const logPath = path.join(process.cwd(), 'strapi-test/strapi_output.log');
+  
+  if (fs.existsSync(logPath)) {
+    console.error('\n=== Last 50 lines of Strapi logs ===');
+    const logs = fs.readFileSync(logPath, 'utf8');
+    const lines = logs.split('\n');
+    const lastLines = lines.slice(-50).join('\n');
+    console.error(lastLines);
+    console.error('=== End of logs ===\n');
+  }
+  
   return false;
 }
 

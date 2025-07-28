@@ -78,11 +78,6 @@ fi
 # Add our bootstrap function to the existing file
 cat ../scripts/bootstrap-tokens.ts >> src/index.ts
 
-# Ensure the bootstrap function is exported
-echo "" >> src/index.ts
-echo "// Export bootstrap for Strapi to use" >> src/index.ts
-echo "export { bootstrap };" >> src/index.ts
-
 # Skip build when Strapi is in development mode - it will auto-reload
 echo "⚡ Skipping build - Strapi will auto-reload in development mode"
 
@@ -100,7 +95,7 @@ fi
 # Wait for Strapi and create tokens
 echo "⏳ Waiting for Strapi to start and creating tokens..."
 cd ..
-STRAPI_URL=http://localhost:1337 ADMIN_EMAIL=admin@ci.local ADMIN_PASSWORD=$ADMIN_PASSWORD npm run wait-and-create-tokens
+STRAPI_URL=http://localhost:1337 ADMIN_EMAIL=admin@ci.local ADMIN_PASSWORD=$ADMIN_PASSWORD STRAPI_PID=$STRAPI_PID npm run wait-and-create-tokens
 
 if [ $? -ne 0 ]; then
   echo "❌ Failed to create tokens"
