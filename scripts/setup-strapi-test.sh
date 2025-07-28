@@ -100,8 +100,9 @@ fi
 
 # Load tokens from test-tokens.json
 if [ -f test-tokens.json ]; then
-  FULL_ACCESS_TOKEN=$(jq -r .fullAccessToken test-tokens.json)
-  READ_ONLY_TOKEN=$(jq -r .readOnlyToken test-tokens.json)
+  # Parse JSON without jq - extract token values using grep and sed
+  FULL_ACCESS_TOKEN=$(grep -o '"fullAccessToken"[[:space:]]*:[[:space:]]*"[^"]*"' test-tokens.json | sed 's/.*: *"\([^"]*\)".*/\1/')
+  READ_ONLY_TOKEN=$(grep -o '"readOnlyToken"[[:space:]]*:[[:space:]]*"[^"]*"' test-tokens.json | sed 's/.*: *"\([^"]*\)".*/\1/')
   
   echo "✅ Tokens loaded from test-tokens.json"
   echo "📝 Full Access Token: ${FULL_ACCESS_TOKEN:0:20}..."

@@ -3,9 +3,9 @@
 // Using fetch instead of axios for better compatibility
 
 async function waitForStrapi(url, maxAttempts = null) {
-  // CI environments need more time
+  // Use 30 seconds max as requested
   if (!maxAttempts) {
-    maxAttempts = process.env.CI ? 180 : 60; // 3 minutes for CI, 1 minute for local
+    maxAttempts = 30; // 30 seconds max for both CI and local
   }
   console.log(`⏳ Waiting for Strapi to be ready (max ${maxAttempts} seconds)...`);
   
