@@ -24,8 +24,20 @@ jobs:
         cache: 'npm'
     
     - name: Setup Strapi test instance
-      run: ./scripts/setup-strapi-test.sh
-        
+      run: ./scripts/ci-wrapper.sh
+    
+    - name: Debug - Check Strapi status
+      if: always()
+      run: |
+        echo "=== Checking Strapi process ==="
+        ps aux | grep -E "(strapi|node.*develop)" | grep -v grep || echo "No Strapi processes found"
+        echo "=== Checking tokens ==="
+        if [ -f test-tokens.json ]; then
+          echo "✅ test-tokens.json exists"
+          jq -r 'keys' test-tokens.json
+        else
+          echo "❌ test-tokens.json not found"
+        fi
     
     - name: Install dependencies
       run: npm ci
@@ -45,13 +57,43 @@ jobs:
           echo "STRAPI_API_TOKEN=${STRAPI_API_TOKEN:0:20}..."
           echo "STRAPI_ADMIN_EMAIL=$STRAPI_ADMIN_EMAIL"
         fi
-        npm test
+        
+        # Check Strapi is still running before tests
+        echo "🔍 Checking Strapi status before tests..."
+        curl -s http://localhost:1337/_health || echo "⚠️  Strapi health check failed"
+        ps aux | grep -E "(strapi|node.*develop)" | grep -v grep || echo "⚠️  No Strapi processes found"
+        
+        # Run tests with timeout
+        timeout 600 npm test || (echo "❌ Tests failed or timed out"; exit 1)
       env:
         STRAPI_URL: http://localhost:1337
+    
+    - name: Upload logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: strapi-logs-${{ matrix.node-version }}
+        path: |
+          strapi-test/strapi_output.log
+          strapi-test/.tmp/data.db
+        retention-days: 7
     
     - name: Stop Strapi
       if: always()
       run: |
+        # Try environment variable first
         if [ ! -z "$STRAPI_PID" ]; then
+          echo "Stopping Strapi process: $STRAPI_PID"
           kill $STRAPI_PID || true
         fi
+        
+        # Also check PID file
+        if [ -f strapi-test/strapi.pid ]; then
+          PID=$(cat strapi-test/strapi.pid)
+          echo "Stopping Strapi from PID file: $PID"
+          kill $PID || true
+        fi
+        
+        # Final cleanup - be specific to avoid killing other processes
+        pkill -f "strapi develop" || true
+        pkill -f "npm run develop" || true

@@ -51,6 +51,8 @@ Key architectural decisions:
 - Test files: `/tests/*.test.ts`
 - Setup file: `/tests/setup.ts`
 - Run with coverage: `npm test -- --coverage`
+- Test CI locally with act: `act push --job test --matrix node-version:22.x`
+  - Note: Do not run Strapi locally when testing with act - it will start its own instance
 
 ## Important Context
 
@@ -94,3 +96,6 @@ Key architectural decisions:
 
 - Use github tool and any other tools you have
 - Use read-website-fast and brave search if you need to look up stuff
+- Use HTTPie (`http`) instead of curl for HTTP requests - it's installed and doesn't show progress bars
+  - Example: `http GET localhost:1337/_health` or `http --headers localhost:1337/_health`
+  - Docs: https://httpie.io/docs/cli/snapcraft-linux
