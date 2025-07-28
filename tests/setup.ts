@@ -8,6 +8,10 @@ import axios from 'axios';
 dotenv.config({ path: '.env.test' });
 dotenv.config(); // Load .env as fallback
 
+// Global lock to ensure only one test waits for Strapi at a time
+let strapiReadyPromise: Promise<void> | null = null;
+let strapiIsReady = false;
+
 // Load tokens from test-tokens.json if it exists
 const testTokensPath = path.join(process.cwd(), 'test-tokens.json');
 if (fs.existsSync(testTokensPath)) {
@@ -36,31 +40,68 @@ if (fs.existsSync(testTokensPath)) {
   }
 }
 
+// Helper function to check if Strapi is responding
+async function checkStrapiHealth() {
+  try {
+    const response = await axios.get(`${process.env.STRAPI_URL}/_health`, {
+      timeout: 1000,
+      validateStatus: () => true
+    });
+    return response.status === 204;
+  } catch (error) {
+    return false;
+  }
+}
+
 // Helper function to wait for Strapi to be ready
 async function waitForStrapi(maxRetries = 30, delay = 1000) {
-  const strapiUrl = process.env.STRAPI_URL;
-  console.log(`Waiting for Strapi to be ready at ${strapiUrl}...`);
-  
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      const response = await axios.get(`${strapiUrl}/_health`, {
-        timeout: 1000,
-        validateStatus: () => true
-      });
-      if (response.status === 204) {
-        console.log('Strapi is ready!');
-        return;
-      }
-    } catch (error) {
-      // Connection refused, Strapi is not ready yet
-    }
-    
-    if (i < maxRetries - 1) {
-      await new Promise(resolve => setTimeout(resolve, delay));
+  // First check if Strapi is still responding
+  if (strapiIsReady) {
+    const isHealthy = await checkStrapiHealth();
+    if (!isHealthy) {
+      // Strapi has restarted, reset the state
+      strapiIsReady = false;
+      strapiReadyPromise = null;
+    } else {
+      return;
     }
   }
-  
-  throw new Error(`Strapi did not become ready after ${maxRetries} attempts`);
+
+  // If another test is already waiting, wait for that to complete
+  if (strapiReadyPromise) {
+    return strapiReadyPromise;
+  }
+
+  // Create a new promise that other tests can wait on
+  strapiReadyPromise = (async () => {
+    const strapiUrl = process.env.STRAPI_URL;
+    console.log(`Waiting for Strapi to be ready at ${strapiUrl}...`);
+    
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        const response = await axios.get(`${strapiUrl}/_health`, {
+          timeout: 1000,
+          validateStatus: () => true
+        });
+        if (response.status === 204) {
+          console.log('Strapi is ready!');
+          strapiIsReady = true;
+          return;
+        }
+      } catch (error) {
+        // Connection refused, Strapi is not ready yet
+      }
+      
+      if (i < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+    
+    strapiReadyPromise = null;
+    throw new Error(`Strapi did not become ready after ${maxRetries} attempts`);
+  })();
+
+  return strapiReadyPromise;
 }
 
 // Ensure required environment variables are set

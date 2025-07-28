@@ -9,6 +9,14 @@ export default defineConfig({
     setupFiles: ['./tests/setup.ts'],
     // Run tests sequentially to avoid conflicts when Strapi restarts
     fileParallelism: false,
+    // Ensure tests run one at a time in CI
+    maxConcurrency: 1,
+    pool: 'forks',
+    poolOptions: {
+      forks: {
+        singleFork: true,
+      }
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
