@@ -25,18 +25,18 @@ export async function createTestClient(options: AdminClientOptions = {}): Promis
     env.STRAPI_ADMIN_EMAIL = process.env.STRAPI_ADMIN_EMAIL;
     env.STRAPI_ADMIN_PASSWORD = process.env.STRAPI_ADMIN_PASSWORD;
   } else {
-    delete env.STRAPI_ADMIN_EMAIL;
-    delete env.STRAPI_ADMIN_PASSWORD;
+    env.STRAPI_ADMIN_EMAIL = undefined;
+    env.STRAPI_ADMIN_PASSWORD = undefined;
   }
 
   if (useApiToken) {
     env.STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN;
   } else {
-    delete env.STRAPI_API_TOKEN;
+    env.STRAPI_API_TOKEN = undefined;
   }
 
   const transport = new StdioClientTransport({
-    command: 'node',
+    command: process.execPath,
     args: ['build/index.js'],
     env
   });

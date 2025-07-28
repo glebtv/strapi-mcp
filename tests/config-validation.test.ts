@@ -6,11 +6,15 @@ describe('Configuration Validation', () => {
   describe('Authentication Configuration', () => {
     it('should reject connection without any authentication', async () => {
       const transport = new StdioClientTransport({
-        command: 'node',
+        command: process.execPath,
         args: ['build/index.js'],
         env: {
+          ...process.env,
           STRAPI_URL: 'http://localhost:1337',
           // No authentication provided
+          STRAPI_API_TOKEN: undefined,
+          STRAPI_ADMIN_EMAIL: undefined,
+          STRAPI_ADMIN_PASSWORD: undefined
         }
       });
 
@@ -34,12 +38,15 @@ describe('Configuration Validation', () => {
 
     it('should accept API token only', async () => {
       const transport = new StdioClientTransport({
-        command: 'node',
+        command: process.execPath,
         args: ['build/index.js'],
         env: {
+          ...process.env,
           STRAPI_URL: process.env.STRAPI_URL,
           STRAPI_API_TOKEN: process.env.STRAPI_API_TOKEN,
           // No admin credentials
+          STRAPI_ADMIN_EMAIL: undefined,
+          STRAPI_ADMIN_PASSWORD: undefined
         }
       });
 
@@ -69,13 +76,15 @@ describe('Configuration Validation', () => {
       }
 
       const transport = new StdioClientTransport({
-        command: 'node',
+        command: process.execPath,
         args: ['build/index.js'],
         env: {
+          ...process.env,
           STRAPI_URL: process.env.STRAPI_URL,
           STRAPI_ADMIN_EMAIL: process.env.STRAPI_ADMIN_EMAIL,
           STRAPI_ADMIN_PASSWORD: process.env.STRAPI_ADMIN_PASSWORD,
           // No API token
+          STRAPI_API_TOKEN: undefined
         }
       });
 
@@ -110,11 +119,14 @@ describe('Configuration Validation', () => {
 
       for (const token of placeholderTokens) {
         const transport = new StdioClientTransport({
-          command: 'node',
+          command: process.execPath,
           args: ['build/index.js'],
           env: {
+            ...process.env,
             STRAPI_URL: 'http://localhost:1337',
-            STRAPI_API_TOKEN: token
+            STRAPI_API_TOKEN: token,
+            STRAPI_ADMIN_EMAIL: undefined,
+            STRAPI_ADMIN_PASSWORD: undefined
           }
         });
 

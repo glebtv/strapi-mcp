@@ -12,7 +12,7 @@ describe('Admin Authentication Tests', () => {
     beforeAll(async () => {
       // Create client with admin credentials
       transportAdmin = new StdioClientTransport({
-        command: 'node',
+        command: process.execPath,
         args: ['build/index.js'],
         env: {
           ...process.env,
@@ -136,7 +136,7 @@ describe('Admin Authentication Tests', () => {
       await new Promise(resolve => setTimeout(resolve, 2000));
       // Create client with API token only
       transportToken = new StdioClientTransport({
-        command: 'node',
+        command: process.execPath,
         args: ['build/index.js'],
         env: {
           ...process.env,
@@ -165,16 +165,37 @@ describe('Admin Authentication Tests', () => {
     });
 
     it('should fail component operations with API token only', async () => {
-      try {
-        await clientWithToken.callTool({
-          name: 'list_components',
-          arguments: {}
-        });
-        // Should not reach here
-        expect(true).toBe(false);
-      } catch (error: any) {
-        expect(error.message).toContain('Admin credentials are required');
+      // Retry a few times in case of transient connection issues
+      let lastError: any;
+      
+      for (let i = 0; i < 3; i++) {
+        try {
+          await clientWithToken.callTool({
+            name: 'list_components',
+            arguments: {}
+          });
+          // Should not reach here
+          expect(true).toBe(false);
+          return;
+        } catch (error: any) {
+          lastError = error;
+          
+          // If we get the expected error, test passes
+          if (error.message.includes('Admin credentials are required')) {
+            expect(error.message).toContain('Admin credentials are required');
+            return;
+          }
+          
+          // If connection refused, wait and retry
+          if (error.message.includes('Connection refused') && i < 2) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            continue;
+          }
+        }
       }
+      
+      // If we get here, throw the last error
+      throw lastError;
     });
 
     it.skip('should succeed with regular operations using API token', async () => {
