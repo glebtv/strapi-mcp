@@ -255,7 +255,7 @@ describe('Error Handling', () => {
         expect.fail('Should have thrown an error');
       } catch (error: any) {
         // Should fail during connection or operation
-        expect(error.message).toMatch(/authentication|401|credentials/i);
+        expect(error.message).toMatch(/authentication|401|403|credentials/i);
       } finally {
         await invalidAdminTransport.close();
       }

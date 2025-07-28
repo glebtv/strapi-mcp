@@ -1,6 +1,7 @@
 import { config, validateConfig } from "../config/index.js";
 import { makeAdminApiRequest } from "./client.js";
 import { ExtendedMcpError, ExtendedErrorCode } from "../errors/index.js";
+import { logger } from "../utils/index.js";
 import axios from "axios";
 
 export interface Permission {
@@ -35,9 +36,9 @@ export async function getRoles(): Promise<any[]> {
   try {
     // Use the correct endpoint for roles
     const endpoint = "/users-permissions/roles";
-    console.error(`[API] Getting roles from ${endpoint}...`);
+    logger.debug(`[API] Getting roles from ${endpoint}...`);
     const response = await makeAdminApiRequest(endpoint);
-    console.error(`[API] Got roles response:`, JSON.stringify(response, null, 2));
+    logger.debug(`[API] Got roles response:`, JSON.stringify(response, null, 2));
 
     // Handle different response structures
     if (response && typeof response === "object") {
@@ -50,13 +51,13 @@ export async function getRoles(): Promise<any[]> {
       }
     }
 
-    console.error("[API] Unexpected roles response structure:", response);
+    logger.debug("[API] Unexpected roles response structure:", response);
     return [];
   } catch (error: any) {
-    console.error("[Error] Failed to get roles:", error.message);
+    logger.error("[Error] Failed to get roles:", error.message);
     if (error.response) {
-      console.error("[Error] Response status:", error.response.status);
-      console.error("[Error] Response data:", error.response.data);
+      logger.error("[Error] Response status:", error.response.status);
+      logger.error("[Error] Response data:", error.response.data);
     }
     throw new ExtendedMcpError(
       ExtendedErrorCode.InternalError,
@@ -82,10 +83,10 @@ export async function getRolePermissions(roleId: number): Promise<any> {
     // Use the correct endpoint for role details
     const endpoint = `/users-permissions/roles/${roleId}`;
     const response = await makeAdminApiRequest(endpoint);
-    console.error(`[API] Got role permissions from ${endpoint}:`, response);
+    logger.debug(`[API] Got role permissions from ${endpoint}:`, response);
     return response.role || response || {};
   } catch (error: any) {
-    console.error("[Error] Failed to get role permissions:", error);
+    logger.error("[Error] Failed to get role permissions:", error);
     throw new ExtendedMcpError(
       ExtendedErrorCode.InternalError,
       `Failed to get role permissions: ${error.message}`
@@ -125,7 +126,7 @@ export async function updateContentTypePermissions(
   }
 
   try {
-    console.error(`[API] Updating permissions for content type: ${contentType}`);
+    logger.debug(`[API] Updating permissions for content type: ${contentType}`);
 
     // Get all roles
     const roles = await getRoles();
@@ -136,13 +137,13 @@ export async function updateContentTypePermissions(
 
     // Update public role permissions
     if (publicRole && permissions.public) {
-      console.error(`[API] Updating public role permissions for ${contentType}`);
+      logger.debug(`[API] Updating public role permissions for ${contentType}`);
       results.public = await updateRolePermissions(publicRole.id, contentType, permissions.public);
     }
 
     // Update authenticated role permissions
     if (authenticatedRole && permissions.authenticated) {
-      console.error(`[API] Updating authenticated role permissions for ${contentType}`);
+      logger.debug(`[API] Updating authenticated role permissions for ${contentType}`);
       results.authenticated = await updateRolePermissions(
         authenticatedRole.id,
         contentType,
@@ -152,7 +153,7 @@ export async function updateContentTypePermissions(
 
     return results;
   } catch (error: any) {
-    console.error("[Error] Failed to update content type permissions:", error);
+    logger.error("[Error] Failed to update content type permissions:", error);
 
     if (axios.isAxiosError(error)) {
       const status = error.response?.status;
@@ -260,17 +261,17 @@ async function updateRolePermissions(
       users: roleData.users || [],
     };
 
-    console.error(
+    logger.debug(
       `[API] Updating role ${roleId} with permissions:`,
       JSON.stringify(permissions, null, 2)
     );
-    console.error(`[API] Full payload:`, JSON.stringify(payload, null, 2));
+    logger.debug(`[API] Full payload:`, JSON.stringify(payload, null, 2));
 
     const response = await makeAdminApiRequest(endpoint, "put", payload);
-    console.error(`[API] Successfully updated role via ${endpoint}`);
+    logger.debug(`[API] Successfully updated role via ${endpoint}`);
     return response;
   } catch (error: any) {
-    console.error(`[Error] Failed to update role ${roleId} permissions:`, error);
+    logger.error(`[Error] Failed to update role ${roleId} permissions:`, error);
     throw error;
   }
 }

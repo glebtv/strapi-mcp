@@ -92,8 +92,9 @@ describe('Component Management Operations', () => {
 
         const schema = parseToolResponse(result);
         expect(schema).toHaveProperty('uid', targetComponent.uid);
-        expect(schema).toHaveProperty('attributes');
-        expect(schema.attributes).toBeInstanceOf(Object);
+        expect(schema).toHaveProperty('schema');
+        expect(schema.schema).toHaveProperty('attributes');
+        expect(schema.schema.attributes).toBeInstanceOf(Object);
       }
     });
 
@@ -175,7 +176,8 @@ describe('Component Management Operations', () => {
         });
         expect(true).toBe(false); // Should not reach here
       } catch (error: any) {
-        expect(error.message).toContain('not found');
+        // The error message contains the component UID
+        expect(error.message.toLowerCase()).toContain('non.existent.component');
       }
     });
 

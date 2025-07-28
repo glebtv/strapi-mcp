@@ -4,11 +4,12 @@ import { strapiClient, validateStrapiConnection } from "./client.js";
 import { QueryParams } from "../types/index.js";
 import { ExtendedMcpError, ExtendedErrorCode } from "../errors/index.js";
 import { ensureSlugField } from "../utils/slug.js";
+import { logger } from "../utils/index.js";
 
 export async function fetchEntries(pluralApiId: string, queryParams?: QueryParams): Promise<any> {
   await validateStrapiConnection();
 
-  console.error(`[API] Fetching entries for ${pluralApiId} using API Token`);
+  logger.debug(`[API] Fetching entries for ${pluralApiId} using API Token`);
   try {
     const params: Record<string, any> = {};
     if (queryParams?.filters) params.filters = queryParams.filters;
@@ -29,15 +30,15 @@ export async function fetchEntries(pluralApiId: string, queryParams?: QueryParam
 
     const apiPath = `/api/${pluralApiId}`;
 
-    console.error(`[API] Trying path: ${apiPath}`);
+    logger.debug(`[API] Trying path: ${apiPath}`);
     const response = await strapiClient.get(apiPath, { params });
 
     if (response.data && response.data.error) {
-      console.error(`[API] Path ${apiPath} returned an error:`, response.data.error);
+      logger.debug(`[API] Path ${apiPath} returned an error:`, response.data.error);
       throw new Error(response.data.error.message);
     }
 
-    console.error(`[API] Successfully fetched data from: ${apiPath} using API token`);
+    logger.debug(`[API] Successfully fetched data from: ${apiPath} using API token`);
 
     let fetchedData: any[] = [];
     let fetchedMeta: any = {};
@@ -56,17 +57,17 @@ export async function fetchEntries(pluralApiId: string, queryParams?: QueryParam
         },
       };
     } else {
-      console.warn(`[API] Unexpected response format from ${apiPath}:`, response.data);
+      logger.warn(`[API] Unexpected response format from ${apiPath}:`, response.data);
       fetchedData = response.data ? [response.data] : [];
       fetchedMeta = {};
     }
 
     fetchedData = fetchedData.filter((item: any) => !item?.error);
 
-    console.error(`[API] Returning data fetched for ${pluralApiId}`);
+    logger.debug(`[API] Returning data fetched for ${pluralApiId}`);
     return { data: fetchedData, meta: fetchedMeta };
   } catch (error: any) {
-    console.error(`[API] Error during fetch for ${pluralApiId}:`, error);
+    logger.debug(`[API] Error during fetch for ${pluralApiId}:`, error);
 
     let errorMessage = `Failed to fetch entries for ${pluralApiId}`;
     let errorCode = ExtendedErrorCode.InternalError;
@@ -100,7 +101,7 @@ export async function fetchEntry(
   queryParams?: QueryParams
 ): Promise<any> {
   try {
-    console.error(`[API] Fetching entry ${documentId} for ${pluralApiId}`);
+    logger.debug(`[API] Fetching entry ${documentId} for ${pluralApiId}`);
 
     const params: Record<string, any> = {};
     if (queryParams?.populate) {
@@ -113,12 +114,12 @@ export async function fetchEntry(
       params.locale = queryParams.locale; // For i18n: 'en', 'ru', 'zh', etc.
     }
 
-    console.error(`[API] Fetching entry ${documentId} for ${pluralApiId} using API token`);
+    logger.debug(`[API] Fetching entry ${documentId} for ${pluralApiId} using API token`);
     const response = await strapiClient.get(`/api/${pluralApiId}/${documentId}`, { params });
 
     return response.data.data;
   } catch (error: any) {
-    console.error(`[Error] Failed to fetch entry ${documentId} for ${pluralApiId}:`, error);
+    logger.error(`[Error] Failed to fetch entry ${documentId} for ${pluralApiId}:`, error);
 
     let errorMessage = `Failed to fetch entry ${documentId} for ${pluralApiId}`;
     let errorCode = ExtendedErrorCode.InternalError;
@@ -152,7 +153,7 @@ export async function createEntry(
   locale?: string
 ): Promise<any> {
   try {
-    console.error(`[API] Creating new entry for ${pluralApiId}`);
+    logger.debug(`[API] Creating new entry for ${pluralApiId}`);
 
     // Ensure slug field is present if required
     data = ensureSlugField(contentType, data);
@@ -162,7 +163,7 @@ export async function createEntry(
       params.locale = locale;
     }
 
-    console.error(`[API] Creating entry for ${pluralApiId} using API token`);
+    logger.debug(`[API] Creating entry for ${pluralApiId} using API token`);
     const response = await strapiClient.post(
       `/api/${pluralApiId}`,
       {
@@ -172,7 +173,7 @@ export async function createEntry(
     );
 
     if (response.data && response.data.data) {
-      console.error(`[API] Successfully created entry via API token.`);
+      logger.debug(`[API] Successfully created entry via API token.`);
       return response.data.data;
     } else if (response.data && response.data.error) {
       throw new McpError(
@@ -181,7 +182,7 @@ export async function createEntry(
       );
     }
   } catch (error) {
-    console.error(`[Error] Failed to create entry for ${pluralApiId}:`, error);
+    logger.error(`[Error] Failed to create entry for ${pluralApiId}:`, error);
     if (error instanceof McpError) {
       throw error; // Re-throw McpError as-is
     }
@@ -211,12 +212,12 @@ export async function updateEntry(
     params.locale = locale;
   }
 
-  console.error(`[API] Updating entry ${documentId} for ${pluralApiId} using API token`);
+  logger.debug(`[API] Updating entry ${documentId} for ${pluralApiId} using API token`);
   try {
     const response = await strapiClient.put(apiPath, { data }, { params });
 
     if (response.data && response.data.data) {
-      console.error(`[API] Successfully updated entry via API token.`);
+      logger.debug(`[API] Successfully updated entry via API token.`);
       return response.data.data;
     } else if (response.data && response.data.error) {
       throw new McpError(
@@ -225,7 +226,7 @@ export async function updateEntry(
       );
     }
   } catch (error: any) {
-    console.error(`[API] Failed to update entry using API token:`, error);
+    logger.debug(`[API] Failed to update entry using API token:`, error);
     if (axios.isAxiosError(error) && error.response) {
       throw new McpError(
         ErrorCode.InternalError,
@@ -248,12 +249,12 @@ export async function deleteEntry(
     params.locale = locale;
   }
 
-  console.error(`[API] Deleting entry ${documentId} for ${pluralApiId} using API token`);
+  logger.debug(`[API] Deleting entry ${documentId} for ${pluralApiId} using API token`);
   try {
     const response = await strapiClient.delete(apiPath, { params });
 
     if (response.status === 200 || response.status === 204) {
-      console.error(`[API] Successfully deleted entry via API token.`);
+      logger.debug(`[API] Successfully deleted entry via API token.`);
       return { success: true };
     } else if (response.data && response.data.error) {
       throw new McpError(
@@ -262,7 +263,7 @@ export async function deleteEntry(
       );
     }
   } catch (error: any) {
-    console.error(`[API] Failed to delete entry using API token:`, error);
+    logger.debug(`[API] Failed to delete entry using API token:`, error);
     if (axios.isAxiosError(error) && error.response) {
       throw new McpError(
         ErrorCode.InternalError,
@@ -278,7 +279,7 @@ export async function publishEntry(pluralApiId: string, documentId: string): Pro
   const apiPath = `/api/${pluralApiId}/${documentId}`;
   const publishedAt = new Date().toISOString();
 
-  console.error(`[API] Publishing entry ${documentId} for ${pluralApiId} using API token`);
+  logger.debug(`[API] Publishing entry ${documentId} for ${pluralApiId} using API token`);
   try {
     const response = await strapiClient.put(apiPath, {
       data: {
@@ -287,7 +288,7 @@ export async function publishEntry(pluralApiId: string, documentId: string): Pro
     });
 
     if (response.data && response.data.data) {
-      console.error(`[API] Successfully published entry via API token.`);
+      logger.debug(`[API] Successfully published entry via API token.`);
       return response.data.data;
     } else if (response.data && response.data.error) {
       throw new McpError(
@@ -296,7 +297,7 @@ export async function publishEntry(pluralApiId: string, documentId: string): Pro
       );
     }
   } catch (error: any) {
-    console.error(`[API] Failed to publish entry using API token:`, error);
+    logger.debug(`[API] Failed to publish entry using API token:`, error);
     if (axios.isAxiosError(error) && error.response) {
       throw new McpError(
         ErrorCode.InternalError,
@@ -311,7 +312,7 @@ export async function unpublishEntry(pluralApiId: string, documentId: string): P
   // In Strapi 5, unpublish is done by setting publishedAt to null
   const apiPath = `/api/${pluralApiId}/${documentId}`;
 
-  console.error(`[API] Unpublishing entry ${documentId} for ${pluralApiId} using API token`);
+  logger.debug(`[API] Unpublishing entry ${documentId} for ${pluralApiId} using API token`);
   try {
     const response = await strapiClient.put(apiPath, {
       data: {
@@ -320,7 +321,7 @@ export async function unpublishEntry(pluralApiId: string, documentId: string): P
     });
 
     if (response.data && response.data.data) {
-      console.error(`[API] Successfully unpublished entry via API token.`);
+      logger.debug(`[API] Successfully unpublished entry via API token.`);
       return response.data.data;
     } else if (response.data && response.data.error) {
       throw new McpError(
@@ -329,7 +330,7 @@ export async function unpublishEntry(pluralApiId: string, documentId: string): P
       );
     }
   } catch (error: any) {
-    console.error(`[API] Failed to unpublish entry using API token:`, error);
+    logger.debug(`[API] Failed to unpublish entry using API token:`, error);
     if (axios.isAxiosError(error) && error.response) {
       throw new McpError(
         ErrorCode.InternalError,
@@ -348,7 +349,7 @@ export async function connectRelation(
 ): Promise<any> {
   const apiPath = `/api/${pluralApiId}/${documentId}`;
 
-  console.error(`[API] Connecting relations for ${documentId} in ${pluralApiId}`);
+  logger.debug(`[API] Connecting relations for ${documentId} in ${pluralApiId}`);
 
   // Validate that we have valid IDs
   if (!relatedIds || relatedIds.length === 0) {
@@ -366,11 +367,11 @@ export async function connectRelation(
     });
 
     if (response.data && response.data.data) {
-      console.error(`[API] Successfully connected relations via API token.`);
+      logger.debug(`[API] Successfully connected relations via API token.`);
       return response.data.data;
     }
   } catch (error: any) {
-    console.error(`[API] Failed to connect relations:`, error);
+    logger.debug(`[API] Failed to connect relations:`, error);
 
     let errorMessage = `Failed to connect relation '${relationField}': `;
 
@@ -400,7 +401,7 @@ export async function disconnectRelation(
 ): Promise<any> {
   const apiPath = `/api/${pluralApiId}/${documentId}`;
 
-  console.error(`[API] Disconnecting relations for ${documentId} in ${pluralApiId}`);
+  logger.debug(`[API] Disconnecting relations for ${documentId} in ${pluralApiId}`);
 
   // Validate that we have valid IDs
   if (!relatedIds || relatedIds.length === 0) {
@@ -421,11 +422,11 @@ export async function disconnectRelation(
     });
 
     if (response.data && response.data.data) {
-      console.error(`[API] Successfully disconnected relations via API token.`);
+      logger.debug(`[API] Successfully disconnected relations via API token.`);
       return response.data.data;
     }
   } catch (error: any) {
-    console.error(`[API] Failed to disconnect relations:`, error);
+    logger.debug(`[API] Failed to disconnect relations:`, error);
 
     let errorMessage = `Failed to disconnect relation '${relationField}': `;
 

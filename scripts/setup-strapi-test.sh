@@ -71,13 +71,8 @@ cp -r ../fixtures/strapi-test/api/* src/api/
 echo "📋 Copying bootstrap script..."
 cp ../scripts/bootstrap-tokens.ts src/index.ts
 
-# Build Strapi (first build)
-echo "🔨 Building Strapi..."
-npm run build
-
-# Now rebuild to ensure content types are properly registered
-echo "🔨 Rebuilding to register content types..."
-npm run build
+# Skip build when Strapi is in development mode - it will auto-reload
+echo "⚡ Skipping build - Strapi will auto-reload in development mode"
 
 # Start Strapi in development mode for auto-reload functionality
 echo "🚀 Starting Strapi in development mode..."

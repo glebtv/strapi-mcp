@@ -1,3 +1,6 @@
+export * from "./logger.js";
+export * from "./slug.js";
+
 export function filterBase64FromResponse(data: any): any {
   if (!data) return data;
 

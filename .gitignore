@@ -3,3 +3,6 @@ build/
 *.log
 .env*
 /strapi-test
+test-tokens.json
+ci_*.log
+test-*.js

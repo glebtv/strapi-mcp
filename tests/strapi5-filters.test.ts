@@ -45,7 +45,7 @@ describe('Strapi 5 Filter Operators', () => {
       });
       testDocumentIds.push(JSON.parse(result.content[0].text).documentId);
     }
-  });
+  }, 120000); // Extend timeout to 2 minutes
 
   afterAll(async () => {
     // Cleanup

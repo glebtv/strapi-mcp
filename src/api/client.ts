@@ -2,6 +2,11 @@ import axios, { AxiosInstance } from "axios";
 import qs from "qs";
 import { config } from "../config/index.js";
 import { ExtendedMcpError, ExtendedErrorCode } from "../errors/index.js";
+import { logger } from "../utils/logger.js";
+import { setTimeout } from "timers/promises";
+
+// Check if we're in a test environment
+const isTest = process.env.NODE_ENV === "test";
 
 export const strapiClient: AxiosInstance = axios.create({
   baseURL: config.strapi.url,
@@ -21,8 +26,11 @@ export const strapiClient: AxiosInstance = axios.create({
   },
 });
 
+// Set API token for REST API calls if available
+// Note: Admin JWT tokens don't work for REST API endpoints
 if (config.strapi.apiToken) {
   strapiClient.defaults.headers.common["Authorization"] = `Bearer ${config.strapi.apiToken}`;
+  logger.info("[Setup] API token set for REST API calls");
 }
 
 let connectionValidated = false;
@@ -38,43 +46,86 @@ export function getAdminJwtToken(): string | null {
 /**
  * Log in to the Strapi admin API using provided credentials
  */
+// Track the last login attempt time to implement rate limiting
+let lastLoginAttempt = 0;
+const LOGIN_RATE_LIMIT_MS = 2000; // Minimum 2 seconds between login attempts
+
 export async function loginToStrapiAdmin(): Promise<boolean> {
   const email = config.strapi.adminEmail;
   const password = config.strapi.adminPassword;
 
   if (!email || !password) {
-    console.error("[Auth] No admin credentials found in config, skipping admin login");
+    logger.info("[Auth] No admin credentials found in config, skipping admin login");
     return false;
   }
 
-  try {
-    console.error(
-      `[Auth] Attempting login to Strapi admin at ${config.strapi.url}/admin/login as ${email}`
-    );
-
-    const response = await axios.post(`${config.strapi.url}/admin/login`, {
-      email,
-      password,
-    });
-
-    if (response.data && response.data.data && response.data.data.token) {
-      adminJwtToken = response.data.data.token;
-      console.error("[Auth] Successfully logged in to Strapi admin");
-      return true;
-    } else {
-      console.error("[Auth] Login response missing token");
-      return false;
-    }
-  } catch (error) {
-    console.error("[Auth] Failed to log in to Strapi admin:");
-    if (axios.isAxiosError(error)) {
-      console.error(`[Auth] Status: ${error.response?.status}`);
-      console.error(`[Auth] Response data:`, error.response?.data);
-    } else {
-      console.error(error);
-    }
-    return false;
+  // Implement rate limiting to avoid 429 errors
+  const now = Date.now();
+  const timeSinceLastAttempt = now - lastLoginAttempt;
+  if (timeSinceLastAttempt < LOGIN_RATE_LIMIT_MS) {
+    const waitTime = LOGIN_RATE_LIMIT_MS - timeSinceLastAttempt;
+    logger.debug(`[Auth] Rate limiting: waiting ${waitTime}ms before login attempt`);
+    await setTimeout(waitTime);
   }
+
+  // Retry logic with exponential backoff
+  const maxRetries = 3;
+  let retryDelay = 1000; // Start with 1 second
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      lastLoginAttempt = Date.now();
+      logger.debug(
+        `[Auth] Attempting login to Strapi admin at ${config.strapi.url}/admin/login as ${email} (attempt ${attempt}/${maxRetries})`
+      );
+
+      const response = await axios.post(`${config.strapi.url}/admin/login`, {
+        email,
+        password,
+      });
+
+      if (response.data && response.data.data && response.data.data.token) {
+        adminJwtToken = response.data.data.token;
+        logger.info("[Auth] Successfully logged in to Strapi admin");
+
+        // Important: Do NOT update strapiClient to use admin JWT token
+        // Admin JWT tokens only work for admin API endpoints, not REST API endpoints
+        // strapiClient should continue using API token for REST API calls
+        logger.debug("[Auth] Admin JWT token stored for admin API operations only");
+
+        return true;
+      } else {
+        logger.error("[Auth] Login response missing token");
+        return false;
+      }
+    } catch (error) {
+      logger.debug(`[Auth] Login attempt ${attempt} failed:`);
+      if (axios.isAxiosError(error)) {
+        logger.debug(`[Auth] Status: ${error.response?.status}`);
+        logger.debug(`[Auth] Response data:`, error.response?.data);
+
+        // Handle rate limiting (429)
+        if (error.response?.status === 429 && attempt < maxRetries) {
+          // Extract retry-after header if available
+          const retryAfter = error.response.headers["retry-after"];
+          const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : retryDelay;
+          logger.debug(`[Auth] Rate limited (429). Waiting ${waitTime}ms before retry...`);
+          await setTimeout(waitTime);
+          retryDelay *= 2; // Exponential backoff
+          continue;
+        }
+      } else {
+        logger.error(error);
+      }
+
+      // If we've exhausted retries or it's not a rate limit error, return false
+      if (attempt === maxRetries) {
+        return false;
+      }
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -87,20 +138,20 @@ export async function makeAdminApiRequest(
   params?: Record<string, any>
 ): Promise<any> {
   if (!adminJwtToken) {
-    console.error(`[Admin API] No token available, attempting login...`);
+    logger.debug(`[Admin API] No token available, attempting login...`);
     const success = await loginToStrapiAdmin();
     if (!success) {
-      console.error(`[Admin API] Login failed. Cannot authenticate for admin API access.`);
-      throw new Error("Not authenticated for admin API access");
+      logger.error(`[Admin API] Login failed. Cannot authenticate for admin API access.`);
+      throw new Error("Authentication failed: Not authenticated for admin API access");
     }
-    console.error(`[Admin API] Login successful, proceeding with request.`);
+    logger.debug(`[Admin API] Login successful, proceeding with request.`);
   }
 
   const fullUrl = `${config.strapi.url}${endpoint}`;
-  console.error(`[Admin API] Making ${method.toUpperCase()} request to: ${fullUrl}`);
+  logger.debug(`[Admin API] Making ${method.toUpperCase()} request to: ${fullUrl}`);
 
   if (data) {
-    console.error(`[Admin API] Request payload: ${JSON.stringify(data, null, 2)}`);
+    logger.debug(`[Admin API] Request payload: ${JSON.stringify(data, null, 2)}`);
   }
 
   try {
@@ -116,22 +167,33 @@ export async function makeAdminApiRequest(
       timeout: 30000, // 30 second timeout
     });
 
-    console.error(`[Admin API] Response status: ${response.status}`);
+    logger.debug(`[Admin API] Response status: ${response.status}`);
     return response.data;
   } catch (error) {
-    console.error(`[Admin API] Request to ${endpoint} failed:`);
+    // Check if this is an expected error in tests
+    const isExpectedTestError =
+      isTest &&
+      axios.isAxiosError(error) &&
+      error.response &&
+      [400, 401, 403, 404].includes(error.response.status);
+
+    if (!isExpectedTestError) {
+      logger.error(`[Admin API] Request to ${endpoint} failed:`);
+
+      if (axios.isAxiosError(error)) {
+        logger.error(`[Admin API] Status: ${error.response?.status}`);
+        logger.error(`[Admin API] Error data: ${JSON.stringify(error.response?.data)}`);
+      }
+    }
 
     if (axios.isAxiosError(error)) {
-      console.error(`[Admin API] Status: ${error.response?.status}`);
-      console.error(`[Admin API] Error data: ${JSON.stringify(error.response?.data)}`);
-
       // Check if it's an auth error (e.g., token expired)
       if (error.response?.status === 401 && adminJwtToken) {
-        console.error("[Admin API] Admin token might be expired. Attempting re-login...");
+        logger.warn("[Admin API] Admin token might be expired. Attempting re-login...");
         adminJwtToken = null; // Clear expired token
         const loginSuccess = await loginToStrapiAdmin();
         if (loginSuccess) {
-          console.error("[Admin API] Re-login successful. Retrying original request...");
+          logger.info("[Admin API] Re-login successful. Retrying original request...");
           // Retry the request once after successful re-login
           try {
             const retryResponse = await axios({
@@ -144,19 +206,19 @@ export async function makeAdminApiRequest(
               data,
               params,
             });
-            console.error(`[Admin API] Retry successful, status: ${retryResponse.status}`);
+            logger.debug(`[Admin API] Retry successful, status: ${retryResponse.status}`);
             return retryResponse.data;
           } catch (retryError) {
-            console.error(`[Admin API] Retry failed:`, retryError);
+            logger.error(`[Admin API] Retry failed:`, retryError);
             throw retryError;
           }
         } else {
-          console.error("[Admin API] Re-login failed. Throwing original error.");
+          logger.error("[Admin API] Re-login failed. Throwing original error.");
           throw new Error("Admin re-authentication failed after token expiry.");
         }
       }
     } else {
-      console.error(`[Admin API] Non-Axios error:`, error);
+      logger.error(`[Admin API] Non-Axios error:`, error);
     }
     throw error;
   }
@@ -177,13 +239,13 @@ export async function validateStrapiConnection(): Promise<void> {
         const adminData = await makeAdminApiRequest("/admin/users/me");
         if (adminData) {
           authMethod = "admin credentials";
-          console.error("[Setup] ✓ Admin authentication successful");
-          console.error(`[Setup] ✓ Connection to Strapi successful using ${authMethod}`);
+          logger.info("[Setup] ✓ Admin authentication successful");
+          logger.info(`[Setup] ✓ Connection to Strapi successful using ${authMethod}`);
           connectionValidated = true;
           return;
         }
       } catch {
-        console.error("[Setup] Admin authentication failed, trying API token...");
+        logger.debug("[Setup] Admin authentication failed, trying API token...");
       }
     }
 
@@ -191,15 +253,15 @@ export async function validateStrapiConnection(): Promise<void> {
     try {
       response = await strapiClient.get("/api/upload/files?pagination[limit]=1");
       authMethod = "API token";
-      console.error("[Setup] ✓ API token authentication successful");
+      logger.info("[Setup] ✓ API token authentication successful");
     } catch {
       response = await strapiClient.get("/");
       authMethod = "server connection";
-      console.error("[Setup] ✓ Server is reachable");
+      logger.info("[Setup] ✓ Server is reachable");
     }
 
     if (response && response.status >= 200 && response.status < 300) {
-      console.error(`[Setup] ✓ Connection to Strapi successful using ${authMethod}`);
+      logger.info(`[Setup] ✓ Connection to Strapi successful using ${authMethod}`);
       connectionValidated = true;
     } else if (response) {
       throw new Error(`Unexpected response status: ${response.status}`);

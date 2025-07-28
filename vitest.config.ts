@@ -7,6 +7,8 @@ export default defineConfig({
     testTimeout: 60000,
     hookTimeout: 60000,
     setupFiles: ['./tests/setup.ts'],
+    // Run tests sequentially to avoid conflicts when Strapi restarts
+    fileParallelism: false,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

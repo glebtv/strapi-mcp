@@ -16,8 +16,12 @@ import * as permissions from "../api/permissions.js";
 import { QueryParams } from "../types/index.js";
 import { ExtendedMcpError, ExtendedErrorCode } from "../errors/index.js";
 import { strapiClient } from "../api/client.js";
+import { logger } from "../utils/index.js";
 import axios from "axios";
 import qs from "qs";
+
+// Check if we're in a test environment
+const isTest = process.env.NODE_ENV === "test";
 
 async function makeRestRequest(
   endpoint: string,
@@ -36,8 +40,10 @@ async function makeRestRequest(
       const queryString = qs.stringify(params, { encodeValuesOnly: true });
       config.params = params;
       config.paramsSerializer = (params: any) => qs.stringify(params, { encodeValuesOnly: true });
-      console.error("[REST] Request params:", JSON.stringify(params, null, 2));
-      console.error("[REST] Query string:", queryString);
+      if (!isTest) {
+        console.error("[REST] Request params:", JSON.stringify(params, null, 2));
+        console.error("[REST] Query string:", queryString);
+      }
     }
 
     if (body && (method === "POST" || method === "PUT" || method === "PATCH")) {
@@ -47,7 +53,19 @@ async function makeRestRequest(
     const response = await strapiClient.request(config);
     return response.data;
   } catch (error: any) {
-    console.error(`[REST] Error making ${method} request to ${endpoint}:`, error);
+    // Check if this is an expected error in tests
+    const isExpectedTestError =
+      isTest &&
+      axios.isAxiosError(error) &&
+      error.response &&
+      ([400, 401, 403, 404].includes(error.response.status) ||
+        endpoint.includes("invalid") ||
+        endpoint.includes("non-existent") ||
+        endpoint.includes("api/users"));
+
+    if (!isExpectedTestError) {
+      console.error(`[REST] Error making ${method} request to ${endpoint}:`, error);
+    }
 
     let errorMessage = `REST API request failed`;
     let errorCode = ExtendedErrorCode.InternalError;
@@ -92,7 +110,7 @@ export function setupHandlers(server: Server) {
         resources: contentTypeResources,
       };
     } catch (error: any) {
-      console.error("[Error] Failed to list resources:", error);
+      logger.error("[Error] Failed to list resources:", error);
       throw new McpError(
         ErrorCode.InternalError,
         `Failed to list resources: ${error instanceof Error ? error.message : String(error)}`
@@ -137,7 +155,7 @@ export function setupHandlers(server: Server) {
         ],
       };
     } catch (error: any) {
-      console.error("[Error] Failed to read resource:", error);
+      logger.error("[Error] Failed to read resource:", error);
       throw new McpError(
         ErrorCode.InternalError,
         `Failed to read resource: ${error instanceof Error ? error.message : String(error)}`
@@ -738,7 +756,7 @@ export function setupHandlers(server: Server) {
     try {
       switch (request.params.name) {
         case "list_content_types": {
-          const contentTypesList = await contentTypes.fetchContentTypes();
+          const contentTypesList = await contentTypes.listContentTypes();
 
           return {
             content: [
@@ -788,7 +806,7 @@ export function setupHandlers(server: Server) {
             try {
               queryParams = JSON.parse(options);
             } catch (parseError) {
-              console.error("[Error] Failed to parse query options:", parseError);
+              logger.error("[Error] Failed to parse query options:", parseError);
               throw new McpError(
                 ErrorCode.InvalidParams,
                 `Invalid query options: ${parseError instanceof Error ? parseError.message : String(parseError)}`
@@ -820,7 +838,7 @@ export function setupHandlers(server: Server) {
             try {
               queryParams = JSON.parse(options);
             } catch (parseError) {
-              console.error("[Error] Failed to parse query options:", parseError);
+              logger.error("[Error] Failed to parse query options:", parseError);
               throw new McpError(
                 ErrorCode.InvalidParams,
                 `Invalid query options: ${parseError instanceof Error ? parseError.message : String(parseError)}`
@@ -1214,7 +1232,7 @@ export function setupHandlers(server: Server) {
           if (!displayName || !category || !attributes || typeof attributes !== "object") {
             throw new McpError(
               ErrorCode.InvalidParams,
-              "displayName, category, and attributes are required."
+              "Missing required fields: displayName, category, and attributes are required."
             );
           }
           const componentData = { displayName, category, icon, attributes };
@@ -1280,7 +1298,28 @@ export function setupHandlers(server: Server) {
           throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${request.params.name}`);
       }
     } catch (error: any) {
-      console.error(`[Error] Tool execution failed for ${request.params.name}:`, error);
+      // Check if this is an expected error in tests
+      const isExpectedTestError =
+        isTest &&
+        // Expected errors from error-handling tests
+        ((request.params.name === "create_entry" && error.message?.includes("ValidationError")) ||
+          (request.params.name === "update_entry" &&
+            error.message?.includes("non-existent-document-id")) ||
+          (request.params.name === "publish_entry" &&
+            error.message?.includes("non-existent-document-id")) ||
+          (request.params.name === "get_entries" &&
+            request.params.arguments?.pluralApiId === "invalid") ||
+          (request.params.name === "get_component_schema" &&
+            error.message?.includes("non.existent.component")) ||
+          (request.params.name === "create_component" &&
+            error.message?.includes("Missing required fields")) ||
+          (request.params.name === "list_components" &&
+            error.message?.includes("Admin credentials are required")) ||
+          (request.params.name === "strapi_rest" && error.message?.includes("403")));
+
+      if (!isExpectedTestError) {
+        logger.error(`[Error] Tool execution failed for ${request.params.name}:`, error);
+      }
 
       // Re-throw McpError instances as they should be handled by the MCP SDK
       if (error instanceof McpError || error instanceof ExtendedMcpError) {

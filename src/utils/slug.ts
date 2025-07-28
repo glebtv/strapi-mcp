@@ -1,3 +1,5 @@
+import { logger } from "./logger.js";
+
 export function generateSlug(text: string | number): string {
   const str = String(text); // Convert to string if needed
   return str
@@ -22,7 +24,7 @@ export function ensureSlugField(contentType: string, data: any, schema?: any): a
     if (!data.slug && (data.name || data.title)) {
       const baseText = data.name || data.title;
       data.slug = generateSlug(baseText);
-      console.error(`[Utils] Auto-generated slug: ${data.slug} from: ${baseText}`);
+      logger.debug(`[Utils] Auto-generated slug: ${data.slug} from: ${baseText}`);
     }
   }
 
@@ -33,7 +35,7 @@ export function ensureSlugField(contentType: string, data: any, schema?: any): a
     for (const field of sourceFields) {
       if (data[field]) {
         data.slug = generateSlug(data[field]);
-        console.error(`[Utils] Auto-generated slug: ${data.slug} from ${field}: ${data[field]}`);
+        logger.debug(`[Utils] Auto-generated slug: ${data.slug} from ${field}: ${data[field]}`);
         break;
       }
     }
