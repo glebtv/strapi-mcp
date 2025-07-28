@@ -80,13 +80,13 @@ fi
 # Add our bootstrap function to the existing file
 cat ../scripts/bootstrap-tokens.ts >> src/index.ts
 
-# Start Strapi in production mode without admin panel for CI
+# Start Strapi
 echo "🚀 Starting Strapi..."
 if [ ! -z "$CI" ]; then
-  echo "Running in CI mode - using production without admin"
-  # Build just the backend
-  npm run build -- --no-admin
-  # Start without admin panel  
+  echo "Running in CI mode - building first"
+  # Build Strapi (this includes admin panel)
+  npm run build
+  # Start in production mode
   NODE_ENV=production npm run start > strapi_output.log 2>&1 &
 else
   echo "Running in local mode - using development"
