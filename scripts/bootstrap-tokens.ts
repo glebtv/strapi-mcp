@@ -1,6 +1,6 @@
 // Strapi 5 bootstrap script to create admin user and API tokens with proper permissions
 
-export default async function bootstrap({ strapi }: { strapi: any }) {
+export async function bootstrap({ strapi }: { strapi: any }) {
   console.log('🚀 Starting Strapi 5 token automation...');
 
   // Create admin user if it doesn't exist

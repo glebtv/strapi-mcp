@@ -11,15 +11,23 @@ async function waitForStrapi(url, maxAttempts = null) {
   
   for (let i = 1; i <= maxAttempts; i++) {
     try {
-      const response = await fetch(`${url}/_health`);
-      if (response.status === 200 || response.status === 204) {
-        console.log('✅ Strapi is ready!');
-        return true;
-      }
-      // Also consider other non-404 status codes as "responding"
-      if (response.status !== 404) {
-        console.log('✅ Strapi is responding!');
-        return true;
+      // Try multiple endpoints since _health might not be available in development
+      const endpoints = [
+        { url: `${url}/_health`, name: 'health' },
+        { url: `${url}/admin`, name: 'admin' },
+        { url: `${url}/api`, name: 'api' }
+      ];
+      
+      for (const endpoint of endpoints) {
+        try {
+          const response = await fetch(endpoint.url);
+          if (response.status === 200 || response.status === 204 || response.status === 301 || response.status === 302) {
+            console.log(`✅ Strapi is ready! (${endpoint.name} endpoint responded)`);
+            return true;
+          }
+        } catch (e) {
+          // Try next endpoint
+        }
       }
     } catch (error) {
       // Network errors mean Strapi isn't ready yet

@@ -67,16 +67,28 @@ echo "🔧 Copying configuration and content types..."
 cp -r ../fixtures/strapi-test/config/* config/
 cp -r ../fixtures/strapi-test/api/* src/api/
 
-# Copy bootstrap script to create tokens automatically
-echo "📋 Copying bootstrap script..."
-cp ../scripts/bootstrap-tokens.ts src/index.ts
+# Add bootstrap function to Strapi's index.ts
+echo "📋 Adding bootstrap function..."
+# First check if src/index.ts exists, if not, create it
+if [ ! -f src/index.ts ]; then
+  echo "import { Strapi } from '@strapi/strapi';" > src/index.ts
+  echo "" >> src/index.ts
+fi
+
+# Add our bootstrap function to the existing file
+cat ../scripts/bootstrap-tokens.ts >> src/index.ts
+
+# Ensure the bootstrap function is exported
+echo "" >> src/index.ts
+echo "// Export bootstrap for Strapi to use" >> src/index.ts
+echo "export { bootstrap };" >> src/index.ts
 
 # Skip build when Strapi is in development mode - it will auto-reload
 echo "⚡ Skipping build - Strapi will auto-reload in development mode"
 
 # Start Strapi in development mode for auto-reload functionality
 echo "🚀 Starting Strapi in development mode..."
-npm run develop > strapi_output.log 2>&1 &
+NODE_ENV=development npm run develop > strapi_output.log 2>&1 &
 STRAPI_PID=$!
 echo "Strapi PID: $STRAPI_PID"
 
