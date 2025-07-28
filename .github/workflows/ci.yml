@@ -31,10 +31,18 @@ jobs:
       run: |
         echo "=== Checking Strapi process ==="
         ps aux | grep -E "(strapi|node.*develop)" | grep -v grep || echo "No Strapi processes found"
+        echo "=== Strapi logs (last 50 lines) ==="
+        if [ -f strapi-test/strapi_output.log ]; then
+          tail -50 strapi-test/strapi_output.log || true
+        else
+          echo "strapi_output.log not found"
+        fi
+        echo "=== Checking health endpoint ==="
+        curl -s http://localhost:1337/_health || echo "Failed to connect"
         echo "=== Checking tokens ==="
         if [ -f test-tokens.json ]; then
           echo "✅ test-tokens.json exists"
-          jq -r 'keys' test-tokens.json
+          head -3 test-tokens.json
         else
           echo "❌ test-tokens.json not found"
         fi
@@ -49,10 +57,10 @@ jobs:
       run: |
         # Load test tokens which includes admin credentials and API token
         if [ -f test-tokens.json ]; then
-          export STRAPI_API_TOKEN=$(jq -r .fullAccessToken test-tokens.json)
-          export STRAPI_READ_ONLY_TOKEN=$(jq -r .readOnlyToken test-tokens.json)
-          export STRAPI_ADMIN_EMAIL=$(jq -r .adminEmail test-tokens.json)
-          export STRAPI_ADMIN_PASSWORD=$(jq -r .adminPassword test-tokens.json)
+          export STRAPI_API_TOKEN=$(grep -o '"fullAccessToken"[[:space:]]*:[[:space:]]*"[^"]*"' test-tokens.json | sed 's/.*: *"\([^"]*\)".*/\1/')
+          export STRAPI_READ_ONLY_TOKEN=$(grep -o '"readOnlyToken"[[:space:]]*:[[:space:]]*"[^"]*"' test-tokens.json | sed 's/.*: *"\([^"]*\)".*/\1/')
+          export STRAPI_ADMIN_EMAIL=$(grep -o '"adminEmail"[[:space:]]*:[[:space:]]*"[^"]*"' test-tokens.json | sed 's/.*: *"\([^"]*\)".*/\1/')
+          export STRAPI_ADMIN_PASSWORD=$(grep -o '"adminPassword"[[:space:]]*:[[:space:]]*"[^"]*"' test-tokens.json | sed 's/.*: *"\([^"]*\)".*/\1/')
           echo "✅ Loaded credentials from test-tokens.json"
           echo "STRAPI_API_TOKEN=${STRAPI_API_TOKEN:0:20}..."
           echo "STRAPI_ADMIN_EMAIL=$STRAPI_ADMIN_EMAIL"
