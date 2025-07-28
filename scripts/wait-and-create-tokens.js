@@ -1,22 +1,25 @@
 #!/usr/bin/env node
 
-import axios from 'axios';
+// Using fetch instead of axios for better compatibility
 
 async function waitForStrapi(url, maxAttempts = 60) {
   console.log('⏳ Waiting for Strapi to be ready...');
   
   for (let i = 1; i <= maxAttempts; i++) {
     try {
-      const response = await axios.get(`${url}/_health`);
+      const response = await fetch(`${url}/_health`);
       if (response.status === 200 || response.status === 204) {
         console.log('✅ Strapi is ready!');
         return true;
       }
-    } catch (error) {
-      if (error.response && error.response.status !== 404) {
+      // Also consider other non-404 status codes as "responding"
+      if (response.status !== 404) {
         console.log('✅ Strapi is responding!');
         return true;
       }
+    } catch (error) {
+      // Network errors mean Strapi isn't ready yet
+      // Continue waiting
     }
     
     if (i < maxAttempts) {
@@ -32,30 +35,53 @@ async function waitForStrapi(url, maxAttempts = 60) {
 async function createAdminIfNeeded(url, email, password) {
   try {
     // Try to login first
-    const loginResponse = await axios.post(`${url}/admin/login`, {
-      email: email,
-      password: password
+    const loginResponse = await fetch(`${url}/admin/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        email: email,
+        password: password
+      })
     });
-    console.log('✅ Admin user already exists and can login');
-    return loginResponse.data.data.token;
+    
+    if (loginResponse.ok) {
+      const data = await loginResponse.json();
+      console.log('✅ Admin user already exists and can login');
+      return data.data.token;
+    } else {
+      throw new Error('Login failed');
+    }
   } catch (error) {
     // If login fails, try to create admin
     try {
       console.log('📝 Creating admin user...');
-      const registerResponse = await axios.post(`${url}/admin/register-admin`, {
-        firstname: 'Admin',
-        lastname: 'User',
-        email: email,
-        password: password
+      const registerResponse = await fetch(`${url}/admin/register-admin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          firstname: 'Admin',
+          lastname: 'User',
+          email: email,
+          password: password
+        })
       });
-      console.log('✅ Admin user created successfully');
-      return registerResponse.data.data.token;
-    } catch (registerError) {
-      if (registerError.response?.data?.error?.message) {
-        console.error('❌ Failed to create admin:', registerError.response.data.error.message);
+      
+      if (registerResponse.ok) {
+        const data = await registerResponse.json();
+        console.log('✅ Admin user created successfully');
+        return data.data.token;
       } else {
-        console.error('❌ Failed to create admin:', registerError.message);
+        const errorData = await registerResponse.json();
+        const errorMessage = errorData?.error?.message || registerResponse.statusText;
+        console.error('❌ Failed to create admin:', errorMessage);
+        throw new Error(errorMessage);
       }
+    } catch (registerError) {
+      console.error('❌ Failed to create admin:', registerError.message);
       throw registerError;
     }
   }
@@ -102,33 +128,42 @@ async function createTokensWithPermissions(url, adminToken) {
   };
 
   try {
-    const tokenResponse = await axios.post(`${url}/admin/api-tokens`, fullAccessPayload, {
-      headers: adminHeaders
+    const tokenResponse = await fetch(`${url}/admin/api-tokens`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify(fullAccessPayload)
     });
     
-    const fullAccessToken = tokenResponse.data.data.accessKey;
-    tokens.push({
-      name: 'CI/CD Full Access',
-      token: fullAccessToken,
-      envVar: 'CI_CD_FULL_ACCESS_TOKEN'
-    });
-    
-    console.log('✅ Created token: CI/CD Full Access');
-    console.log(`🔑 Access Key: ${fullAccessToken}`);
-  } catch (error) {
-    if (error.response?.data?.error?.message?.includes('already exists')) {
-      console.log('⚠️  Token "CI/CD Full Access" already exists');
-      // Get existing token
-      const tokensResponse = await axios.get(`${url}/admin/api-tokens`, {
-        headers: adminHeaders
+    if (tokenResponse.ok) {
+      const data = await tokenResponse.json();
+      const fullAccessToken = data.data.accessKey;
+      tokens.push({
+        name: 'CI/CD Full Access',
+        token: fullAccessToken,
+        envVar: 'CI_CD_FULL_ACCESS_TOKEN'
       });
-      const existingToken = tokensResponse.data.data.find(t => t.name === 'CI/CD Full Access');
-      if (existingToken) {
-        console.log('⚠️  Using existing token ID:', existingToken.id);
-      }
+      
+      console.log('✅ Created token: CI/CD Full Access');
+      console.log(`🔑 Access Key: ${fullAccessToken}`);
     } else {
-      throw error;
+      const errorData = await tokenResponse.json();
+      if (errorData?.error?.message?.includes('already exists')) {
+        console.log('⚠️  Token "CI/CD Full Access" already exists');
+        // Get existing token
+        const tokensResponse = await fetch(`${url}/admin/api-tokens`, {
+          headers: adminHeaders
+        });
+        const tokensData = await tokensResponse.json();
+        const existingToken = tokensData.data.find(t => t.name === 'CI/CD Full Access');
+        if (existingToken) {
+          console.log('⚠️  Using existing token ID:', existingToken.id);
+        }
+      } else {
+        throw new Error(errorData?.error?.message || tokenResponse.statusText);
+      }
     }
+  } catch (error) {
+    throw error;
   }
 
   // Create Read Only Token
@@ -143,25 +178,33 @@ async function createTokensWithPermissions(url, adminToken) {
   };
 
   try {
-    const tokenResponse = await axios.post(`${url}/admin/api-tokens`, readOnlyPayload, {
-      headers: adminHeaders
+    const tokenResponse = await fetch(`${url}/admin/api-tokens`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify(readOnlyPayload)
     });
     
-    const readOnlyToken = tokenResponse.data.data.accessKey;
-    tokens.push({
-      name: 'Testing Read Only',
-      token: readOnlyToken,
-      envVar: 'TESTING_READ_ONLY_TOKEN'
-    });
-    
-    console.log('✅ Created token: Testing Read Only');
-    console.log(`🔑 Access Key: ${readOnlyToken}`);
-  } catch (error) {
-    if (error.response?.data?.error?.message?.includes('already exists')) {
-      console.log('⚠️  Token "Testing Read Only" already exists');
+    if (tokenResponse.ok) {
+      const data = await tokenResponse.json();
+      const readOnlyToken = data.data.accessKey;
+      tokens.push({
+        name: 'Testing Read Only',
+        token: readOnlyToken,
+        envVar: 'TESTING_READ_ONLY_TOKEN'
+      });
+      
+      console.log('✅ Created token: Testing Read Only');
+      console.log(`🔑 Access Key: ${readOnlyToken}`);
     } else {
-      throw error;
+      const errorData = await tokenResponse.json();
+      if (errorData?.error?.message?.includes('already exists')) {
+        console.log('⚠️  Token "Testing Read Only" already exists');
+      } else {
+        throw new Error(errorData?.error?.message || tokenResponse.statusText);
+      }
     }
+  } catch (error) {
+    throw error;
   }
 
   return tokens;
@@ -177,42 +220,63 @@ async function createI18nLocales(url, adminToken) {
 
   // Check current locales
   try {
-    const localesResponse = await axios.get(`${url}/i18n/locales`, {
+    const localesResponse = await fetch(`${url}/i18n/locales`, {
       headers: adminHeaders
     });
     
-    const existingLocales = localesResponse.data.map(locale => locale.code);
-    console.log('📋 Existing locales:', existingLocales.join(', '));
-    
-    // Add Russian locale if not exists
-    if (!existingLocales.includes('ru')) {
-      console.log('🔤 Creating Russian locale...');
-      await axios.post(`${url}/i18n/locales`, {
-        code: 'ru',
-        name: 'Russian',
-        isDefault: false
-      }, {
-        headers: adminHeaders
-      });
-      console.log('✅ Russian locale created');
-    }
-    
-    // Add Chinese locale if not exists
-    if (!existingLocales.includes('zh')) {
-      console.log('🔤 Creating Chinese locale...');
-      await axios.post(`${url}/i18n/locales`, {
-        code: 'zh',
-        name: 'Chinese',
-        isDefault: false
-      }, {
-        headers: adminHeaders
-      });
-      console.log('✅ Chinese locale created');
+    if (localesResponse.ok) {
+      const localesData = await localesResponse.json();
+      const existingLocales = localesData.map(locale => locale.code);
+      console.log('📋 Existing locales:', existingLocales.join(', '));
+      
+      // Add Russian locale if not exists
+      if (!existingLocales.includes('ru')) {
+        console.log('🔤 Creating Russian locale...');
+        const ruResponse = await fetch(`${url}/i18n/locales`, {
+          method: 'POST',
+          headers: adminHeaders,
+          body: JSON.stringify({
+            code: 'ru',
+            name: 'Russian',
+            isDefault: false
+          })
+        });
+        
+        if (ruResponse.ok) {
+          console.log('✅ Russian locale created');
+        } else {
+          const errorData = await ruResponse.json();
+          console.error('❌ Failed to create Russian locale:', errorData?.error?.message || ruResponse.statusText);
+        }
+      }
+      
+      // Add Chinese locale if not exists
+      if (!existingLocales.includes('zh')) {
+        console.log('🔤 Creating Chinese locale...');
+        const zhResponse = await fetch(`${url}/i18n/locales`, {
+          method: 'POST',
+          headers: adminHeaders,
+          body: JSON.stringify({
+            code: 'zh',
+            name: 'Chinese',
+            isDefault: false
+          })
+        });
+        
+        if (zhResponse.ok) {
+          console.log('✅ Chinese locale created');
+        } else {
+          const errorData = await zhResponse.json();
+          console.error('❌ Failed to create Chinese locale:', errorData?.error?.message || zhResponse.statusText);
+        }
+      }
+    } else {
+      console.error('❌ Failed to fetch locales:', localesResponse.statusText);
     }
     
     console.log('✅ i18n locales setup complete');
   } catch (error) {
-    console.error('⚠️  Failed to setup i18n locales:', error.response?.data?.error?.message || error.message);
+    console.error('⚠️  Failed to setup i18n locales:', error.message);
     // Non-fatal error, continue
   }
 }
