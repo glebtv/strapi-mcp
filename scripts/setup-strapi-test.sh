@@ -59,7 +59,9 @@ ADMIN_EMAIL=admin@ci.local
 ADMIN_PASSWORD=$ADMIN_PASSWORD
 DATABASE_CLIENT=sqlite
 DATABASE_FILENAME=.tmp/data.db
-NODE_ENV=test
+NODE_ENV=${CI:+production}${CI:-development}
+# Add encryption keys to avoid warnings  
+ENCRYPTION_KEY=$(openssl rand -base64 32)
 EOF
 
 # Copy configuration and content types from fixtures
@@ -78,13 +80,18 @@ fi
 # Add our bootstrap function to the existing file
 cat ../scripts/bootstrap-tokens.ts >> src/index.ts
 
-# Build Strapi first to speed up startup
-echo "🔨 Building Strapi..."
-npm run build
-
-# Start Strapi in development mode for auto-reload functionality
-echo "🚀 Starting Strapi in development mode..."
-NODE_ENV=development npm run develop > strapi_output.log 2>&1 &
+# Start Strapi in production mode without admin panel for CI
+echo "🚀 Starting Strapi..."
+if [ ! -z "$CI" ]; then
+  echo "Running in CI mode - using production without admin"
+  # Build just the backend
+  npm run build -- --no-admin
+  # Start without admin panel  
+  NODE_ENV=production npm run start > strapi_output.log 2>&1 &
+else
+  echo "Running in local mode - using development"
+  NODE_ENV=development npm run develop > strapi_output.log 2>&1 &
+fi
 STRAPI_PID=$!
 echo "Strapi PID: $STRAPI_PID"
 
