@@ -132,8 +132,10 @@ describe('Admin Authentication Tests', () => {
 
   describe('API Token Only (Component Operations Should Fail)', () => {
     beforeAll(async () => {
-      // Wait a bit for Strapi to stabilize after component creation
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Wait longer in CI for Strapi to stabilize after component creation
+      const waitTime = process.env.CI ? 5000 : 2000;
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      
       // Create client with API token only
       transportToken = new StdioClientTransport({
         command: process.execPath,
@@ -167,16 +169,17 @@ describe('Admin Authentication Tests', () => {
     it('should fail component operations with API token only', async () => {
       // Retry a few times in case of transient connection issues
       let lastError: any;
+      const maxRetries = process.env.CI ? 5 : 3;
+      const retryDelay = process.env.CI ? 2000 : 1000;
       
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < maxRetries; i++) {
         try {
           await clientWithToken.callTool({
             name: 'list_components',
             arguments: {}
           });
-          // Should not reach here
-          expect(true).toBe(false);
-          return;
+          // Should not reach here - if we do, the test should fail
+          fail('Expected an error but none was thrown');
         } catch (error: any) {
           lastError = error;
           
@@ -186,16 +189,20 @@ describe('Admin Authentication Tests', () => {
             return;
           }
           
-          // If connection refused, wait and retry
-          if (error.message.includes('Connection refused') && i < 2) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
+          // If connection refused or other transient error, wait and retry
+          if ((error.message.includes('Connection refused') || 
+               error.message.includes('ECONNREFUSED') ||
+               error.message.includes('Cannot connect to Strapi')) && 
+              i < maxRetries - 1) {
+            console.log(`Retry ${i + 1}/${maxRetries}: Connection issue, waiting ${retryDelay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
             continue;
           }
         }
       }
       
-      // If we get here, throw the last error
-      throw lastError;
+      // If we get here with an unexpected error, fail with details
+      throw new Error(`Expected 'Admin credentials are required' error, but got: ${lastError.message}`);
     });
 
     it.skip('should succeed with regular operations using API token', async () => {

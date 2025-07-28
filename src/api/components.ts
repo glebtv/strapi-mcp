@@ -12,9 +12,6 @@ export async function listComponents(): Promise<any[]> {
   try {
     logger.debug(`[API] Listing all components`);
 
-    // Ensure we're connected and authenticated first
-    await validateStrapiConnection();
-
     // Admin credentials are required for component operations
     if (!config.strapi.adminEmail || !config.strapi.adminPassword) {
       throw new ExtendedMcpError(
@@ -22,6 +19,9 @@ export async function listComponents(): Promise<any[]> {
         "Admin credentials are required for component operations"
       );
     }
+
+    // Ensure we're connected and authenticated first
+    await validateStrapiConnection();
 
     // The admin API endpoint for components
     const adminEndpoint = `/content-type-builder/components`;
