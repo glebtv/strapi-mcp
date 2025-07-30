@@ -1,0 +1,224 @@
+import { StrapiClient } from '../../src/strapi-client';
+import { contentManagementTools } from '../../src/tools/content-management';
+import { StrapiConfig } from '../../src/types';
+
+// Mock the StrapiClient
+jest.mock('../../src/strapi-client');
+
+describe('Content Management Tools', () => {
+  let mockClient: jest.Mocked<StrapiClient>;
+  let tools: ReturnType<typeof contentManagementTools>;
+
+  beforeEach(() => {
+    // Create mock client
+    mockClient = new StrapiClient({} as StrapiConfig) as jest.Mocked<StrapiClient>;
+    
+    // Get tools
+    tools = contentManagementTools(mockClient);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('list_content_types', () => {
+    it('should list all content types', async () => {
+      const mockContentTypes = [
+        {
+          uid: 'api::article.article',
+          apiID: 'article',
+          pluralApiId: 'articles',
+          info: { displayName: 'Article', description: 'Article content type' }
+        }
+      ];
+
+      mockClient.listContentTypes.mockResolvedValue(mockContentTypes);
+
+      const tool = tools.find(t => t.name === 'list_content_types')!;
+      const result = await tool.execute({});
+
+      expect(mockClient.listContentTypes).toHaveBeenCalled();
+      expect(result).toEqual({ data: mockContentTypes });
+    });
+  });
+
+  describe('get_entries', () => {
+    it('should get entries with default options', async () => {
+      const mockEntries = {
+        data: [{ id: 1, attributes: { title: 'Test' } }],
+        meta: { pagination: { page: 1, pageSize: 25 } }
+      };
+
+      mockClient.getEntries.mockResolvedValue(mockEntries);
+
+      const tool = tools.find(t => t.name === 'get_entries')!;
+      const result = await tool.execute({ pluralApiId: 'articles' });
+
+      expect(mockClient.getEntries).toHaveBeenCalledWith('articles', {});
+      expect(result).toEqual(mockEntries);
+    });
+
+    it('should get entries with parsed options', async () => {
+      const mockEntries = {
+        data: [{ id: 1, attributes: { title: 'Filtered' } }],
+        meta: { pagination: { page: 1, pageSize: 10 } }
+      };
+
+      const options = {
+        filters: { title: { $contains: 'test' } },
+        pagination: { page: 1, pageSize: 10 },
+        sort: ['title:asc']
+      };
+
+      mockClient.getEntries.mockResolvedValue(mockEntries);
+
+      const tool = tools.find(t => t.name === 'get_entries')!;
+      const result = await tool.execute({ 
+        pluralApiId: 'articles',
+        options: JSON.stringify(options)
+      });
+
+      expect(mockClient.getEntries).toHaveBeenCalledWith('articles', options);
+      expect(result).toEqual(mockEntries);
+    });
+
+    it('should handle invalid JSON options', async () => {
+      const tool = tools.find(t => t.name === 'get_entries')!;
+      
+      await expect(
+        tool.execute({ pluralApiId: 'articles', options: 'invalid json' })
+      ).rejects.toThrow('Invalid options JSON');
+    });
+  });
+
+  describe('get_entry', () => {
+    it('should get a specific entry', async () => {
+      const mockEntry = {
+        id: '123',
+        attributes: { title: 'Test Article' }
+      };
+
+      mockClient.getEntry.mockResolvedValue(mockEntry);
+
+      const tool = tools.find(t => t.name === 'get_entry')!;
+      const result = await tool.execute({ 
+        pluralApiId: 'articles',
+        documentId: '123'
+      });
+
+      expect(mockClient.getEntry).toHaveBeenCalledWith('articles', '123', {});
+      expect(result).toEqual(mockEntry);
+    });
+  });
+
+  describe('create_entry', () => {
+    it('should create a new entry', async () => {
+      const mockCreatedEntry = {
+        id: '456',
+        attributes: { title: 'New Article', content: 'Content' }
+      };
+
+      const entryData = {
+        title: 'New Article',
+        content: 'Content'
+      };
+
+      mockClient.createEntry.mockResolvedValue(mockCreatedEntry);
+
+      const tool = tools.find(t => t.name === 'create_entry')!;
+      const result = await tool.execute({
+        contentType: 'api::article.article',
+        pluralApiId: 'articles',
+        data: entryData
+      });
+
+      expect(mockClient.createEntry).toHaveBeenCalledWith(
+        'api::article.article',
+        'articles',
+        entryData
+      );
+      expect(result).toEqual(mockCreatedEntry);
+    });
+  });
+
+  describe('update_entry', () => {
+    it('should update an existing entry', async () => {
+      const mockUpdatedEntry = {
+        id: '123',
+        attributes: { title: 'Updated Title' }
+      };
+
+      const updateData = { title: 'Updated Title' };
+
+      mockClient.updateEntry.mockResolvedValue(mockUpdatedEntry);
+
+      const tool = tools.find(t => t.name === 'update_entry')!;
+      const result = await tool.execute({
+        pluralApiId: 'articles',
+        documentId: '123',
+        data: updateData
+      });
+
+      expect(mockClient.updateEntry).toHaveBeenCalledWith('articles', '123', updateData);
+      expect(result).toEqual(mockUpdatedEntry);
+    });
+  });
+
+  describe('delete_entry', () => {
+    it('should delete an entry', async () => {
+      mockClient.deleteEntry.mockResolvedValue(undefined);
+
+      const tool = tools.find(t => t.name === 'delete_entry')!;
+      const result = await tool.execute({
+        pluralApiId: 'articles',
+        documentId: '123'
+      });
+
+      expect(mockClient.deleteEntry).toHaveBeenCalledWith('articles', '123');
+      expect(result).toEqual({
+        success: true,
+        message: 'Entry 123 deleted successfully'
+      });
+    });
+  });
+
+  describe('publish_entry', () => {
+    it('should publish an entry', async () => {
+      const mockPublishedEntry = {
+        id: '123',
+        attributes: { title: 'Article', publishedAt: '2024-01-01T00:00:00Z' }
+      };
+
+      mockClient.publishEntry.mockResolvedValue(mockPublishedEntry);
+
+      const tool = tools.find(t => t.name === 'publish_entry')!;
+      const result = await tool.execute({
+        pluralApiId: 'articles',
+        documentId: '123'
+      });
+
+      expect(mockClient.publishEntry).toHaveBeenCalledWith('articles', '123');
+      expect(result).toEqual(mockPublishedEntry);
+    });
+  });
+
+  describe('unpublish_entry', () => {
+    it('should unpublish an entry', async () => {
+      const mockUnpublishedEntry = {
+        id: '123',
+        attributes: { title: 'Article', publishedAt: null }
+      };
+
+      mockClient.unpublishEntry.mockResolvedValue(mockUnpublishedEntry);
+
+      const tool = tools.find(t => t.name === 'unpublish_entry')!;
+      const result = await tool.execute({
+        pluralApiId: 'articles',
+        documentId: '123'
+      });
+
+      expect(mockClient.unpublishEntry).toHaveBeenCalledWith('articles', '123');
+      expect(result).toEqual(mockUnpublishedEntry);
+    });
+  });
+});

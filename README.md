@@ -119,6 +119,16 @@ node build/index.js
 
  ## Changelog
  
+ ### 0.3.0 - 2025-01-30
+ - **COMPLETE REWRITE:** Modular architecture with separate auth manager and API client
+ - **ENHANCED HEALTH CHECKS:** Graceful handling of Strapi reloads in development mode
+ - **IMPROVED ERROR HANDLING:** Better error messages and validation for all tools
+ - **COMPREHENSIVE TEST SUITE:** Full test coverage for all 20+ tools
+ - **CI/CD PIPELINE:** Automated testing with GitHub Actions
+ - **TELEMETRY DISABLED:** Automatic telemetry disabling in test environments
+ - **BETTER AUTH MANAGEMENT:** JWT token refresh and retry logic
+ - **FILTERED RESPONSES:** Automatic base64 filtering to prevent context overflow
+ 
  ### 0.2.3 - 2025-07-25
  - **CRITICAL FIX:** Fixed timeout issue in relation tools - connect_relation and disconnect_relation now properly handle validation errors instead of timing out
  - **IMPROVED ERROR HANDLING:** All validation errors now return proper error messages instead of causing tool timeouts
@@ -213,6 +223,9 @@ This is a TypeScript-based MCP server that integrates with Strapi CMS. It provid
 - `get_component_schema` - Get the schema for a specific component.
 - `create_component` - Create a new component.
 - `update_component` - Update an existing component.
+- `list_locales` - List all enabled locales in Strapi i18n plugin.
+- `create_locale` - Create a new locale in Strapi i18n plugin.
+- `delete_locale` - Delete a locale from Strapi i18n plugin.
  
  ### Advanced Features
 
@@ -300,6 +313,57 @@ npm run build
 For development with auto-rebuild:
 ```bash
 npm run watch
+```
+
+### Testing
+
+The project includes comprehensive tests that run against a real Strapi instance.
+
+#### Local Testing
+
+1. **Set up test Strapi instance:**
+   ```bash
+   ./scripts/setup-test-strapi.sh setup
+   ```
+   This creates a test Strapi app with admin user and starts it on port 1337.
+
+2. **Run tests:**
+   ```bash
+   ./scripts/run-tests.sh        # Run all tests
+   ./scripts/run-tests.sh unit    # Run unit tests only
+   ./scripts/run-tests.sh integration  # Run integration tests only
+   ./scripts/run-tests.sh coverage     # Run with coverage report
+   ```
+
+3. **Manage test Strapi:**
+   ```bash
+   ./scripts/setup-test-strapi.sh start    # Start existing instance
+   ./scripts/setup-test-strapi.sh stop     # Stop instance
+   ./scripts/setup-test-strapi.sh restart  # Restart instance
+   ./scripts/setup-test-strapi.sh clean    # Remove test instance
+   ./scripts/setup-test-strapi.sh status   # Check if running
+   ```
+
+#### CI/CD Testing
+
+Run the full CI pipeline locally:
+```bash
+./scripts/test-ci.sh
+```
+
+#### GitHub Actions with Act
+
+Test GitHub workflows locally using [act](https://github.com/nektos/act):
+
+```bash
+# Install act first
+brew install act  # macOS
+# or see: https://github.com/nektos/act#installation
+
+# Run workflows
+./scripts/test-with-act.sh test  # Run test workflow
+./scripts/test-with-act.sh push  # Simulate push event
+./scripts/test-with-act.sh pr    # Simulate PR event
 ```
 
 ## Installation

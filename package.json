@@ -1,51 +1,61 @@
 {
-   "name": "strapi-mcp",
-   "version": "0.2.3",
-   "description": "An MCP server for your Strapi CMS that provides access to content types and entries through the MCP protocol",
-   "private": false,
-   "keywords": [
-      "strapi",
-      "cms",
-      "content-management",
-      "mcp",
-      "headless-cms"
-   ],
-   "author": "l33tdawg <l33tdawg@hackinthebox.org>",
-   "license": "MIT",
-   "repository": {
-      "type": "git",
-      "url": "git+https://github.com/l33tdawg/strapi-mcp.git"
-   },
-   "homepage": "https://github.com/l33tdawg/strapi-mcp#readme",
-   "bugs": {
-      "url": "https://github.com/l33tdawg/strapi-mcp/issues"
-   },
-   "type": "module",
-   "bin": {
-      "strapi-mcp": "build/index.js"
-   },
-   "files": [
-      "build"
-   ],
-   "scripts": {
-      "build": "tsc --skipLibCheck && chmod +x build/index.js",
-      "prepare": "npm run build",
-      "watch": "tsc --watch",
-      "inspector": "npx @modelcontextprotocol/inspector build/index.js",
-      "generate-test-image": "node scripts/generate-test-image.js",
-      "context-window-info": "node scripts/context-window-example.js"
-   },
-   "dependencies": {
-      "@modelcontextprotocol/sdk": "1.10.2",
-      "axios": "^1.6.7",
-      "dotenv": "^16.4.5",
-      "form-data": "^4.0.2"
-   },
-   "devDependencies": {
-      "@types/form-data": "^2.2.1",
-      "@types/node": "^20.11.24",
-      "canvas": "^3.1.0",
-      "dotenv-cli": "^8.0.0",
-      "typescript": "^5.3.3"
-   }
+  "name": "strapi-mcp",
+  "version": "0.3.0",
+  "description": "MCP server for Strapi CMS - provides tools to manage content types, entries, media, and more",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "strapi-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:ci": "./scripts/test-ci.sh",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "strapi",
+    "cms",
+    "content-management",
+    "model-context-protocol"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "axios": "^1.7.9",
+    "dotenv": "^16.4.7",
+    "form-data": "^4.0.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.10.2",
+    "@typescript-eslint/eslint-plugin": "^8.19.0",
+    "@typescript-eslint/parser": "^8.19.0",
+    "eslint": "^9.17.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/glebtv/strapi-mcp.git"
+  }
 }
