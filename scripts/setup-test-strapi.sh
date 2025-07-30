@@ -255,7 +255,11 @@ main() {
             if [ -d "$TEST_DIR" ]; then
                 rm -rf "$TEST_DIR"
             fi
-            # test-tokens.json no longer used
+            # Clean up tokens file
+            if [ -f "$HOME/.mcp/strapi-mcp.tokens.json" ]; then
+                log_info "Removing tokens file"
+                rm -f "$HOME/.mcp/strapi-mcp.tokens.json"
+            fi
             log_info "Cleanup complete"
             ;;
         status)

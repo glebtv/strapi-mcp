@@ -75,13 +75,22 @@ describe('i18n Content Type Configuration', () => {
     });
     const updatedSchema = parseToolResponse(verifyResult);
     console.log('Updated schema pluginOptions:', updatedSchema.pluginOptions);
+    console.log('Updated schema attributes:', JSON.stringify(updatedSchema.attributes, null, 2));
     
     // Check that i18n is enabled on the content type
     expect(updatedSchema.pluginOptions?.i18n?.localized).toBe(true);
     
     // Check that attributes have i18n enabled
-    expect(updatedSchema.attributes?.name?.pluginOptions?.i18n?.localized).toBe(true);
-    expect(updatedSchema.attributes?.description?.pluginOptions?.i18n?.localized).toBe(true);
+    // Handle both array and object formats
+    if (Array.isArray(updatedSchema.attributes)) {
+      const nameAttr = updatedSchema.attributes.find((attr: any) => attr.name === 'name');
+      const descAttr = updatedSchema.attributes.find((attr: any) => attr.name === 'description');
+      expect(nameAttr?.pluginOptions?.i18n?.localized).toBe(true);
+      expect(descAttr?.pluginOptions?.i18n?.localized).toBe(true);
+    } else {
+      expect(updatedSchema.attributes?.name?.pluginOptions?.i18n?.localized).toBe(true);
+      expect(updatedSchema.attributes?.description?.pluginOptions?.i18n?.localized).toBe(true);
+    }
   }, 60000);
 
   it('should create content type with i18n enabled', async () => {

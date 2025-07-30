@@ -67,8 +67,8 @@ describe('Error Handling', () => {
         // If we reach here, no error was thrown
         console.log('No validation error - Strapi may be permissive with data types');
       } catch (error: any) {
-        // Should get validation error
-        expect(error.message).toMatch(/ValidationError|required|400|invalid/i);
+        // Should get validation error - check for type validation message
+        expect(error.message).toMatch(/must be a `string` type|ValidationError|required|400|invalid/i);
       }
     });
   });
@@ -105,23 +105,25 @@ describe('Error Handling', () => {
         });
         throw new Error('Should have thrown an error');
       } catch (error: any) {
-        expect(error.message).toMatch(/Content type not found/i);
+        // Strapi returns a generic "Not Found" for non-existent documents
+        expect(error.message).toMatch(/Not Found|404/i);
       }
     });
 
     it('should handle non-existent document deletion with valid content type', async () => {
-      // DELETE is idempotent in REST APIs - it returns success even for non-existent resources
-      // This is expected behavior, so we'll just verify it doesn't throw an error
-      const result = await client.callTool({
-        name: 'delete_entry',
-        arguments: {
-          pluralApiId: 'api::project.project',  // Use content type UID directly
-          documentId: 'non-existent-document-id'
-        }
-      });
-      
-      const response = JSON.parse(result.content[0].text);
-      expect(response.success).toBe(true);
+      // Strapi v5 returns 404 for non-existent documents
+      try {
+        await client.callTool({
+          name: 'delete_entry',
+          arguments: {
+            pluralApiId: 'api::project.project',  // Use content type UID directly
+            documentId: 'non-existent-document-id'
+          }
+        });
+        throw new Error('Should have thrown an error');
+      } catch (error: any) {
+        expect(error.message).toMatch(/Not Found|404/i);
+      }
     });
 
     it('should handle non-existent document publishing', async () => {

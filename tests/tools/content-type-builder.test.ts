@@ -92,7 +92,8 @@ describe('Content Type Builder Tools', () => {
 
       expect(mockClient.updateContentType).toHaveBeenCalledWith(
         'api::article.article',
-        updateData.attributes
+        updateData.attributes,
+        { pluginOptions: undefined }
       );
       expect(result).toEqual(mockResponse);
     });

@@ -118,6 +118,21 @@ export class StrapiClient {
   private async makeRequest<T>(config: AxiosRequestConfig): Promise<T> {
     try {
       const response = await this.axios.request<T>(config);
+      
+      // Check if the response contains a Strapi error structure
+      if (response.data && typeof response.data === 'object' && 'error' in response.data && response.data.error) {
+        const error = response.data.error as any;
+        const errorMessage = error.message || 'Strapi API error';
+        const strapiError = new Error(errorMessage);
+        
+        // Add additional error details
+        (strapiError as any).status = error.status;
+        (strapiError as any).name = error.name;
+        (strapiError as any).details = error.details;
+        
+        throw strapiError;
+      }
+      
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 401) {
@@ -126,6 +141,20 @@ export class StrapiClient {
         if (reLoginSuccess) {
           // Retry the request with new auth
           const response = await this.axios.request<T>(config);
+          
+          // Check for Strapi errors in retry response too
+          if (response.data && typeof response.data === 'object' && 'error' in response.data && response.data.error) {
+            const error = response.data.error as any;
+            const errorMessage = error.message || 'Strapi API error';
+            const strapiError = new Error(errorMessage);
+            
+            (strapiError as any).status = error.status;
+            (strapiError as any).name = error.name;
+            (strapiError as any).details = error.details;
+            
+            throw strapiError;
+          }
+          
           return response.data;
         }
       }
@@ -469,7 +498,7 @@ export class StrapiClient {
         'POST',
         {}
       );
-      return response;
+      return response?.data || response;
     }
 
     const contentType = await this.getContentTypeByPluralApiId(pluralApiId);
@@ -483,7 +512,7 @@ export class StrapiClient {
       'POST',
       {}
     );
-    return response;
+    return response?.data || response;
   }
 
   /**
@@ -497,7 +526,7 @@ export class StrapiClient {
         'POST',
         { discardDraft: false }
       );
-      return response;
+      return response?.data || response;
     }
 
     const contentType = await this.getContentTypeByPluralApiId(pluralApiId);
@@ -511,7 +540,7 @@ export class StrapiClient {
       'POST',
       { discardDraft: false }
     );
-    return response;
+    return response?.data || response;
   }
 
   /**
@@ -521,8 +550,24 @@ export class StrapiClient {
     // Try the comprehensive content-type-builder/schema endpoint first
     try {
       const schemaResponse = await this.adminRequest<any>('/content-type-builder/schema');
-      if (schemaResponse?.data?.contentTypes?.[contentType]) {
-        return schemaResponse.data.contentTypes[contentType];
+      
+      // The response contains all schemas in different categories
+      if (schemaResponse?.data) {
+        // Check in contentTypes
+        const contentTypes = schemaResponse.data.contentTypes || {};
+        for (const ct of Object.values(contentTypes)) {
+          if ((ct as any).uid === contentType) {
+            return ct;
+          }
+        }
+        
+        // Check in singleTypes
+        const singleTypes = schemaResponse.data.singleTypes || {};
+        for (const st of Object.values(singleTypes)) {
+          if ((st as any).uid === contentType) {
+            return st;
+          }
+        }
       }
     } catch (error) {
       // Continue to fallbacks if this endpoint fails
@@ -550,10 +595,13 @@ export class StrapiClient {
   /**
    * Connect relations
    */
-  async connectRelation(pluralApiId: string, documentId: string, relationField: string, relatedIds: (string | number)[]): Promise<any> {
+  async connectRelation(pluralApiId: string, documentId: string, relationField: string, relatedIds: string[]): Promise<any> {
+    // Strapi v5 uses document IDs for relations
+    const connectItems = relatedIds.map(id => ({ documentId: id }));
+    
     const data = {
       [relationField]: {
-        connect: relatedIds.map(id => ({ id: Number(id) }))
+        connect: connectItems
       }
     };
 
@@ -563,10 +611,13 @@ export class StrapiClient {
   /**
    * Disconnect relations
    */
-  async disconnectRelation(pluralApiId: string, documentId: string, relationField: string, relatedIds: (string | number)[]): Promise<any> {
+  async disconnectRelation(pluralApiId: string, documentId: string, relationField: string, relatedIds: string[]): Promise<any> {
+    // Strapi v5 uses document IDs for relations
+    const disconnectItems = relatedIds.map(id => ({ documentId: id }));
+    
     const data = {
       [relationField]: {
-        disconnect: relatedIds.map(id => ({ id: Number(id) }))
+        disconnect: disconnectItems
       }
     };
 
@@ -576,9 +627,11 @@ export class StrapiClient {
   /**
    * Set relations (replace all)
    */
-  async setRelation(pluralApiId: string, documentId: string, relationField: string, relatedIds: (string | number)[]): Promise<any> {
+  async setRelation(pluralApiId: string, documentId: string, relationField: string, relatedIds: string[]): Promise<any> {
+    // Strapi v5 uses document IDs for relations
+    // For set operation, we just pass an array of document IDs
     const data = {
-      [relationField]: relatedIds.map(id => ({ id: Number(id) }))
+      [relationField]: relatedIds
     };
 
     return this.updateEntry(pluralApiId, documentId, data);
@@ -663,11 +716,24 @@ export class StrapiClient {
           pluginOptions: pluginOptions,
           collectionName: currentSchema.collectionName || `${modelName}s`,
           modelType: 'contentType',
-          attributes: Object.entries(attributes).map(([name, config]: [string, any]) => ({
-            action: 'update',
-            name,
-            properties: config
-          })),
+          attributes: Object.entries(attributes).map(([name, config]: [string, any]) => {
+            // Find existing attribute - handle both array and object formats
+            let existingAttr = null;
+            if (Array.isArray(currentSchema.attributes)) {
+              existingAttr = currentSchema.attributes.find((attr: any) => attr.name === name);
+            } else if (currentSchema.attributes && typeof currentSchema.attributes === 'object') {
+              existingAttr = currentSchema.attributes[name];
+            }
+            
+            // For update, we need the full config including pluginOptions
+            const properties = existingAttr ? { ...existingAttr, ...config } : config;
+            
+            return {
+              action: 'update',
+              name,
+              properties
+            };
+          }),
           status: 'CHANGED',
           draftAndPublish: currentSchema.draftAndPublish !== false,
           singularName: currentSchema.singularName || modelName,
@@ -698,9 +764,20 @@ export class StrapiClient {
    * Delete content type
    */
   async deleteContentType(contentType: string): Promise<any> {
+    const payload = {
+      data: {
+        components: [],
+        contentTypes: [{
+          action: 'delete',
+          uid: contentType
+        }]
+      }
+    };
+
     const response = await this.adminRequest<any>(
-      `/admin/content-type-builder/content-types/${contentType}`,
-      'DELETE'
+      '/content-type-builder/update-schema',
+      'POST',
+      payload
     );
 
     // Wait for Strapi to reload after schema change
@@ -815,10 +892,17 @@ export class StrapiClient {
     
     // Only add authentication if requested
     if (authenticated) {
+      // First, ensure we're logged in as admin (if admin credentials are available)
+      if (this.config.adminEmail && this.config.adminPassword) {
+        await this.authManager.login();
+      }
+      
       // Try to get or create an API token for REST API access
       const apiToken = await this.tokenManager.getApiToken();
       if (apiToken) {
         headers['Authorization'] = `Bearer ${apiToken}`;
+      } else {
+        console.error('[StrapiClient] Failed to get API token for REST API access');
       }
     }
     
@@ -829,6 +913,12 @@ export class StrapiClient {
       data: body,
       headers: Object.keys(headers).length > 0 ? headers : undefined
     };
+
+    console.error('[StrapiClient] Making REST API request:', {
+      url: endpoint,
+      method,
+      hasAuth: !!headers['Authorization']
+    });
 
     // Use a separate axios instance for REST API calls to avoid auth interceptor
     const response = await axios.request({

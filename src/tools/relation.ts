@@ -11,27 +11,18 @@ export function relationTools(client: StrapiClient): Tool[] {
         pluralApiId: z.string().describe('The plural API ID'),
         documentId: z.string().describe('Main entry document ID'),
         relationField: z.string().describe('Name of the relation field'),
-        relatedIds: z.array(z.union([z.string(), z.number()])).describe('Array of document IDs to connect')
+        relatedIds: z.array(z.string()).describe('Array of document IDs to connect')
       }),
       execute: async (args) => {
         if (!args.relatedIds || args.relatedIds.length === 0) {
           throw new Error('At least one related ID is required');
         }
         
-        // Validate IDs
-        const validIds = args.relatedIds.map((id: any) => {
-          const numId = Number(id);
-          if (isNaN(numId) || numId <= 0) {
-            throw new Error(`Invalid related ID: ${id}. IDs must be positive numbers.`);
-          }
-          return numId;
-        });
-        
         return await client.connectRelation(
           args.pluralApiId,
           args.documentId,
           args.relationField,
-          validIds
+          args.relatedIds
         );
       }
     },
@@ -42,27 +33,18 @@ export function relationTools(client: StrapiClient): Tool[] {
         pluralApiId: z.string().describe('The plural API ID'),
         documentId: z.string().describe('Main entry document ID'),
         relationField: z.string().describe('Name of the relation field'),
-        relatedIds: z.array(z.union([z.string(), z.number()])).describe('Array of document IDs to disconnect')
+        relatedIds: z.array(z.string()).describe('Array of document IDs to disconnect')
       }),
       execute: async (args) => {
         if (!args.relatedIds || args.relatedIds.length === 0) {
           throw new Error('At least one related ID is required');
         }
         
-        // Validate IDs
-        const validIds = args.relatedIds.map((id: any) => {
-          const numId = Number(id);
-          if (isNaN(numId) || numId <= 0) {
-            throw new Error(`Invalid related ID: ${id}. IDs must be positive numbers.`);
-          }
-          return numId;
-        });
-        
         return await client.disconnectRelation(
           args.pluralApiId,
           args.documentId,
           args.relationField,
-          validIds
+          args.relatedIds
         );
       }
     },
@@ -73,23 +55,14 @@ export function relationTools(client: StrapiClient): Tool[] {
         pluralApiId: z.string().describe('The plural API ID'),
         documentId: z.string().describe('Main entry document ID'),
         relationField: z.string().describe('Name of the relation field'),
-        relatedIds: z.array(z.union([z.string(), z.number()])).describe('Array of document IDs to set')
+        relatedIds: z.array(z.string()).describe('Array of document IDs to set')
       }),
       execute: async (args) => {
-        // Validate IDs
-        const validIds = args.relatedIds.map((id: any) => {
-          const numId = Number(id);
-          if (isNaN(numId) || numId <= 0) {
-            throw new Error(`Invalid related ID: ${id}. IDs must be positive numbers.`);
-          }
-          return numId;
-        });
-        
         return await client.setRelation(
           args.pluralApiId,
           args.documentId,
           args.relationField,
-          validIds
+          args.relatedIds
         );
       }
     }

@@ -38,10 +38,7 @@ if (STRAPI_API_TOKEN && (STRAPI_API_TOKEN === "strapi_token" || STRAPI_API_TOKEN
   process.exit(1);
 }
 
-// Log configuration
-console.error(`[Setup] Connecting to Strapi at ${STRAPI_URL}`);
-console.error(`[Setup] Development mode: ${STRAPI_DEV_MODE ? "enabled" : "disabled"}`);
-console.error(`[Setup] Authentication: ${STRAPI_ADMIN_EMAIL ? "Admin credentials" : "API token"}`);
+// Log configuration removed for cleaner test output
 
 // Create Strapi client
 const strapiConfig: StrapiConfig = {
@@ -218,7 +215,6 @@ process.on('uncaughtException', (error) => {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("[Server] Strapi MCP server started");
 }
 
 main().catch((error) => {

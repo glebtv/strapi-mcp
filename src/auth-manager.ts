@@ -77,7 +77,7 @@ export class AuthManager {
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.error(`[Auth] Attempting login to Strapi admin at ${this.config.url}/admin/login`);
+        // Login attempt - removed log for cleaner output
         
         const response = await axios.post(
           `${this.config.url}/admin/login`,

@@ -214,8 +214,9 @@ This is a TypeScript-based MCP server that integrates with Strapi CMS. It provid
 - `upload_media` - Upload a media file to Strapi (max ~750KB file due to base64 context limits)
 - `upload_media_from_path` - Upload a media file from local file path (max 10MB, avoids context overflow)
 - `get_content_type_schema` - Get the schema (fields, types, relations) for a specific content type.
-- `connect_relation` - Connect related entries to an entry's relation field.
-- `disconnect_relation` - Disconnect related entries from an entry's relation field.
+- `connect_relation` - Connect related entries to an entry's relation field (requires numeric IDs in Strapi v5).
+- `disconnect_relation` - Disconnect related entries from an entry's relation field (requires numeric IDs in Strapi v5).
+- `set_relation` - Set (replace) all related entries for a relation field (requires numeric IDs in Strapi v5).
 - `create_content_type` - Create a new content type using the Content-Type Builder API (Requires Admin privileges).
 - `publish_entry` - Publish a specific entry.
 - `unpublish_entry` - Unpublish a specific entry.

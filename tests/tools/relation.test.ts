@@ -35,19 +35,19 @@ describe('Relation Tools', () => {
         pluralApiId: 'articles',
         documentId: '123',
         relationField: 'authors',
-        relatedIds: [2, 3]
+        relatedIds: ['doc-id-2', 'doc-id-3']
       });
 
       expect(mockClient.connectRelation).toHaveBeenCalledWith(
         'articles',
         '123',
         'authors',
-        [2, 3]
+        ['doc-id-2', 'doc-id-3']
       );
       expect(result).toEqual(mockResponse);
     });
 
-    it('should convert string IDs to numbers', async () => {
+    it('should accept string document IDs', async () => {
       const mockResponse = { id: '123', attributes: {} };
       mockClient.connectRelation.mockResolvedValue(mockResponse);
 
@@ -56,14 +56,14 @@ describe('Relation Tools', () => {
         pluralApiId: 'articles',
         documentId: '123',
         relationField: 'authors',
-        relatedIds: ['2', '3']
+        relatedIds: ['doc-id-2', 'doc-id-3']
       });
 
       expect(mockClient.connectRelation).toHaveBeenCalledWith(
         'articles',
         '123',
         'authors',
-        [2, 3]
+        ['doc-id-2', 'doc-id-3']
       );
     });
 
@@ -80,17 +80,25 @@ describe('Relation Tools', () => {
       ).rejects.toThrow('At least one related ID is required');
     });
 
-    it('should reject invalid IDs', async () => {
-      const tool = tools.find(t => t.name === 'connect_relation')!;
+    it('should accept any string IDs', async () => {
+      const mockResponse = { id: '123', attributes: {} };
+      mockClient.connectRelation.mockResolvedValue(mockResponse);
       
-      await expect(
-        tool.execute({
-          pluralApiId: 'articles',
-          documentId: '123',
-          relationField: 'authors',
-          relatedIds: ['invalid', '0', '-1']
-        })
-      ).rejects.toThrow('Invalid related ID');
+      const tool = tools.find(t => t.name === 'connect_relation')!;
+      const result = await tool.execute({
+        pluralApiId: 'articles',
+        documentId: '123',
+        relationField: 'authors',
+        relatedIds: ['any-valid-doc-id', 'another-doc-id']
+      });
+      
+      expect(mockClient.connectRelation).toHaveBeenCalledWith(
+        'articles',
+        '123',
+        'authors',
+        ['any-valid-doc-id', 'another-doc-id']
+      );
+      expect(result).toEqual(mockResponse);
     });
   });
 
@@ -111,29 +119,37 @@ describe('Relation Tools', () => {
         pluralApiId: 'articles',
         documentId: '123',
         relationField: 'authors',
-        relatedIds: [3]
+        relatedIds: ['doc-id-3']
       });
 
       expect(mockClient.disconnectRelation).toHaveBeenCalledWith(
         'articles',
         '123',
         'authors',
-        [3]
+        ['doc-id-3']
       );
       expect(result).toEqual(mockResponse);
     });
 
-    it('should validate IDs before disconnecting', async () => {
-      const tool = tools.find(t => t.name === 'disconnect_relation')!;
+    it('should accept any string IDs for disconnect', async () => {
+      const mockResponse = { id: '123', attributes: {} };
+      mockClient.disconnectRelation.mockResolvedValue(mockResponse);
       
-      await expect(
-        tool.execute({
-          pluralApiId: 'articles',
-          documentId: '123',
-          relationField: 'authors',
-          relatedIds: ['not-a-number']
-        })
-      ).rejects.toThrow('Invalid related ID');
+      const tool = tools.find(t => t.name === 'disconnect_relation')!;
+      const result = await tool.execute({
+        pluralApiId: 'articles',
+        documentId: '123',
+        relationField: 'authors',
+        relatedIds: ['any-doc-id']
+      });
+      
+      expect(mockClient.disconnectRelation).toHaveBeenCalledWith(
+        'articles',
+        '123',
+        'authors',
+        ['any-doc-id']
+      );
+      expect(result).toEqual(mockResponse);
     });
   });
 
@@ -154,14 +170,14 @@ describe('Relation Tools', () => {
         pluralApiId: 'articles',
         documentId: '123',
         relationField: 'authors',
-        relatedIds: [4, 5]
+        relatedIds: ['doc-id-4', 'doc-id-5']
       });
 
       expect(mockClient.setRelation).toHaveBeenCalledWith(
         'articles',
         '123',
         'authors',
-        [4, 5]
+        ['doc-id-4', 'doc-id-5']
       );
       expect(result).toEqual(mockResponse);
     });

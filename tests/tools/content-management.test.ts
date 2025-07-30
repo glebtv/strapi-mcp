@@ -135,7 +135,38 @@ describe('Content Management Tools', () => {
       expect(mockClient.createEntry).toHaveBeenCalledWith(
         'api::article.article',
         'articles',
-        entryData
+        entryData,
+        undefined
+      );
+      expect(result).toEqual(mockCreatedEntry);
+    });
+
+    it('should create and publish a new entry when publish is true', async () => {
+      const mockCreatedEntry = {
+        id: '789',
+        attributes: { title: 'Published Article', content: 'Content', publishedAt: '2024-01-01T00:00:00Z' }
+      };
+
+      const entryData = {
+        title: 'Published Article',
+        content: 'Content'
+      };
+
+      mockClient.createEntry.mockResolvedValue(mockCreatedEntry);
+
+      const tool = tools.find(t => t.name === 'create_entry')!;
+      const result = await tool.execute({
+        contentType: 'api::article.article',
+        pluralApiId: 'articles',
+        data: entryData,
+        publish: true
+      });
+
+      expect(mockClient.createEntry).toHaveBeenCalledWith(
+        'api::article.article',
+        'articles',
+        entryData,
+        true
       );
       expect(result).toEqual(mockCreatedEntry);
     });

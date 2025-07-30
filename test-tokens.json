@@ -1,6 +1,0 @@
-{
-  "strapiUrl": "http://localhost:1337",
-  "adminEmail": "admin@test.com",
-  "adminPassword": "Admin123!",
-  "adminJwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiaWF0IjoxNzUzODkwMDY0LCJleHAiOjE3NTY0ODIwNjR9.sgMh9-JdFEaDjA0HEylnufRForR8pT3D4eK3BK00hHo"
-}
