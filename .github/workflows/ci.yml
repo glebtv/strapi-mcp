@@ -23,6 +23,12 @@ jobs:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
     
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Build MCP server
+      run: npm run build
+    
     - name: Setup Strapi test instance
       run: ./scripts/setup-strapi-test.sh
     
@@ -39,12 +45,6 @@ jobs:
         fi
         echo "=== Checking health endpoint ==="
         curl -s http://localhost:1337/_health || echo "Failed to connect"
-    
-    - name: Install dependencies
-      run: npm ci
-    
-    - name: Build MCP server
-      run: npm run build
     
     - name: Run tests
       run: |

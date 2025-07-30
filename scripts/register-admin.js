@@ -93,7 +93,8 @@ mcp.stdout.on('data', (data) => {
         // If we got the tool response, process it
         if (response.id === 2) {
           if (response.error) {
-            if (response.error.message.includes('already exist')) {
+            if (response.error.message.includes('already exist') || 
+                response.error.message.includes('cannot register a new super admin')) {
               console.log('⚠️  Admin user already exists, skipping creation');
               process.exit(0);
             } else {
