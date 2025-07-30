@@ -22,27 +22,27 @@ pkill -f "node.*develop" || true
 sleep 2
 rm -rf strapi-test
 
-# Step 1: Setup Strapi test instance
-echo "📦 Step 1: Setup Strapi test instance" | tee -a "$CI_LOG"
-./scripts/setup-strapi-test.sh 2>&1 | tee ci_setup_strapi.log
-if [ ${PIPESTATUS[0]} -ne 0 ]; then
-    echo "❌ Failed to setup Strapi test instance" | tee -a "$CI_LOG"
-    exit 1
-fi
-
-# Step 2: Install dependencies
-echo "📦 Step 2: Install dependencies" | tee -a "$CI_LOG"
+# Step 1: Install dependencies
+echo "📦 Step 1: Install dependencies" | tee -a "$CI_LOG"
 npm ci 2>&1 | tee ci_npm_install.log
 if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo "❌ Failed to install dependencies" | tee -a "$CI_LOG"
     exit 1
 fi
 
-# Step 3: Build MCP server
-echo "🔨 Step 3: Build MCP server" | tee -a "$CI_LOG"
+# Step 2: Build MCP server (MUST be done before setup-strapi-test.sh)
+echo "🔨 Step 2: Build MCP server" | tee -a "$CI_LOG"
 npm run build 2>&1 | tee ci_build.log
 if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo "❌ Failed to build MCP server" | tee -a "$CI_LOG"
+    exit 1
+fi
+
+# Step 3: Setup Strapi test instance
+echo "📦 Step 3: Setup Strapi test instance" | tee -a "$CI_LOG"
+./scripts/setup-strapi-test.sh 2>&1 | tee ci_setup_strapi.log
+if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    echo "❌ Failed to setup Strapi test instance" | tee -a "$CI_LOG"
     exit 1
 fi
 

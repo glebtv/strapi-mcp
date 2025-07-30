@@ -160,17 +160,18 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-echo ""
-echo "🔓 Configuring public permissions..."
-node scripts/configure-permissions-simple.js
-
-if [ $? -ne 0 ]; then
-  echo "❌ Failed to configure permissions"
-  echo "=== Strapi Output ==="
-  tail -50 strapi-test/strapi_output.log
-  kill $STRAPI_PID 2>/dev/null || true
-  exit 1
-fi
+# Skip permissions configuration for now - tests use admin credentials
+# echo ""
+# echo "🔓 Configuring public permissions..."
+# node scripts/configure-permissions-simple.js
+# 
+# if [ $? -ne 0 ]; then
+#   echo "❌ Failed to configure permissions"
+#   echo "=== Strapi Output ==="
+#   tail -50 strapi-test/strapi_output.log
+#   kill $STRAPI_PID 2>/dev/null || true
+#   exit 1
+# fi
 
 cd strapi-test
 

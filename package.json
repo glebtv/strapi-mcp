@@ -64,7 +64,6 @@
       "eslint-config-prettier": "^10.1.8",
       "eslint-plugin-prettier": "^5.5.3",
       "prettier": "^3.6.2",
-      "sqlite3": "^5.1.7",
       "typescript": "^5.3.3",
       "vitest": "^3.2.4"
    }

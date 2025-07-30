@@ -3,102 +3,149 @@
 /**
  * Simple script to configure public permissions for test content types
  * This allows REST API access without authentication
+ * Uses Strapi's REST API instead of direct database access
  */
 
-import sqlite3 from 'sqlite3';
-import path from 'path';
-import { fileURLToPath } from 'url';
+// Use native fetch (available in Node.js 18+)
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Path to Strapi database
-const dbPath = path.join(__dirname, '../strapi-test/.tmp/data.db');
+const STRAPI_URL = process.env.STRAPI_URL || 'http://localhost:1337';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || process.env.STRAPI_ADMIN_EMAIL || 'admin@ci.local';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || process.env.STRAPI_ADMIN_PASSWORD || 'Admin123456';
 
 console.log('🔓 Configuring public permissions for test content types...');
-console.log(`📂 Database path: ${dbPath}`);
+console.log(`📡 Strapi URL: ${STRAPI_URL}`);
 
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) {
-    console.error('❌ Error opening database:', err.message);
-    process.exit(1);
+async function authenticateAdmin() {
+  try {
+    const response = await fetch(`${STRAPI_URL}/admin/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: ADMIN_EMAIL,
+        password: ADMIN_PASSWORD,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Authentication failed: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.data.token;
+  } catch (error) {
+    console.error('❌ Failed to authenticate:', error.message);
+    throw error;
   }
-  console.log('✅ Connected to the SQLite database.');
-});
+}
 
-// Find the public role
-db.get("SELECT id FROM up_roles WHERE type = 'public'", (err, publicRole) => {
-  if (err || !publicRole) {
-    console.error('❌ Could not find public role:', err);
-    db.close();
-    process.exit(1);
-  }
+async function configurePermissions(token) {
+  try {
+    // First, get the public role from Users & Permissions plugin
+    const rolesResponse = await fetch(`${STRAPI_URL}/admin/users-permissions/roles`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
 
-  console.log(`✅ Found public role with ID: ${publicRole.id}`);
+    if (!rolesResponse.ok) {
+      throw new Error(`Failed to fetch roles: ${rolesResponse.status}`);
+    }
 
-  // Define permissions to grant
-  const permissions = [
-    // Project permissions
-    'api::project.project.find',
-    'api::project.project.findOne',
-    'api::project.project.create',
-    'api::project.project.update',
-    'api::project.project.delete',
-    // Technology permissions
-    'api::technology.technology.find',
-    'api::technology.technology.findOne',
-    'api::technology.technology.create',
-    'api::technology.technology.update',
-    'api::technology.technology.delete',
-    // Upload permissions
-    'plugin::upload.content-api.find',
-    'plugin::upload.content-api.findOne',
-    'plugin::upload.content-api.upload',
-    'plugin::upload.content-api.destroy',
-  ];
-
-  // Insert permissions
-  let insertCount = 0;
-  let errorCount = 0;
-
-  permissions.forEach((action, index) => {
-    // Generate a unique document_id for each permission
-    const documentId = `perm_${Date.now()}_${index}`;
+    const rolesData = await rolesResponse.json();
+    console.log('Roles response:', JSON.stringify(rolesData, null, 2));
     
-    // First, insert the permission
-    db.run(
-      "INSERT INTO up_permissions (document_id, action, created_at, updated_at, published_at) VALUES (?, ?, datetime('now'), datetime('now'), datetime('now'))",
-      [documentId, action],
-      function(err) {
-        if (err) {
-          console.error(`❌ Error inserting permission ${action}:`, err.message);
-          errorCount++;
-        } else {
-          const permissionId = this.lastID;
-          
-          // Then link it to the public role
-          db.run(
-            "INSERT INTO up_permissions_role_lnk (permission_id, role_id, permission_ord) VALUES (?, ?, ?)",
-            [permissionId, publicRole.id, index + 1],
-            (linkErr) => {
-              if (linkErr) {
-                console.error(`❌ Error linking permission ${action}:`, linkErr.message);
-                errorCount++;
-              } else {
-                console.log(`✅ Granted permission: ${action}`);
-                insertCount++;
-              }
-              
-              // Check if we're done
-              if (insertCount + errorCount === permissions.length) {
-                console.log(`\n📊 Summary: ${insertCount} permissions granted, ${errorCount} errors`);
-                db.close();
-                process.exit(errorCount > 0 ? 1 : 0);
-              }
-            }
-          );
-        }
+    // Handle different response structures
+    const roles = Array.isArray(rolesData) ? rolesData : (rolesData.data || rolesData.roles || []);
+    const publicRole = roles.find(role => role.type === 'public' || role.code === 'strapi-public');
+
+    if (!publicRole) {
+      console.error('Available roles:', roles.map(r => ({ id: r.id, type: r.type, code: r.code, name: r.name })));
+      throw new Error('Public role not found');
+    }
+
+    console.log(`✅ Found public role with ID: ${publicRole.id}`);
+
+    // Define permissions to grant
+    const permissions = {
+      'api::project.project': ['find', 'findOne', 'create', 'update', 'delete'],
+      'api::technology.technology': ['find', 'findOne', 'create', 'update', 'delete'],
+      'plugin::upload': ['find', 'findOne', 'upload', 'destroy'],
+    };
+
+    // Get current permissions for the public role
+    const roleDetailsResponse = await fetch(`${STRAPI_URL}/admin/users-permissions/roles/${publicRole.id}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!roleDetailsResponse.ok) {
+      throw new Error(`Failed to fetch role details: ${roleDetailsResponse.status}`);
+    }
+
+    const roleDetails = await roleDetailsResponse.json();
+    
+    // Update permissions
+    const updatedPermissions = { ...roleDetails.data.permissions };
+
+    // Grant permissions
+    for (const [controller, actions] of Object.entries(permissions)) {
+      if (!updatedPermissions[controller]) {
+        updatedPermissions[controller] = { controllers: {} };
       }
-    );
-  });
-});
+      
+      const controllerName = controller.split('.').pop();
+      if (!updatedPermissions[controller].controllers[controllerName]) {
+        updatedPermissions[controller].controllers[controllerName] = {};
+      }
+
+      for (const action of actions) {
+        updatedPermissions[controller].controllers[controllerName][action] = {
+          enabled: true,
+          policy: ''
+        };
+        console.log(`✅ Granting permission: ${controller}.${action}`);
+      }
+    }
+
+    // Update the role with new permissions
+    const updateResponse = await fetch(`${STRAPI_URL}/admin/users-permissions/roles/${publicRole.id}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ...roleDetails.data,
+        permissions: updatedPermissions,
+      }),
+    });
+
+    if (!updateResponse.ok) {
+      const errorData = await updateResponse.text();
+      throw new Error(`Failed to update role: ${updateResponse.status} - ${errorData}`);
+    }
+
+    console.log('\n✅ Public permissions configured successfully!');
+  } catch (error) {
+    console.error('❌ Error configuring permissions:', error);
+    throw error;
+  }
+}
+
+// Main execution
+(async () => {
+  try {
+    console.log('🔐 Authenticating as admin...');
+    const token = await authenticateAdmin();
+    console.log('✅ Authentication successful');
+
+    await configurePermissions(token);
+    process.exit(0);
+  } catch (error) {
+    console.error('❌ Script failed:', error.message);
+    process.exit(1);
+  }
+})();

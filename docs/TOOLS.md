@@ -355,6 +355,196 @@ Populate nested relations:
 }
 ```
 
+## API Endpoints Reference
+
+### Authentication Endpoints
+
+#### Admin Login
+- **Endpoint**: `POST /admin/login`
+- **Request Body**:
+  ```json
+  {
+    "email": "admin@example.com",
+    "password": "password123"
+  }
+  ```
+- **Response**: JWT token for admin API access
+
+#### Admin Registration (First Admin Only)
+- **Endpoint**: `POST /admin/register-admin`
+- **Request Body**:
+  ```json
+  {
+    "email": "admin@example.com",
+    "password": "AdminPassword123",
+    "firstname": "Admin",
+    "lastname": "User"
+  }
+  ```
+
+### Content API Endpoints
+
+#### List Entries
+- **Endpoint**: `GET /api/{pluralApiId}`
+- **Query Parameters**:
+  - `filters`: Filter results (e.g., `filters[title][$contains]=strapi`)
+  - `pagination[page]`: Page number
+  - `pagination[pageSize]`: Items per page
+  - `pagination[limit]`: Alias for pageSize
+  - `sort`: Sort order (e.g., `sort=createdAt:desc`)
+  - `populate`: Relations to populate (e.g., `populate[0]=author`)
+  - `fields`: Select specific fields
+  - `status`: For Draft & Publish (`published`, `draft`, `all`)
+  - `locale`: For i18n (`en`, `ru`, `zh`, `all`, etc.)
+
+#### Get Single Entry
+- **Endpoint**: `GET /api/{pluralApiId}/{documentId}`
+- **Query Parameters**: Same as list entries (populate, fields, locale, etc.)
+
+#### Create Entry
+- **Endpoint**: `POST /api/{pluralApiId}`
+- **Request Body**:
+  ```json
+  {
+    "data": {
+      "field1": "value",
+      "field2": 123,
+      "status": "draft" // or "published"
+    }
+  }
+  ```
+
+#### Update Entry
+- **Endpoint**: `PUT /api/{pluralApiId}/{documentId}`
+- **Query Parameters**:
+  - `locale`: Update specific locale
+- **Request Body**:
+  ```json
+  {
+    "data": {
+      "field1": "new value",
+      "status": "published"
+    }
+  }
+  ```
+
+#### Delete Entry
+- **Endpoint**: `DELETE /api/{pluralApiId}/{documentId}`
+- **Query Parameters**:
+  - `locale`: Delete specific locale
+
+### Media/Upload Endpoints
+
+#### Upload Files
+- **Endpoint**: `POST /upload`
+- **Request**: Multipart form data with:
+  - `files`: File data
+  - `ref`: Related content type (optional)
+  - `refId`: Related entry ID (optional)
+  - `field`: Field name (optional)
+- **Headers**: Requires authentication token
+
+#### List Media Files
+- **Endpoint**: `GET /upload/files`
+- **Query Parameters**:
+  - `filters`: Filter results
+  - `pagination`: Page settings
+  - `sort`: Sort order
+
+#### Get Media File
+- **Endpoint**: `GET /upload/files/{id}`
+
+#### Delete Media File
+- **Endpoint**: `DELETE /upload/files/{id}`
+
+### Content-Type Builder Endpoints (Admin Only)
+
+#### List Content Types
+- **Endpoint**: `GET /content-type-builder/content-types`
+- **Response**: Array of content type schemas
+
+#### Get Content Type Schema
+- **Endpoint**: `GET /content-type-builder/content-types/{contentTypeUid}`
+
+#### Create Content Type
+- **Endpoint**: `POST /content-type-builder/update-schema`
+- **Request Body**:
+  ```json
+  {
+    "components": [],
+    "contentType": {
+      "uid": "api::new-type.new-type",
+      "displayName": "New Type",
+      "singularName": "new-type",
+      "pluralName": "new-types",
+      "kind": "collectionType",
+      "draftAndPublish": true,
+      "attributes": {
+        "title": { "type": "string", "required": true }
+      }
+    }
+  }
+  ```
+
+#### Update Content Type
+- **Endpoint**: `PUT /content-type-builder/content-types/{contentTypeUid}`
+- **Request Body**: Same structure as create
+
+#### Delete Content Type
+- **Endpoint**: `DELETE /content-type-builder/content-types/{contentTypeUid}`
+
+### Component Builder Endpoints (Admin Only)
+
+#### List Components
+- **Endpoint**: `GET /content-type-builder/components`
+- **Query Parameters**:
+  - `pagination[page]`: Page number
+  - `pagination[pageSize]`: Items per page
+
+#### Get Component Schema
+- **Endpoint**: `GET /content-type-builder/components/{componentUid}`
+
+#### Create Component
+- **Endpoint**: `POST /content-type-builder/components`
+- **Request Body**:
+  ```json
+  {
+    "component": {
+      "uid": "category.component-name",
+      "displayName": "Component Name",
+      "category": "category",
+      "icon": "calendar",
+      "attributes": {
+        "field1": { "type": "string" }
+      }
+    }
+  }
+  ```
+
+#### Update Component
+- **Endpoint**: `PUT /content-type-builder/components/{componentUid}`
+- **Request Body**: Same structure as create
+
+### Admin API Endpoints
+
+#### Get Admin User Info
+- **Endpoint**: `GET /admin/users/me`
+
+#### List Admin Users
+- **Endpoint**: `GET /admin/users`
+- **Query Parameters**:
+  - `filters[isActive][$eq]`: Filter by active status
+
+#### Get Roles
+- **Endpoint**: `GET /users-permissions/roles`
+
+#### Update Schema Status
+- **Endpoint**: `POST /content-type-builder/update-schema-status`
+
+### Health Check
+- **Endpoint**: `GET /_health`
+- **Response**: Server health status
+
 ## Error Handling
 
 All tools return structured errors with:
