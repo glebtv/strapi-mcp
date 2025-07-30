@@ -24,7 +24,7 @@ jobs:
         cache: 'npm'
     
     - name: Setup Strapi test instance
-      run: ./scripts/ci-wrapper.sh
+      run: ./scripts/setup-strapi-test.sh
     
     - name: Debug - Check Strapi status
       if: always()
