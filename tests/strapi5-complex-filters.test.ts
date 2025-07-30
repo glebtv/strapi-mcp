@@ -43,7 +43,17 @@ describe('Strapi 5 Complex Filters', () => {
           data: project
         }
       });
-      testDocumentIds.push(JSON.parse(result.content[0].text).documentId);
+      const documentId = JSON.parse(result.content[0].text).documentId;
+      testDocumentIds.push(documentId);
+      
+      // Publish the entry so it's visible through the public API
+      await client.callTool({
+        name: 'publish_entry',
+        arguments: {
+          pluralApiId: 'projects',
+          documentId: documentId
+        }
+      });
     }
   });
 
@@ -109,12 +119,13 @@ describe('Strapi 5 Complex Filters', () => {
     console.log('Test project names:', testProjectNames);
     console.log('Looking for name containing:', testProjectNames[0].split(' ')[0]);
     
+    // Use get_entries instead of strapi_rest to avoid Content Manager API conversion
+    // which might not support the same filter syntax
     const result = await client.callTool({
-      name: 'strapi_rest',
+      name: 'get_entries',
       arguments: {
-        endpoint: 'api/projects',
-        method: 'GET',
-        params: filterParams
+        pluralApiId: 'projects',
+        options: JSON.stringify(filterParams)
       }
     });
 

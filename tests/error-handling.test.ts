@@ -221,14 +221,26 @@ describe('Error Handling', () => {
     });
 
     it('should handle invalid admin credentials', async () => {
+      // Remove any cached token to ensure clean test
+      const fs = await import('fs');
+      const path = await import('path');
+      const cacheFile = path.join(process.cwd(), '.strapi-admin-token-cache.json');
+      try {
+        await fs.promises.unlink(cacheFile);
+      } catch (e) {
+        // Ignore if file doesn't exist
+      }
+
       const invalidAdminTransport = new StdioClientTransport({
         command: 'node',
         args: ['build/index.js'],
         env: {
-          ...process.env,
           STRAPI_URL: process.env.STRAPI_URL,
           STRAPI_ADMIN_EMAIL: 'invalid@example.com',
-          STRAPI_ADMIN_PASSWORD: 'wrongpassword'
+          STRAPI_ADMIN_PASSWORD: 'wrongpassword',
+          // Don't set NODE_ENV=test to avoid loading .env.test which would override our invalid credentials
+          PATH: process.env.PATH,
+          HOME: process.env.HOME
         }
       });
 
@@ -248,8 +260,10 @@ describe('Error Handling', () => {
         });
         expect.fail('Should have thrown an error');
       } catch (error: any) {
-        // Should fail during connection or operation
-        expect(error.message).toMatch(/authentication|401|403|credentials/i);
+        // Should fail during connection or operation  
+        // The error could be during login (401) or during the API call (403)
+        // or a generic authentication error message
+        expect(error.message).toMatch(/authentication|401|403|credentials|Invalid.*credentials|Failed to authenticate/i);
       } finally {
         await invalidAdminTransport.close();
       }

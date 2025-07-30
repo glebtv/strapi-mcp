@@ -533,10 +533,22 @@ export async function publishEntry(pluralApiId: string, documentId: string): Pro
         );
 
         const contentManagerEndpoint = `/content-manager/collection-types/${contentType}/${documentId}/actions/publish`;
-        const adminResponse = await makeAdminApiRequest(contentManagerEndpoint, "post");
+        await makeAdminApiRequest(contentManagerEndpoint, "post");
 
         logger.debug(`[API] Successfully published entry via Content Manager API.`);
-        return adminResponse || { success: true };
+
+        // Fetch the updated entry to return it with publishedAt
+        // Need to fetch with status=published to get the published version
+        const getEndpoint = `/content-manager/collection-types/${contentType}/${documentId}`;
+        const publishedEntry = await makeAdminApiRequest(getEndpoint, "get", undefined, {
+          status: "published",
+        });
+
+        // The Content Manager API returns the entry in a data property
+        if (publishedEntry && publishedEntry.data) {
+          return publishedEntry.data;
+        }
+        return publishedEntry;
       } catch (adminError: any) {
         logger.debug(
           `[API] Content Manager API publish failed, falling back to REST API:`,
@@ -603,10 +615,19 @@ export async function unpublishEntry(pluralApiId: string, documentId: string): P
         );
 
         const contentManagerEndpoint = `/content-manager/collection-types/${contentType}/${documentId}/actions/unpublish`;
-        const adminResponse = await makeAdminApiRequest(contentManagerEndpoint, "post");
+        await makeAdminApiRequest(contentManagerEndpoint, "post");
 
         logger.debug(`[API] Successfully unpublished entry via Content Manager API.`);
-        return adminResponse || { success: true };
+
+        // Fetch the updated entry to return it with publishedAt null
+        const getEndpoint = `/content-manager/collection-types/${contentType}/${documentId}`;
+        const unpublishedEntry = await makeAdminApiRequest(getEndpoint, "get");
+
+        // The Content Manager API returns the entry in a data property
+        if (unpublishedEntry && unpublishedEntry.data) {
+          return unpublishedEntry.data;
+        }
+        return unpublishedEntry;
       } catch (adminError: any) {
         logger.debug(
           `[API] Content Manager API unpublish failed, falling back to REST API:`,

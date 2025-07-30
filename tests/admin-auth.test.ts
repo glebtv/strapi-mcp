@@ -151,7 +151,7 @@ describe('Admin Authentication Tests', () => {
       try {
         await noAuthClient.connect(noAuthTransport);
         // Should not reach here
-        fail('Expected connection to fail without authentication');
+        expect.fail('Expected connection to fail without authentication');
       } catch (error: any) {
         // Connection should fail due to missing authentication
         expect(error.message.toLowerCase()).toMatch(/connection closed|authentication/);

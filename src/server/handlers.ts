@@ -92,7 +92,8 @@ async function makeRestRequest(
       // Use qs to serialize parameters as recommended by Strapi
       const queryString = qs.stringify(params, { encodeValuesOnly: true, arrayFormat: "brackets" });
       config.params = params;
-      config.paramsSerializer = (params: any) => qs.stringify(params, { encodeValuesOnly: true, arrayFormat: "brackets" });
+      config.paramsSerializer = (params: any) =>
+        qs.stringify(params, { encodeValuesOnly: true, arrayFormat: "brackets" });
       if (!isTest) {
         console.error("[REST] Request params:", JSON.stringify(params, null, 2));
         console.error("[REST] Query string:", queryString);

@@ -414,6 +414,7 @@ describe('Strapi MCP Server', () => {
       });
 
       const published = JSON.parse(result.content[0].text);
+      console.log('Published entry:', JSON.stringify(published, null, 2));
       expect(published.publishedAt).toBeTruthy();
       
       // Cleanup
@@ -460,6 +461,7 @@ describe('Strapi MCP Server', () => {
       });
 
       const unpublished = JSON.parse(result.content[0].text);
+      console.log('Unpublished entry:', JSON.stringify(unpublished, null, 2));
       // In Strapi v5, unpublishing converts the entry to draft status
       // The publishedAt field should be null for drafts
       expect(unpublished.publishedAt).toBeNull();
