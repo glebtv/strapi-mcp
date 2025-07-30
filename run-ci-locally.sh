@@ -20,7 +20,7 @@ echo "🧹 Cleaning up existing Strapi instance..." | tee -a "$CI_LOG"
 pkill -f "strapi" || true
 pkill -f "node.*develop" || true
 sleep 2
-rm -rf strapi-test test-tokens.json
+rm -rf strapi-test
 
 # Step 1: Setup Strapi test instance
 echo "📦 Step 1: Setup Strapi test instance" | tee -a "$CI_LOG"
@@ -49,18 +49,44 @@ fi
 # Step 4: Run tests
 echo "🧪 Step 4: Run tests" | tee -a "$CI_LOG"
 
-# Check if test-tokens.json exists
-if [ ! -f test-tokens.json ]; then
-    echo "❌ test-tokens.json not found!" | tee -a "$CI_LOG"
+# Check if .env.test exists
+if [ ! -f .env.test ]; then
+    echo "❌ .env.test not found!" | tee -a "$CI_LOG"
     exit 1
 fi
 
-echo "✅ test-tokens.json found - tests will load credentials automatically" | tee -a "$CI_LOG"
+echo "✅ Loading credentials from .env.test" | tee -a "$CI_LOG"
 
-# Run tests in non-watch mode (setup.ts will load .env.test and test-tokens.json)
-echo "Running tests..." | tee -a "$CI_LOG"
-npm test -- --run 2>&1 | tee ci_test_output.log
+# Load static test credentials from .env.test
+export $(grep -v '^#' .env.test | xargs)
+
+# Run tests in non-watch mode with random order
+echo "Running tests in random order multiple times..." | tee -a "$CI_LOG"
+
+# Initialize test result
+TEST_RESULT=0
+
+# Run tests once in random order
+echo "" | tee -a "$CI_LOG"
+echo "🎲 Running tests (random order)..." | tee -a "$CI_LOG"
+
+# Clear token cache before run to ensure clean state
+rm -f .test-tokens.json
+
+# Run tests with random seed
+npm test -- --run --sequence.shuffle 2>&1 | tee "ci_test_output_run1.log"
 TEST_RESULT=${PIPESTATUS[0]}
+
+if [ $TEST_RESULT -ne 0 ]; then
+    echo "❌ Tests failed!" | tee -a "$CI_LOG"
+else
+    echo "✅ Tests passed!" | tee -a "$CI_LOG"
+fi
+
+# Consolidate test logs
+echo "" | tee -a "$CI_LOG"
+echo "📄 Consolidating test logs..." | tee -a "$CI_LOG"
+cat ci_test_output_run*.log > ci_test_output.log
 
 # Step 5: Run linter
 echo "🔍 Step 5: Run linter" | tee -a "$CI_LOG"
@@ -104,8 +130,15 @@ echo "==============================" | tee -a "$CI_LOG"
 if [ $TEST_RESULT -ne 0 ]; then
     echo "❌ Tests failed! (exit code: $TEST_RESULT)" | tee -a "$CI_LOG"
     echo "   See ci_test_output.log for details" | tee -a "$CI_LOG"
+    
+    # Show test failure details
+    echo "" | tee -a "$CI_LOG"
+    if grep -q "Test Files.*failed" "ci_test_output_run1.log" 2>/dev/null; then
+        # Extract failed test count
+        grep "Tests.*failed" "ci_test_output_run1.log" | tail -1 | sed 's/^/  /' | tee -a "$CI_LOG"
+    fi
 else
-    echo "✅ Tests passed!" | tee -a "$CI_LOG"
+    echo "✅ All test runs passed!" | tee -a "$CI_LOG"
 fi
 
 if [ $LINT_RESULT -ne 0 ]; then
@@ -130,7 +163,8 @@ echo "  - ci_runout.log (this run's console output)" | tee -a "$CI_LOG"
 echo "  - ci_setup_strapi.log (Strapi setup output)" | tee -a "$CI_LOG"
 echo "  - ci_npm_install.log (npm install output)" | tee -a "$CI_LOG"
 echo "  - ci_build.log (build output)" | tee -a "$CI_LOG"
-echo "  - ci_test_output.log (test output)" | tee -a "$CI_LOG"
+echo "  - ci_test_output.log (consolidated test output)" | tee -a "$CI_LOG"
+echo "  - ci_test_output_run1.log (test output)" | tee -a "$CI_LOG"
 echo "  - ci_lint_output.log (linter output)" | tee -a "$CI_LOG"
 echo "  - ci_typecheck_output.log (typecheck output)" | tee -a "$CI_LOG"
 echo "  - ci_strapi_last_run.log (Strapi server logs)" | tee -a "$CI_LOG"

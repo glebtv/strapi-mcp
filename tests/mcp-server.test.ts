@@ -72,7 +72,8 @@ describe('Strapi MCP Server', () => {
           pluralApiId: 'projects',
           data: {
             name: 'Test Project for Retrieval ' + Date.now()
-          }
+          },
+          status: 'published' // Ensure it's published so we can fetch it
         }
       });
       
@@ -80,15 +81,18 @@ describe('Strapi MCP Server', () => {
       expect(created).toHaveProperty('documentId');
       expect(created.documentId).toBeTruthy();
       
-      // Now retrieve it
+      // Now retrieve it - since the entry was created in draft status, we need to fetch it as draft
       const result = await client.callTool({
         name: 'get_entry',
         arguments: {
           pluralApiId: 'projects',
-          documentId: created.documentId
+          documentId: created.documentId,
+          options: JSON.stringify({
+            status: 'draft' // Fetch as draft since it wasn't published
+          })
         }
       });
-
+      
       const entry = JSON.parse(result.content[0].text);
       expect(entry.documentId).toBe(created.documentId);
       expect(entry.name).toContain('Test Project for Retrieval');
@@ -380,8 +384,10 @@ describe('Strapi MCP Server', () => {
     });
   });
 
-  // TODO: Publishing in Strapi 5 works differently - need to investigate the correct approach
-  // Setting publishedAt to null doesn't seem to unpublish entries
+  // Publishing in Strapi 5 uses the status parameter
+  // - Published entries are fetched by default or with status=published
+  // - Draft entries require status=draft
+  // - Unpublishing is done by updating with status=draft, which sets publishedAt to null
   describe('Publishing', () => {
     it('should publish an entry', async () => {
       // Create entry to publish with unique name
@@ -454,7 +460,26 @@ describe('Strapi MCP Server', () => {
       });
 
       const unpublished = JSON.parse(result.content[0].text);
+      // In Strapi v5, unpublishing converts the entry to draft status
+      // The publishedAt field should be null for drafts
       expect(unpublished.publishedAt).toBeNull();
+      
+      // Verify the entry is now a draft by fetching it with status=draft
+      const draftResult = await client.callTool({
+        name: 'get_entries',
+        arguments: {
+          pluralApiId: 'projects',
+          options: JSON.stringify({
+            filters: {
+              documentId: created.documentId
+            },
+            status: 'draft'
+          })
+        }
+      });
+      const draftEntries = JSON.parse(draftResult.content[0].text);
+      expect(draftEntries.data).toHaveLength(1);
+      expect(draftEntries.data[0].documentId).toBe(created.documentId);
       
       // Cleanup
       await client.callTool({

@@ -114,6 +114,14 @@ export async function updateContentTypePermissions(
       update?: boolean;
       delete?: boolean;
     };
+    admin?: {
+      find?: boolean;
+      findOne?: boolean;
+      create?: boolean;
+      update?: boolean;
+      delete?: boolean;
+      publish?: boolean;
+    };
   }
 ): Promise<any> {
   validateConfig();
@@ -149,6 +157,20 @@ export async function updateContentTypePermissions(
         contentType,
         permissions.authenticated
       );
+    }
+
+    // Note: Admin permissions are not updated here because:
+    // 1. Admin users with Super Admin role have all permissions by default in Strapi v5
+    // 2. The admin permissions API structure is different and more complex
+    // 3. Updating admin permissions requires different endpoints and payload structure
+    if (permissions.admin) {
+      logger.debug(
+        `[API] Admin permissions requested but not updated - admin users should have permissions by default`
+      );
+      results.admin = {
+        message:
+          "Admin permissions update skipped - Super Admin users have all permissions by default",
+      };
     }
 
     return results;

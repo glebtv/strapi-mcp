@@ -13,9 +13,10 @@ import * as entries from "../api/entries.js";
 import * as media from "../api/media.js";
 import * as components from "../api/components.js";
 import * as permissions from "../api/permissions.js";
+import * as users from "../api/users.js";
 import { QueryParams } from "../types/index.js";
 import { ExtendedMcpError, ExtendedErrorCode } from "../errors/index.js";
-import { strapiClient } from "../api/client.js";
+import { strapiClient, makeAdminApiRequest, getAdminJwtToken } from "../api/client.js";
 import { logger } from "../utils/index.js";
 import axios from "axios";
 import qs from "qs";
@@ -30,6 +31,58 @@ async function makeRestRequest(
   body?: any
 ): Promise<any> {
   try {
+    // Check if we have admin credentials and if this is a content API endpoint
+    if (endpoint.startsWith("/api/") && getAdminJwtToken()) {
+      // Extract content type info from the endpoint
+      const apiMatch = endpoint.match(/^\/api\/([^/]+)(?:\/(.+))?$/);
+      if (apiMatch) {
+        const pluralName = apiMatch[1];
+        const documentId = apiMatch[2];
+
+        // Convert plural name to content type format (e.g., "docs" -> "api::doc.doc")
+        const singularName = pluralName.replace(/s$/, "");
+        const contentType = `api::${singularName}.${singularName}`;
+
+        // Convert to Content Manager API endpoint
+        let contentManagerEndpoint = `/content-manager/collection-types/${contentType}`;
+        if (documentId) {
+          contentManagerEndpoint += `/${documentId}`;
+        }
+
+        logger.debug(
+          `[REST] Converting REST API to Content Manager API: ${endpoint} -> ${contentManagerEndpoint}`
+        );
+
+        // For Content Manager API, body structure is different
+        let adminBody = body;
+        if (body && body.data && (method === "POST" || method === "PUT")) {
+          // Content Manager API expects data directly, not wrapped
+          adminBody = body.data;
+        }
+
+        try {
+          const adminResponse = await makeAdminApiRequest(
+            contentManagerEndpoint,
+            method.toLowerCase(),
+            adminBody,
+            params
+          );
+
+          // Wrap response in REST API format for consistency
+          return {
+            data: adminResponse.data || adminResponse,
+            meta: adminResponse.meta || {},
+          };
+        } catch (adminError: any) {
+          logger.debug(
+            `[REST] Content Manager API failed, falling back to REST API:`,
+            adminError.message
+          );
+          // Fall through to regular REST API
+        }
+      }
+    }
+
     const config: any = {
       method,
       url: endpoint,
@@ -37,9 +90,9 @@ async function makeRestRequest(
 
     if (params && Object.keys(params).length > 0) {
       // Use qs to serialize parameters as recommended by Strapi
-      const queryString = qs.stringify(params, { encodeValuesOnly: true });
+      const queryString = qs.stringify(params, { encodeValuesOnly: true, arrayFormat: "brackets" });
       config.params = params;
-      config.paramsSerializer = (params: any) => qs.stringify(params, { encodeValuesOnly: true });
+      config.paramsSerializer = (params: any) => qs.stringify(params, { encodeValuesOnly: true, arrayFormat: "brackets" });
       if (!isTest) {
         console.error("[REST] Request params:", JSON.stringify(params, null, 2));
         console.error("[REST] Query string:", queryString);
@@ -288,6 +341,11 @@ export function setupHandlers(server: Server) {
                 type: "string",
                 description:
                   "Optional: Locale for i18n content types (e.g., 'en', 'ru', 'zh'). If not specified, uses the default locale.",
+              },
+              status: {
+                type: "string",
+                description:
+                  "Optional: Status for draft & publish content types. Use 'published' to publish immediately, 'draft' to save as draft.",
               },
             },
             required: ["contentType", "pluralApiId", "data"],
@@ -709,7 +767,7 @@ export function setupHandlers(server: Server) {
         {
           name: "update_content_type_permissions",
           description:
-            "Update permissions for a content type. Allows setting read/write permissions for public and authenticated roles (Admin privileges required).",
+            "Update permissions for a content type. Allows setting read/write permissions for public, authenticated, and admin roles (Admin privileges required).",
           inputSchema: {
             type: "object",
             properties: {
@@ -719,7 +777,7 @@ export function setupHandlers(server: Server) {
               },
               permissions: {
                 type: "object",
-                description: "Permissions to set for public and authenticated roles",
+                description: "Permissions to set for public, authenticated, and admin roles",
                 properties: {
                   public: {
                     type: "object",
@@ -743,10 +801,50 @@ export function setupHandlers(server: Server) {
                       delete: { type: "boolean", description: "Allow deleting entries" },
                     },
                   },
+                  admin: {
+                    type: "object",
+                    description: "Permissions for admin roles (excluding super admin)",
+                    properties: {
+                      find: { type: "boolean", description: "Allow listing entries" },
+                      findOne: { type: "boolean", description: "Allow viewing single entries" },
+                      create: { type: "boolean", description: "Allow creating entries" },
+                      update: { type: "boolean", description: "Allow updating entries" },
+                      delete: { type: "boolean", description: "Allow deleting entries" },
+                      publish: { type: "boolean", description: "Allow publishing entries" },
+                    },
+                  },
                 },
               },
             },
             required: ["contentType", "permissions"],
+          },
+        },
+        {
+          name: "register_first_admin",
+          description:
+            "Register the first admin user for a fresh Strapi installation. This tool can only be used during initial setup when no admin users exist.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              email: {
+                type: "string",
+                description: "Email address for the admin user",
+              },
+              password: {
+                type: "string",
+                description:
+                  "Password for the admin user (must meet Strapi's password requirements)",
+              },
+              firstname: {
+                type: "string",
+                description: "First name of the admin user (optional, defaults to 'Admin')",
+              },
+              lastname: {
+                type: "string",
+                description: "Last name of the admin user (optional, defaults to 'User')",
+              },
+            },
+            required: ["email", "password"],
           },
         },
       ],
@@ -852,6 +950,13 @@ export function setupHandlers(server: Server) {
             queryParams
           );
 
+          if (!entry) {
+            throw new McpError(
+              ErrorCode.InvalidRequest,
+              `Entry with documentId '${documentId}' not found in '${pluralApiId}'`
+            );
+          }
+
           return {
             content: [
               {
@@ -867,6 +972,7 @@ export function setupHandlers(server: Server) {
           const pluralApiId = String(request.params.arguments?.pluralApiId);
           const data = request.params.arguments?.data;
           const locale = request.params.arguments?.locale as string | undefined;
+          const status = request.params.arguments?.status as string | undefined;
 
           if (!contentType || !pluralApiId || !data) {
             throw new McpError(
@@ -875,7 +981,7 @@ export function setupHandlers(server: Server) {
             );
           }
 
-          const entry = await entries.createEntry(contentType, pluralApiId, data, locale);
+          const entry = await entries.createEntry(contentType, pluralApiId, data, locale, status);
 
           return {
             content: [
@@ -1283,6 +1389,25 @@ export function setupHandlers(server: Server) {
             contentType,
             permissionsConfig
           );
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+          };
+        }
+
+        case "register_first_admin": {
+          const { email, password, firstname, lastname } = request.params.arguments as any;
+
+          if (!email || !password) {
+            throw new McpError(ErrorCode.InvalidParams, "email and password are required");
+          }
+
+          const result = await users.registerFirstAdmin({ email, password, firstname, lastname });
 
           return {
             content: [

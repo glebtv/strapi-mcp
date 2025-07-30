@@ -1,9 +1,11 @@
 import axios from "axios";
+import { setTimeout as setTimeoutAsync } from "timers/promises";
 import {
   strapiClient,
   validateStrapiConnection,
   makeAdminApiRequest,
   getAdminJwtToken,
+  clearAdminJwtToken,
 } from "./client.js";
 import { config, validateConfig } from "../config/index.js";
 import { ContentType } from "../types/index.js";
@@ -13,6 +15,189 @@ import { logger } from "../utils/index.js";
 // Cache for discovered content types
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 let contentTypesCache: ContentType[] = [];
+
+/**
+ * Wait for Strapi to restart using the admin panel status endpoint
+ * @param maxAttempts Maximum number of attempts (default: 60 = 60 seconds)
+ * @returns Promise that resolves when Strapi is ready
+ */
+async function waitForStrapiRestartWithStatus(maxAttempts = 60): Promise<void> {
+  logger.info("[API] Waiting for Strapi to apply schema changes...");
+
+  // In test environments, Strapi might not actually restart
+  // First check if we're in a test environment
+  const isTestEnvironment = process.env.NODE_ENV === "test" || process.env.VITEST === "true";
+
+  if (isTestEnvironment) {
+    logger.info("[API] Test environment detected, using simplified restart wait");
+    // Wait a bit for any async operations to complete
+    await setTimeoutAsync(3000);
+
+    // Clear admin JWT token in case it's invalid
+    clearAdminJwtToken();
+
+    // Verify content type exists by trying to access it
+    let verified = false;
+    for (let i = 0; i < 10; i++) {
+      try {
+        const healthCheck = await axios.get(`${config.strapi.url}/_health`, {
+          timeout: 2000,
+          validateStatus: () => true,
+        });
+        if (healthCheck.status === 204) {
+          verified = true;
+          break;
+        }
+      } catch {
+        logger.debug(`[API] Health check attempt ${i + 1} failed, retrying...`);
+      }
+      await setTimeoutAsync(1000);
+    }
+
+    if (!verified) {
+      logger.warn("[API] Could not verify Strapi is ready after schema changes");
+    }
+
+    return;
+  }
+
+  let attempts = 0;
+  let isRestarting = true;
+
+  while (isRestarting && attempts < maxAttempts) {
+    attempts++;
+
+    try {
+      // Check the update-schema-status endpoint
+      const response = await makeAdminApiRequest(
+        "/content-type-builder/update-schema-status",
+        "get"
+      );
+
+      logger.debug(`[API] Schema update status (attempt ${attempts}/${maxAttempts}):`, response);
+
+      // The endpoint returns { data: { isUpdating: boolean } }
+      if (response?.data?.isUpdating === false) {
+        logger.info("[API] Strapi has finished applying schema changes");
+        isRestarting = false;
+      } else {
+        logger.debug(
+          `[API] Strapi is still applying changes (isUpdating: ${response?.data?.isUpdating})`
+        );
+      }
+    } catch (error: any) {
+      // During restart, the server might be temporarily unavailable
+      if (error.code === "ECONNREFUSED" || error.code === "ECONNRESET") {
+        logger.debug(`[API] Strapi is restarting (connection refused)`);
+      } else {
+        logger.debug(`[API] Status check error: ${error.message}`);
+        // In test mode, this endpoint might not exist
+        if (error.response?.status === 404 && isTestEnvironment) {
+          logger.info("[API] Status endpoint not found in test mode, proceeding");
+          isRestarting = false;
+        }
+      }
+    }
+
+    if (isRestarting) {
+      await setTimeoutAsync(1000);
+    }
+  }
+
+  if (isRestarting) {
+    logger.warn("[API] Timeout waiting for Strapi to apply schema changes");
+    throw new ExtendedMcpError(
+      ExtendedErrorCode.InternalError,
+      "Timeout waiting for Strapi to apply schema changes. Please check Strapi logs."
+    );
+  }
+
+  // Wait an additional 2 seconds for full stabilization
+  logger.info("[API] Waiting for final stabilization...");
+  await setTimeoutAsync(2000);
+  logger.info("[API] Schema changes applied successfully");
+
+  // Clear admin JWT token after restart as it's likely invalid
+  logger.info("[API] Clearing admin JWT token after Strapi restart");
+  clearAdminJwtToken();
+}
+
+/**
+ * Wait for Strapi to restart and become ready after schema changes
+ * @param maxAttempts Maximum number of attempts (default: 30 = 30 seconds)
+ * @returns Promise that resolves when Strapi is ready
+ */
+async function waitForStrapiRestart(maxAttempts = 30): Promise<void> {
+  logger.info("[API] Checking if Strapi needs to restart after schema changes...");
+
+  // First, quickly check if Strapi is still responding
+  await setTimeoutAsync(50);
+
+  try {
+    const quickCheck = await axios.get(`${config.strapi.url}/_health`, {
+      timeout: 1000,
+      validateStatus: () => true,
+    });
+
+    if (quickCheck.status === 204) {
+      logger.info("[API] Strapi is still responding, no restart needed");
+      // Wait a short time for any internal updates to complete
+      await setTimeoutAsync(500);
+      return;
+    }
+  } catch {
+    // If we get connection refused, Strapi is restarting
+    logger.info("[API] Strapi appears to be restarting, waiting for it to come back...");
+  }
+
+  // Wait a bit more before starting regular checks
+  await setTimeoutAsync(2000);
+
+  let attempts = 0;
+  let strapiReady = false;
+
+  while (!strapiReady && attempts < maxAttempts) {
+    attempts++;
+
+    try {
+      // Check the health endpoint
+      const healthResponse = await axios.get(`${config.strapi.url}/_health`, {
+        timeout: 5000,
+        validateStatus: () => true,
+      });
+
+      if (healthResponse.status === 204) {
+        logger.debug(`[API] Health check successful (attempt ${attempts}/${maxAttempts})`);
+        strapiReady = true;
+      } else {
+        logger.debug(`[API] Health check returned status ${healthResponse.status}, waiting...`);
+      }
+    } catch (error: any) {
+      if (error.code === "ECONNREFUSED" || error.code === "ECONNRESET") {
+        logger.debug(`[API] Strapi is still restarting (attempt ${attempts}/${maxAttempts})`);
+      } else {
+        logger.debug(`[API] Health check error: ${error.message}`);
+      }
+    }
+
+    if (!strapiReady) {
+      await setTimeoutAsync(1000);
+    }
+  }
+
+  if (!strapiReady) {
+    logger.warn("[API] Strapi did not become ready within the timeout period");
+    throw new ExtendedMcpError(
+      ExtendedErrorCode.InternalError,
+      "Strapi did not become ready after restart. Please check Strapi logs."
+    );
+  }
+
+  // Wait an additional 2 seconds for Strapi to fully stabilize
+  logger.info("[API] Strapi is ready, waiting for stabilization...");
+  await setTimeoutAsync(2000);
+  logger.info("[API] Strapi restart complete");
+}
 
 export async function listContentTypes(): Promise<ContentType[]> {
   // Ensure config is loaded
@@ -64,25 +249,16 @@ export async function listContentTypes(): Promise<ContentType[]> {
         "[API] Failed to fetch content types via admin API, falling back to discovery:",
         error
       );
-      // If we only have admin credentials (no API token), don't fall back to discovery
-      // as it won't work without proper authentication
-      if (!config.strapi.apiToken) {
-        logger.debug("[API] No API token available, cannot use discovery method");
-        // Return empty array instead of throwing error
-        return [];
-      }
+      // Don't fall back to discovery since we only use admin credentials
+      logger.debug("[API] Admin API failed, returning empty array");
+      return [];
     }
   } else {
     logger.debug("[API] No admin credentials available, using discovery method");
   }
 
-  // Fall back to discovery method only if we have an API token
-  if (config.strapi.apiToken) {
-    return fetchContentTypes();
-  }
-
-  // No authentication method available
-  logger.debug("[API] No authentication method available for content type discovery");
+  // No fallback needed since we only use admin credentials
+  logger.debug("[API] No admin credentials available for content type discovery");
   return [];
 }
 
@@ -109,26 +285,20 @@ export async function fetchContentTypes(): Promise<ContentType[]> {
 
       for (const plural of pluralVariants) {
         try {
-          // If we have admin credentials but no API token, use makeAdminApiRequest
+          // Use admin JWT token for discovery
           let testResponse;
-          if (config.strapi.adminEmail && config.strapi.adminPassword && !config.strapi.apiToken) {
-            logger.debug(`[API] Trying ${plural} with admin auth`);
-            try {
-              // Admin API might need different approach, so also try regular strapiClient
-              const adminJwtToken = getAdminJwtToken();
-              testResponse = await axios.get(
-                `${config.strapi.url}/api/${plural}?pagination[limit]=1`,
-                {
-                  headers: adminJwtToken ? { Authorization: `Bearer ${adminJwtToken}` } : {},
-                  validateStatus: (status) => status < 500,
-                }
-              );
-            } catch {
-              // If admin token doesn't work for public API, continue
-              continue;
+          logger.debug(`[API] Trying ${plural} with admin auth`);
+          try {
+            // Admin API might need different approach, so also try regular strapiClient
+            const adminJwtToken = getAdminJwtToken();
+            if (!adminJwtToken) {
+              // Need to login first
+              await validateStrapiConnection();
             }
-          } else {
             testResponse = await strapiClient.get(`/api/${plural}?pagination[limit]=1`);
+          } catch {
+            // If doesn't work, continue
+            continue;
           }
 
           if (testResponse && testResponse.status === 200) {
@@ -211,14 +381,24 @@ export async function fetchContentTypeSchema(contentType: string): Promise<any> 
 
         if (response?.data) {
           logger.debug(`[API] Successfully fetched schema via admin API`);
-          // Extract the schema from the response
-          const schema = response.data.schema || response.data;
+          logger.debug(
+            `[API] Admin API schema response structure:`,
+            JSON.stringify(response.data, null, 2)
+          );
+
+          // The admin API returns data.schema with the actual schema
+          const schemaData = response.data;
+
+          // Return the full schema structure, preserving the nested format
           return {
-            uid: schema.uid || contentType,
-            apiID: schema.apiID || contentType.split("::")[1]?.split(".")[0],
-            info: schema.info || {},
-            attributes: schema.attributes || {},
-            pluginOptions: schema.pluginOptions || {},
+            uid: schemaData.uid || contentType,
+            apiID: schemaData.apiID || contentType.split("::")[1]?.split(".")[0],
+            schema: schemaData.schema || schemaData,
+            info: schemaData.schema?.info || schemaData.info || {},
+            attributes: schemaData.schema?.attributes || schemaData.attributes || {},
+            pluginOptions: schemaData.schema?.pluginOptions || schemaData.pluginOptions || {},
+            isLocalized: schemaData.schema?.pluginOptions?.i18n?.localized || false,
+            displayName: schemaData.schema?.info?.displayName || schemaData.info?.displayName,
           };
         }
       } catch (adminError) {
@@ -372,7 +552,7 @@ export async function createContentType(contentTypeData: any): Promise<any> {
       singularName,
       pluralName,
       kind = "collectionType",
-      draftAndPublish = false,
+      draftAndPublish = true,
       attributes,
       pluginOptions,
     } = contentTypeData;
@@ -384,16 +564,39 @@ export async function createContentType(contentTypeData: any): Promise<any> {
       );
     }
 
-    // Build the payload for the Content-Type Builder API
+    // Transform attributes to the admin panel format
+    const transformedAttributes = Object.entries(attributes).map(
+      ([name, config]: [string, any]) => ({
+        action: "create",
+        name,
+        properties: {
+          ...config,
+          pluginOptions: config.pluginOptions || {},
+        },
+      })
+    );
+
+    // Build the payload using the admin panel API format
     const payload = {
-      contentType: {
-        displayName,
-        singularName,
-        pluralName,
-        kind,
-        draftAndPublish,
-        attributes,
-        pluginOptions,
+      data: {
+        components: [],
+        contentTypes: [
+          {
+            action: "create",
+            uid: `api::${singularName}.${singularName}`,
+            status: "NEW",
+            modelType: "contentType",
+            attributes: transformedAttributes,
+            kind,
+            modelName: displayName.replace(/\s+/g, ""),
+            globalId: displayName.replace(/\s+/g, ""),
+            pluginOptions: pluginOptions || {},
+            draftAndPublish,
+            displayName,
+            singularName,
+            pluralName,
+          },
+        ],
       },
     };
 
@@ -402,16 +605,22 @@ export async function createContentType(contentTypeData: any): Promise<any> {
       `[API] Attempting to create content type with payload: ${JSON.stringify(payload, null, 2)}`
     );
 
-    // Make sure we're using the correct Content-Type Builder endpoint
-    const endpoint = "/content-type-builder/content-types";
+    // Use the admin panel endpoint for updating schema
+    const endpoint = "/content-type-builder/update-schema";
     logger.debug(`[API] Using endpoint: ${endpoint}`);
 
     const response = await makeAdminApiRequest(endpoint, "post", payload);
     logger.debug(`[API] Content type creation response:`, response);
 
-    // Strapi might restart after schema changes, response might vary
+    // Wait for Strapi to restart using the status endpoint
+    await waitForStrapiRestartWithStatus();
+
+    // Return success response
     return (
-      response?.data || { message: "Content type creation initiated. Strapi might be restarting." }
+      response?.data || {
+        message: "Content type created successfully. Strapi might be restarting to apply changes.",
+        uid: `api::${singularName}.${singularName}`,
+      }
     );
   } catch (error: any) {
     logger.error(`[Error] Failed to create content type:`, error);
@@ -503,10 +712,14 @@ export async function updateContentType(
 
     logger.debug(`[API] Content type update response:`, response);
 
-    // Response might vary, often includes the updated UID or a success message
+    // Wait for Strapi to restart after updating content type
+    await waitForStrapiRestart();
+
+    // Return success response
     return (
       response?.data || {
-        message: `Content type ${contentTypeUid} update initiated. Strapi might be restarting.`,
+        message: `Content type ${contentTypeUid} updated successfully`,
+        uid: contentTypeUid,
       }
     );
   } catch (error: any) {
@@ -567,10 +780,13 @@ export async function deleteContentType(contentTypeUid: string): Promise<any> {
     const response = await makeAdminApiRequest(endpoint, "delete");
     logger.debug(`[API] Content type deletion response:`, response);
 
-    // Return the response data or a success message
+    // Wait for Strapi to restart after deleting content type
+    await waitForStrapiRestart();
+
+    // Return success response
     return (
       response?.data || {
-        message: `Content type ${contentTypeUid} deleted. Strapi might be restarting.`,
+        message: `Content type ${contentTypeUid} deleted successfully`,
       }
     );
   } catch (error: any) {

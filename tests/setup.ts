@@ -12,18 +12,11 @@ dotenv.config(); // Load .env as fallback
 let strapiReadyPromise: Promise<void> | null = null;
 let strapiIsReady = false;
 
-// Load tokens from test-tokens.json if it exists
+// Load admin credentials from test-tokens.json if it exists
 const testTokensPath = path.join(process.cwd(), 'test-tokens.json');
 if (fs.existsSync(testTokensPath)) {
   try {
     const tokens = JSON.parse(fs.readFileSync(testTokensPath, 'utf-8'));
-    // Set tokens in environment if not already set
-    if (!process.env.STRAPI_API_TOKEN && tokens.fullAccessToken) {
-      process.env.STRAPI_API_TOKEN = tokens.fullAccessToken;
-    }
-    if (!process.env.STRAPI_READ_ONLY_TOKEN && tokens.readOnlyToken) {
-      process.env.STRAPI_READ_ONLY_TOKEN = tokens.readOnlyToken;
-    }
     // Override URL and credentials from test-tokens.json if available
     if (tokens.strapiUrl) {
       process.env.STRAPI_URL = tokens.strapiUrl;
@@ -34,7 +27,7 @@ if (fs.existsSync(testTokensPath)) {
     if (tokens.adminPassword) {
       process.env.STRAPI_ADMIN_PASSWORD = tokens.adminPassword;
     }
-    console.log('Loaded tokens from test-tokens.json');
+    console.log('Loaded admin credentials from test-tokens.json');
   } catch (error) {
     console.warn('Failed to load test-tokens.json:', error);
   }
@@ -106,26 +99,20 @@ async function waitForStrapi(maxRetries = 30, delay = 1000) {
 
 // Ensure required environment variables are set
 beforeAll(async () => {
-  // Check that we have at least one authentication method
-  const hasApiToken = !!process.env.STRAPI_API_TOKEN;
+  // Check that we have admin credentials
   const hasAdminCreds = !!(process.env.STRAPI_ADMIN_EMAIL && process.env.STRAPI_ADMIN_PASSWORD);
   
   if (!process.env.STRAPI_URL) {
     throw new Error('Missing required environment variable: STRAPI_URL');
   }
   
-  if (!hasApiToken && !hasAdminCreds) {
-    throw new Error('Missing authentication: Either STRAPI_API_TOKEN or both STRAPI_ADMIN_EMAIL and STRAPI_ADMIN_PASSWORD must be set');
+  if (!hasAdminCreds) {
+    throw new Error('Missing authentication: Both STRAPI_ADMIN_EMAIL and STRAPI_ADMIN_PASSWORD must be set');
   }
   
   console.log('Test environment configured:');
   console.log(`- Strapi URL: ${process.env.STRAPI_URL}`);
-  console.log(`- API Token: ${hasApiToken ? 'Set' : 'Not set'}`);
-  console.log(`- Admin Credentials: ${hasAdminCreds ? 'Set' : 'Not set'}`);
-  
-  if (hasAdminCreds && hasApiToken) {
-    console.log('- Priority: Admin credentials will be used when both are available');
-  }
+  console.log(`- Admin Credentials: Set`);
   
   // Wait for Strapi to be ready before running tests
   await waitForStrapi();

@@ -60,6 +60,8 @@ ADMIN_PASSWORD=$ADMIN_PASSWORD
 DATABASE_CLIENT=sqlite
 DATABASE_FILENAME=.tmp/data.db
 NODE_ENV=${CI:+production}${CI:-development}
+# Disable telemetry for faster performance and cleaner logs
+STRAPI_TELEMETRY_DISABLED=true
 # Add encryption keys to avoid warnings  
 ENCRYPTION_KEY=$(openssl rand -base64 32)
 EOF
@@ -69,16 +71,35 @@ echo "🔧 Copying configuration and content types..."
 cp -r ../fixtures/strapi-test/config/* config/
 cp -r ../fixtures/strapi-test/api/* src/api/
 
-# Add bootstrap function to Strapi's index.ts
-echo "📋 Adding bootstrap function..."
-# First check if src/index.ts exists, if not, create it
-if [ ! -f src/index.ts ]; then
-  echo "import { Strapi } from '@strapi/strapi';" > src/index.ts
-  echo "" >> src/index.ts
-fi
+# Create admin.config.ts to fix Vite fs.allow error
+echo "🔧 Creating admin.config.ts for Vite configuration..."
+cat > admin.config.ts << 'EOF'
+import { mergeConfig, type UserConfig } from "vite";
 
-# Add our bootstrap function to the existing file
-cat ../scripts/bootstrap-tokens.ts >> src/index.ts
+export default (config: UserConfig) => {
+  // Important: always return the modified config
+  return mergeConfig(config, {
+    server: {
+      fs: {
+        allow: [
+          // Allow access to node_modules outside project root
+          process.cwd(),
+          "../..", // parent directories
+          "/opt/node_modules", // common Docker paths
+          "/opt/app",
+        ],
+      },
+    },
+    resolve: {
+      alias: {
+        "@": "/src",
+      },
+    },
+  });
+};
+EOF
+
+# No need for bootstrap function anymore since we're not creating tokens
 
 # Start Strapi
 echo "🚀 Starting Strapi..."
@@ -100,44 +121,65 @@ if [ ! -z "$GITHUB_ENV" ]; then
   echo "STRAPI_PID=$STRAPI_PID" >> $GITHUB_ENV
 fi
 
-# Wait for Strapi and create tokens
-echo "⏳ Waiting for Strapi to start and creating tokens..."
+# Wait for Strapi to be ready
+echo "⏳ Waiting for Strapi to start..."
 cd ..
-STRAPI_URL=http://localhost:1337 ADMIN_EMAIL=admin@ci.local ADMIN_PASSWORD=$ADMIN_PASSWORD STRAPI_PID=$STRAPI_PID npm run wait-and-create-tokens
+max_attempts=60
+attempt=0
+
+while [ $attempt -lt $max_attempts ]; do
+  if curl -s -f http://localhost:1337/_health > /dev/null 2>&1; then
+    echo "✅ Strapi is ready!"
+    break
+  fi
+  
+  # Check if process is still running
+  if ! ps -p $STRAPI_PID > /dev/null 2>&1; then
+    echo "❌ Strapi process crashed"
+    echo "=== Strapi Output ==="
+    tail -50 strapi-test/strapi_output.log
+    exit 1
+  fi
+  
+  attempt=$((attempt + 1))
+  if [ $attempt -eq $max_attempts ]; then
+    echo "❌ Timeout waiting for Strapi"
+    echo "=== Strapi Output ==="
+    tail -50 strapi-test/strapi_output.log
+    kill $STRAPI_PID 2>/dev/null || true
+    exit 1
+  fi
+  
+  echo -n "."
+  sleep 1
+done
+
+# Register admin user using MCP server
+echo ""
+echo "👤 Registering admin user..."
+STRAPI_URL=http://localhost:1337 ADMIN_EMAIL=admin@ci.local ADMIN_PASSWORD=$ADMIN_PASSWORD node scripts/register-admin.js
 
 if [ $? -ne 0 ]; then
-  echo "❌ Failed to create tokens"
+  echo "❌ Failed to register admin user"
   echo "=== Strapi Output ==="
   tail -50 strapi-test/strapi_output.log
   kill $STRAPI_PID 2>/dev/null || true
   exit 1
 fi
 
-# Load tokens from test-tokens.json
-if [ -f test-tokens.json ]; then
-  # Parse JSON without jq - extract token values using grep and sed
-  FULL_ACCESS_TOKEN=$(grep -o '"fullAccessToken"[[:space:]]*:[[:space:]]*"[^"]*"' test-tokens.json | sed 's/.*: *"\([^"]*\)".*/\1/')
-  READ_ONLY_TOKEN=$(grep -o '"readOnlyToken"[[:space:]]*:[[:space:]]*"[^"]*"' test-tokens.json | sed 's/.*: *"\([^"]*\)".*/\1/')
-  
-  echo "✅ Tokens loaded from test-tokens.json"
-  echo "📝 Full Access Token: ${FULL_ACCESS_TOKEN:0:20}..."
-  echo "📝 Read Only Token: ${READ_ONLY_TOKEN:0:20}..."
-  
-  # Export variables for GitHub Actions
-  if [ ! -z "$GITHUB_ENV" ]; then
-    echo "STRAPI_API_TOKEN=$FULL_ACCESS_TOKEN" >> $GITHUB_ENV
-    echo "STRAPI_READ_ONLY_TOKEN=$READ_ONLY_TOKEN" >> $GITHUB_ENV
-  fi
-else
-  echo "❌ test-tokens.json not found"
+echo ""
+echo "🔓 Configuring public permissions..."
+node scripts/configure-permissions-simple.js
+
+if [ $? -ne 0 ]; then
+  echo "❌ Failed to configure permissions"
+  echo "=== Strapi Output ==="
+  tail -50 strapi-test/strapi_output.log
   kill $STRAPI_PID 2>/dev/null || true
   exit 1
 fi
 
 cd strapi-test
-
-echo ""
-# i18n locales are now set up by wait-and-create-tokens.js
 
 echo ""
 echo "🎉 Strapi test instance is ready!"
@@ -146,14 +188,10 @@ echo "📋 Configuration:"
 echo "  URL: http://localhost:1337"
 echo "  Admin Email: admin@ci.local"
 echo "  Admin Password: $ADMIN_PASSWORD"
-echo "  Full Access Token: $FULL_ACCESS_TOKEN"
-echo "  Read Only Token: $READ_ONLY_TOKEN"
 echo ""
 echo "💡 To stop Strapi, run: kill $STRAPI_PID"
 echo ""
 echo "🔧 For testing strapi-mcp, export these variables:"
 echo "export STRAPI_URL=http://localhost:1337"
-echo "export STRAPI_API_TOKEN=$FULL_ACCESS_TOKEN"
-echo "export STRAPI_READ_ONLY_TOKEN=$READ_ONLY_TOKEN"
 echo "export STRAPI_ADMIN_EMAIL=admin@ci.local"
 echo "export STRAPI_ADMIN_PASSWORD=$ADMIN_PASSWORD"

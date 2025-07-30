@@ -1,5 +1,5 @@
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
-import { validateStrapiConnection, strapiClient } from "./client.js";
+import { validateStrapiConnection, getAdminJwtToken } from "./client.js";
 import { filterBase64FromResponse, logger } from "../utils/index.js";
 import axios from "axios";
 import { config } from "../config/index.js";
@@ -37,9 +37,9 @@ export async function uploadMedia(
 
     // Ensure we're connected and authenticated first
     await validateStrapiConnection();
-    
+
     // Get auth token from config
-    const authToken = config.strapi.apiToken;
+    const authToken = getAdminJwtToken();
     if (!authToken) {
       throw new Error("No API token available for upload");
     }
@@ -47,14 +47,23 @@ export async function uploadMedia(
     // Use form-data package for Node.js
     const FormData = (await import("form-data")).default;
     const form = new FormData();
-    
+
     // Append buffer directly with metadata
-    form.append('files', buffer, {
+    form.append("files", buffer, {
       filename: fileName,
-      contentType: fileType
+      contentType: fileType,
     });
 
-    const response = await axios.post(`${config.strapi.url}/api/upload`, form, {
+    // Add fileInfo field like the admin UI does
+    form.append(
+      "fileInfo",
+      JSON.stringify({
+        name: fileName,
+        folder: null,
+      })
+    );
+
+    const response = await axios.post(`${config.strapi.url}/upload`, form, {
       headers: {
         ...form.getHeaders(),
         Authorization: `Bearer ${authToken}`,
@@ -130,9 +139,9 @@ export async function uploadMediaFromPath(
 
     // Ensure we're connected and authenticated first
     await validateStrapiConnection();
-    
+
     // Get auth token from config
-    const authToken = config.strapi.apiToken;
+    const authToken = getAdminJwtToken();
     if (!authToken) {
       throw new Error("No API token available for upload");
     }
@@ -140,12 +149,21 @@ export async function uploadMediaFromPath(
     // Create FormData and append the file stream
     const form = new FormData();
     const fileStream = fs.createReadStream(filePath);
-    form.append('files', fileStream, {
+    form.append("files", fileStream, {
       filename: actualFileName,
-      contentType: actualFileType
+      contentType: actualFileType,
     });
 
-    const response = await axios.post(`${config.strapi.url}/api/upload`, form, {
+    // Add fileInfo field like the admin UI does
+    form.append(
+      "fileInfo",
+      JSON.stringify({
+        name: actualFileName,
+        folder: null,
+      })
+    );
+
+    const response = await axios.post(`${config.strapi.url}/upload`, form, {
       headers: {
         ...form.getHeaders(),
         Authorization: `Bearer ${authToken}`,
@@ -176,17 +194,17 @@ export async function uploadMediaFromPath(
 export async function listMedia(): Promise<any[]> {
   try {
     logger.debug(`[API] Listing all media files`);
-    
+
     // Ensure we're connected and authenticated first
     await validateStrapiConnection();
-    
+
     // Get auth token from config
-    const authToken = config.strapi.apiToken;
+    const authToken = getAdminJwtToken();
     if (!authToken) {
       throw new Error("No API token available for upload");
     }
 
-    const response = await axios.get(`${config.strapi.url}/api/upload/files`, {
+    const response = await axios.get(`${config.strapi.url}/upload/files`, {
       headers: {
         Authorization: `Bearer ${authToken}`,
       },
@@ -211,17 +229,17 @@ export async function listMedia(): Promise<any[]> {
 export async function getMedia(id: string): Promise<any> {
   try {
     logger.debug(`[API] Getting media file: ${id}`);
-    
+
     // Ensure we're connected and authenticated first
     await validateStrapiConnection();
-    
+
     // Get auth token from config
-    const authToken = config.strapi.apiToken;
+    const authToken = getAdminJwtToken();
     if (!authToken) {
       throw new Error("No API token available for upload");
     }
 
-    const response = await axios.get(`${config.strapi.url}/api/upload/files/${id}`, {
+    const response = await axios.get(`${config.strapi.url}/upload/files/${id}`, {
       headers: {
         Authorization: `Bearer ${authToken}`,
       },
@@ -246,17 +264,17 @@ export async function getMedia(id: string): Promise<any> {
 export async function deleteMedia(id: string): Promise<void> {
   try {
     logger.debug(`[API] Deleting media file: ${id}`);
-    
+
     // Ensure we're connected and authenticated first
     await validateStrapiConnection();
-    
+
     // Get auth token from config
-    const authToken = config.strapi.apiToken;
+    const authToken = getAdminJwtToken();
     if (!authToken) {
       throw new Error("No API token available for upload");
     }
 
-    await axios.delete(`${config.strapi.url}/api/upload/files/${id}`, {
+    await axios.delete(`${config.strapi.url}/upload/files/${id}`, {
       headers: {
         Authorization: `Bearer ${authToken}`,
       },

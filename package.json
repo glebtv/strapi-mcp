@@ -34,7 +34,6 @@
       "inspector": "npx @modelcontextprotocol/inspector build/index.js",
       "generate-test-image": "node scripts/generate-test-image.js",
       "context-window-info": "node scripts/context-window-example.js",
-      "wait-and-create-tokens": "node scripts/wait-and-create-tokens.js",
       "test": "vitest",
       "test:ui": "vitest --ui",
       "test:coverage": "vitest --coverage",
@@ -65,6 +64,7 @@
       "eslint-config-prettier": "^10.1.8",
       "eslint-plugin-prettier": "^5.5.3",
       "prettier": "^3.6.2",
+      "sqlite3": "^5.1.7",
       "typescript": "^5.3.3",
       "vitest": "^3.2.4"
    }

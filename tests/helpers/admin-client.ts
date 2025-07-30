@@ -3,7 +3,6 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 
 export interface AdminClientOptions {
   useAdminAuth?: boolean;
-  useApiToken?: boolean;
 }
 
 /**
@@ -13,26 +12,21 @@ export async function createTestClient(options: AdminClientOptions = {}): Promis
   client: Client;
   transport: StdioClientTransport;
 }> {
-  const { useAdminAuth = false, useApiToken = true } = options;
+  const { useAdminAuth = true } = options;
   
-  const env: Record<string, any> = {
+  // Create a clean environment object with only necessary variables
+  const env: Record<string, string | undefined> = {
     ...process.env,
-    STRAPI_URL: process.env.STRAPI_URL,
+    STRAPI_URL: process.env.STRAPI_URL || 'http://localhost:1337',
+    NODE_ENV: process.env.NODE_ENV || 'test',
+    PATH: process.env.PATH,
+    HOME: process.env.HOME,
   };
 
-  // Configure authentication based on options
-  if (useAdminAuth) {
+  // Configure authentication - admin credentials are required
+  if (useAdminAuth && process.env.STRAPI_ADMIN_EMAIL && process.env.STRAPI_ADMIN_PASSWORD) {
     env.STRAPI_ADMIN_EMAIL = process.env.STRAPI_ADMIN_EMAIL;
     env.STRAPI_ADMIN_PASSWORD = process.env.STRAPI_ADMIN_PASSWORD;
-  } else {
-    env.STRAPI_ADMIN_EMAIL = undefined;
-    env.STRAPI_ADMIN_PASSWORD = undefined;
-  }
-
-  if (useApiToken) {
-    env.STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN;
-  } else {
-    env.STRAPI_API_TOKEN = undefined;
   }
 
   const transport = new StdioClientTransport({

@@ -26,6 +26,15 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { config, validateConfig } from "./config/index.js";
 import { setupHandlers } from "./server/handlers.js";
+import { logger } from "./utils/logger.js";
+
+// Debug logging for test environment
+if (process.env.NODE_ENV === "test") {
+  logger.debug(`[Startup] Debug - Admin Email: ${config.strapi.adminEmail ? "Set" : "Not set"}`);
+  logger.debug(
+    `[Startup] Debug - Admin Password: ${config.strapi.adminPassword ? "Set" : "Not set"}`
+  );
+}
 
 // Validate configuration on startup
 validateConfig();
@@ -43,18 +52,19 @@ const server = new Server(
       strapi: {
         security: {
           write_protection: {
-            policy: "STRAPI_API_PERMISSION_BASED",
-            description: "All write operations are protected by Strapi API permissions",
+            policy: "ADMIN_CREDENTIALS_REQUIRED",
+            description: "All operations require admin credentials",
             protected_operations: [
               "POST /api/* (Create)",
               "PUT /api/* (Update)",
               "DELETE /api/* (Delete)",
               "POST /api/upload (Media Upload)",
+              "GET /api/* (Read)",
             ],
             requirements: [
-              "Valid API token with appropriate permissions",
-              "Strapi role-based access control enforced",
-              "All operations validated by Strapi backend",
+              "Valid admin email and password",
+              "Admin JWT token authentication",
+              "Full admin access to Strapi backend",
             ],
           },
         },
@@ -69,8 +79,8 @@ const server = new Server(
         },
         common_errors: {
           "400": ["Missing required fields", "Invalid data format", "Validation errors"],
-          "401": ["Invalid or expired API token"],
-          "403": ["Insufficient permissions for resource"],
+          "401": ["Invalid or expired admin JWT token", "Admin credentials incorrect"],
+          "403": ["Admin account lacks necessary permissions"],
           "404": ["Resource not found", "Invalid endpoint path"],
         },
       },

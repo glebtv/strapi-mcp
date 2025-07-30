@@ -57,26 +57,19 @@ Configure the following environment variables:
 - `STRAPI_URL`: The URL of your Strapi instance (default: `http://localhost:1337`)
 - `STRAPI_DEV_MODE`: Set to `"true"` to enable development mode features (defaults to `false`)
 
-#### Authentication (choose one):
+#### Authentication (required):
 
-**Option 1: API Token (recommended for most use cases)**
-- `STRAPI_API_TOKEN`: Your Strapi API token with appropriate permissions
-
-**Option 2: Admin Credentials (required for component management)**
+**Admin Credentials**
 - `STRAPI_ADMIN_EMAIL`: Admin email for your Strapi instance
 - `STRAPI_ADMIN_PASSWORD`: Admin password for your Strapi instance
 
-**Note:** Admin credentials are required for component management operations. If both authentication methods are provided, admin credentials take priority.
+**Note:** Admin credentials are required for all operations. The server uses admin JWT authentication for both admin and REST API endpoints.
 
-**Important:** Avoid placeholder values like `"strapi_token"` - the server validates and rejects common placeholders
-
-### Getting a Strapi v5 API Token
+### Setting up Admin Credentials
 
 1. Log in to your Strapi v5 admin panel
-2. Go to Settings > API Tokens
-3. Click "Create new API Token"
-4. Set a name, description, and token type (preferably "Full access")
-5. Copy the generated token and use it in your MCP server configuration
+2. Ensure you have an admin account with full permissions
+3. Use the admin email and password in your MCP server configuration
 
 ## Setup
 
@@ -95,10 +88,8 @@ Configure the strapi-mcp server in your MCP settings file:
       "args": ["strapi-mcp"],
       "env": {
         "STRAPI_URL": "http://localhost:1337",
-        "STRAPI_API_TOKEN": "your_api_token_here"
-        // Or use admin credentials for full functionality:
-        // "STRAPI_ADMIN_EMAIL": "admin@example.com",
-        // "STRAPI_ADMIN_PASSWORD": "your_admin_password"
+        "STRAPI_ADMIN_EMAIL": "admin@example.com",
+        "STRAPI_ADMIN_PASSWORD": "your_admin_password"
       }
     }
   }
@@ -114,10 +105,8 @@ If you installed from source:
       "args": ["/path/to/strapi-mcp/build/index.js"],
       "env": {
         "STRAPI_URL": "http://localhost:1337",
-        "STRAPI_API_TOKEN": "your_api_token_here"
-        // Or use admin credentials for full functionality:
-        // "STRAPI_ADMIN_EMAIL": "admin@example.com",
-        // "STRAPI_ADMIN_PASSWORD": "your_admin_password"
+        "STRAPI_ADMIN_EMAIL": "admin@example.com",
+        "STRAPI_ADMIN_PASSWORD": "your_admin_password"
       }
     }
   }
@@ -165,7 +154,7 @@ This project uses GitHub Actions for continuous integration:
   - Tests on Node.js 18.x, 20.x, and 22.x
   - Automatically sets up a local Strapi 5 instance with PostgreSQL
   - Creates required content types (projects, technologies)
-  - Generates API tokens for authentication
+  - Creates admin user for authentication
   - Runs linting, type checking, and all tests
 
 ## Troubleshooting

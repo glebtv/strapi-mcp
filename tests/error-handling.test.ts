@@ -189,39 +189,34 @@ describe('Error Handling', () => {
   });
 
   describe('Authentication Errors', () => {
-    it('should handle component operations without admin credentials', async () => {
-      // Create a client with only API token
-      const tokenOnlyTransport = new StdioClientTransport({
+    it('should handle missing authentication', async () => {
+      // Create a client without any authentication
+      const noAuthTransport = new StdioClientTransport({
         command: 'node',
         args: ['build/index.js'],
         env: {
           ...process.env,
           STRAPI_URL: process.env.STRAPI_URL,
-          STRAPI_API_TOKEN: process.env.STRAPI_API_TOKEN,
-          STRAPI_ADMIN_EMAIL: undefined,
-          STRAPI_ADMIN_PASSWORD: undefined
+          STRAPI_ADMIN_EMAIL: '',
+          STRAPI_ADMIN_PASSWORD: ''
         }
       });
 
-      const tokenOnlyClient = new Client({
-        name: 'token-only-test',
+      const noAuthClient = new Client({
+        name: 'no-auth-test',
         version: '1.0.0'
       }, {
         capabilities: {}
       });
 
-      await tokenOnlyClient.connect(tokenOnlyTransport);
-
       try {
-        await tokenOnlyClient.callTool({
-          name: 'list_components',
-          arguments: {}
-        });
+        await noAuthClient.connect(noAuthTransport);
         expect.fail('Should have thrown an error');
       } catch (error: any) {
-        expect(error.message).toContain('Admin credentials are required');
+        // Should fail during connection due to missing authentication
+        expect(error.message).toMatch(/connection closed|authentication/i);
       } finally {
-        await tokenOnlyTransport.close();
+        await noAuthTransport.close();
       }
     });
 
@@ -233,8 +228,7 @@ describe('Error Handling', () => {
           ...process.env,
           STRAPI_URL: process.env.STRAPI_URL,
           STRAPI_ADMIN_EMAIL: 'invalid@example.com',
-          STRAPI_ADMIN_PASSWORD: 'wrongpassword',
-          STRAPI_API_TOKEN: undefined
+          STRAPI_ADMIN_PASSWORD: 'wrongpassword'
         }
       });
 

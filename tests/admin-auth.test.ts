@@ -4,9 +4,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 
 describe('Admin Authentication Tests', () => {
   let clientWithAdmin: Client;
-  let clientWithToken: Client;
   let transportAdmin: StdioClientTransport;
-  let transportToken: StdioClientTransport;
 
   describe('Admin Credentials', () => {
     beforeAll(async () => {
@@ -18,9 +16,7 @@ describe('Admin Authentication Tests', () => {
           ...process.env,
           STRAPI_URL: process.env.STRAPI_URL,
           STRAPI_ADMIN_EMAIL: process.env.STRAPI_ADMIN_EMAIL,
-          STRAPI_ADMIN_PASSWORD: process.env.STRAPI_ADMIN_PASSWORD,
-          // Remove API token to test admin-only auth
-          STRAPI_API_TOKEN: undefined
+          STRAPI_ADMIN_PASSWORD: process.env.STRAPI_ADMIN_PASSWORD
         }
       });
 
@@ -130,89 +126,38 @@ describe('Admin Authentication Tests', () => {
   });
 
 
-  describe('API Token Only (Component Operations Should Fail)', () => {
-    beforeAll(async () => {
-      // Wait longer in CI for Strapi to stabilize after component creation
-      const waitTime = process.env.CI ? 5000 : 2000;
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-      
-      // Create client with API token only
-      transportToken = new StdioClientTransport({
+  describe('Missing Authentication (Should Fail)', () => {
+    it('should fail to connect without any authentication', async () => {
+      // Create client without any credentials
+      const noAuthTransport = new StdioClientTransport({
         command: process.execPath,
         args: ['build/index.js'],
         env: {
           ...process.env,
           STRAPI_URL: process.env.STRAPI_URL,
-          STRAPI_API_TOKEN: process.env.STRAPI_API_TOKEN,
-          // Remove admin credentials
+          // No authentication
           STRAPI_ADMIN_EMAIL: undefined,
           STRAPI_ADMIN_PASSWORD: undefined
         }
       });
 
-      clientWithToken = new Client({
-        name: 'test-token-auth',
+      const noAuthClient = new Client({
+        name: 'test-no-auth',
         version: '1.0.0'
       }, {
         capabilities: {}
       });
 
-      await clientWithToken.connect(transportToken);
-    });
-
-    afterAll(async () => {
-      if (transportToken) {
-        await transportToken.close();
+      try {
+        await noAuthClient.connect(noAuthTransport);
+        // Should not reach here
+        fail('Expected connection to fail without authentication');
+      } catch (error: any) {
+        // Connection should fail due to missing authentication
+        expect(error.message.toLowerCase()).toMatch(/connection closed|authentication/);
+      } finally {
+        await noAuthTransport.close();
       }
-    });
-
-    it('should fail component operations with API token only', async () => {
-      // Retry a few times in case of transient connection issues
-      let lastError: any;
-      const maxRetries = process.env.CI ? 5 : 3;
-      const retryDelay = process.env.CI ? 2000 : 1000;
-      
-      for (let i = 0; i < maxRetries; i++) {
-        try {
-          await clientWithToken.callTool({
-            name: 'list_components',
-            arguments: {}
-          });
-          // Should not reach here - if we do, the test should fail
-          fail('Expected an error but none was thrown');
-        } catch (error: any) {
-          lastError = error;
-          
-          // If we get the expected error, test passes
-          if (error.message.includes('Admin credentials are required')) {
-            expect(error.message).toContain('Admin credentials are required');
-            return;
-          }
-          
-          // If connection refused or other transient error, wait and retry
-          if ((error.message.includes('Connection refused') || 
-               error.message.includes('ECONNREFUSED') ||
-               error.message.includes('Cannot connect to Strapi')) && 
-              i < maxRetries - 1) {
-            console.log(`Retry ${i + 1}/${maxRetries}: Connection issue, waiting ${retryDelay}ms...`);
-            await new Promise(resolve => setTimeout(resolve, retryDelay));
-            continue;
-          }
-        }
-      }
-      
-      // If we get here with an unexpected error, fail with details
-      throw new Error(`Expected 'Admin credentials are required' error, but got: ${lastError.message}`);
-    });
-
-    it('should succeed with regular operations using API token', async () => {
-      const result = await clientWithToken.callTool({
-        name: 'list_content_types',
-        arguments: {}
-      });
-
-      const contentTypes = JSON.parse(result.content[0].text);
-      expect(contentTypes).toBeInstanceOf(Array);
     });
   });
 });

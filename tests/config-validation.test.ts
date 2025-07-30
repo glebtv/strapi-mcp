@@ -9,12 +9,11 @@ describe('Configuration Validation', () => {
         command: process.execPath,
         args: ['build/index.js'],
         env: {
-          ...process.env,
           STRAPI_URL: 'http://localhost:1337',
-          // No authentication provided
-          STRAPI_API_TOKEN: undefined,
-          STRAPI_ADMIN_EMAIL: undefined,
-          STRAPI_ADMIN_PASSWORD: undefined
+          // Explicitly set to empty to prevent loading from .env.test
+          STRAPI_ADMIN_EMAIL: '',
+          STRAPI_ADMIN_PASSWORD: '',
+          NODE_ENV: 'test'
         }
       });
 
@@ -25,49 +24,10 @@ describe('Configuration Validation', () => {
         capabilities: {}
       });
 
-      try {
-        await client.connect(transport);
-        expect(true).toBe(false); // Should not reach here
-      } catch (error: any) {
-        // The server exits immediately when there's no authentication, causing connection closed
-        expect(error.message.toLowerCase()).toMatch(/connection closed|authentication/);
-      } finally {
-        await transport.close();
-      }
-    });
-
-    it('should accept API token only', async () => {
-      const transport = new StdioClientTransport({
-        command: process.execPath,
-        args: ['build/index.js'],
-        env: {
-          ...process.env,
-          STRAPI_URL: process.env.STRAPI_URL,
-          STRAPI_API_TOKEN: process.env.STRAPI_API_TOKEN,
-          // No admin credentials
-          STRAPI_ADMIN_EMAIL: undefined,
-          STRAPI_ADMIN_PASSWORD: undefined
-        }
-      });
-
-      const client = new Client({
-        name: 'test-token-only',
-        version: '1.0.0'
-      }, {
-        capabilities: {}
-      });
-
-      await client.connect(transport);
-      
-      // Should be able to perform basic operations
-      const result = await client.callTool({
-        name: 'list_content_types',
-        arguments: {}
-      });
-      
-      expect(result).toBeDefined();
+      await expect(client.connect(transport)).rejects.toThrow();
       await transport.close();
     });
+
 
     it('should accept admin credentials only', async () => {
       if (!process.env.STRAPI_ADMIN_EMAIL || !process.env.STRAPI_ADMIN_PASSWORD) {
@@ -82,9 +42,7 @@ describe('Configuration Validation', () => {
           ...process.env,
           STRAPI_URL: process.env.STRAPI_URL,
           STRAPI_ADMIN_EMAIL: process.env.STRAPI_ADMIN_EMAIL,
-          STRAPI_ADMIN_PASSWORD: process.env.STRAPI_ADMIN_PASSWORD,
-          // No API token
-          STRAPI_API_TOKEN: undefined
+          STRAPI_ADMIN_PASSWORD: process.env.STRAPI_ADMIN_PASSWORD
         }
       });
 
@@ -109,44 +67,42 @@ describe('Configuration Validation', () => {
 
   });
 
-  describe('Placeholder Token Rejection', () => {
-    it('should reject placeholder API tokens', async () => {
-      const placeholderTokens = [
-        'strapi_token',
-        'your-api-token-here',
-        'placeholder-token'
-      ];
-
-      for (const token of placeholderTokens) {
-        const transport = new StdioClientTransport({
-          command: process.execPath,
-          args: ['build/index.js'],
-          env: {
-            ...process.env,
-            STRAPI_URL: 'http://localhost:1337',
-            STRAPI_API_TOKEN: token,
-            STRAPI_ADMIN_EMAIL: undefined,
-            STRAPI_ADMIN_PASSWORD: undefined
-          }
-        });
-
-        const client = new Client({
-          name: 'test-placeholder',
-          version: '1.0.0'
-        }, {
-          capabilities: {}
-        });
-
-        try {
-          await client.connect(transport);
-          expect(true).toBe(false); // Should not reach here
-        } catch (error: any) {
-          // The server exits immediately when detecting placeholder token, causing connection closed
-          expect(error.message.toLowerCase()).toMatch(/connection closed|placeholder/);
-        } finally {
-          await transport.close();
+  describe('Invalid Credentials', () => {
+    it('should reject invalid admin credentials', async () => {
+      const transport = new StdioClientTransport({
+        command: process.execPath,
+        args: ['build/index.js'],
+        env: {
+          STRAPI_URL: 'http://localhost:1337',
+          STRAPI_ADMIN_EMAIL: 'invalid@example.com',
+          STRAPI_ADMIN_PASSWORD: 'wrongpassword',
+          NODE_ENV: 'production' // Don't use test mode to avoid token caching
         }
+      });
+
+      const client = new Client({
+        name: 'test-invalid-creds',
+        version: '1.0.0'
+      }, {
+        capabilities: {}
+      });
+
+      await client.connect(transport);
+      
+      // Try an operation that requires admin auth
+      try {
+        await client.callTool({
+          name: 'list_components',
+          arguments: {}
+        });
+        // Should not reach here
+        expect(true).toBe(false);
+      } catch (error: any) {
+        // Should fail with authentication error
+        expect(error.message).toMatch(/authentication|401|403|credentials|invalid.*credentials/i);
       }
+      
+      await transport.close();
     });
   });
 });

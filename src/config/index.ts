@@ -3,10 +3,19 @@ import { logger } from "../utils/logger.js";
 
 dotenv.config();
 
+// In test mode, also load .env.test
+if (process.env.NODE_ENV === "test") {
+  // Don't override if admin credentials are explicitly set to empty
+  const hasExplicitEmptyAdmin =
+    process.env.STRAPI_ADMIN_EMAIL === "" || process.env.STRAPI_ADMIN_PASSWORD === "";
+  if (!hasExplicitEmptyAdmin) {
+    dotenv.config({ path: ".env.test", override: true });
+  }
+}
+
 export const config = {
   strapi: {
     url: process.env.STRAPI_URL || "http://localhost:1337",
-    apiToken: process.env.STRAPI_API_TOKEN,
     devMode: process.env.STRAPI_DEV_MODE === "true",
     adminEmail: process.env.STRAPI_ADMIN_EMAIL,
     adminPassword: process.env.STRAPI_ADMIN_PASSWORD,
@@ -17,52 +26,34 @@ export const config = {
   },
 };
 
+// Debug log config in test mode
+if (process.env.NODE_ENV === "test") {
+  logger.debug(`[Config] Loaded configuration:`);
+  logger.debug(`[Config] URL: ${config.strapi.url}`);
+  logger.debug(`[Config] Admin Email: ${config.strapi.adminEmail ? "Set" : "Not set"}`);
+  logger.debug(`[Config] Admin Password: ${config.strapi.adminPassword ? "Set" : "Not set"}`);
+}
+
 let hasValidated = false;
 
 export function validateConfig(): void {
   const { strapi } = config;
 
-  // Validate that we have either API token or admin credentials
-  if (!strapi.apiToken && !(strapi.adminEmail && strapi.adminPassword)) {
+  // Remove verbose debug logging in test mode to reduce noise
+
+  // Validate that we have admin credentials
+  if (!strapi.adminEmail || !strapi.adminPassword) {
     logger.always(
-      "[Error] Missing required authentication. Please provide either STRAPI_API_TOKEN or both STRAPI_ADMIN_EMAIL and STRAPI_ADMIN_PASSWORD environment variables"
+      "[Error] Missing required authentication. Please provide both STRAPI_ADMIN_EMAIL and STRAPI_ADMIN_PASSWORD environment variables"
     );
     process.exit(1);
-  }
-
-  // Only validate API token format if we don't have admin credentials
-  if (!strapi.adminEmail || !strapi.adminPassword) {
-    if (
-      strapi.apiToken &&
-      (strapi.apiToken === "strapi_token" ||
-        strapi.apiToken === "your-api-token-here" ||
-        strapi.apiToken.includes("placeholder"))
-    ) {
-      logger.always(
-        "[Error] STRAPI_API_TOKEN appears to be a placeholder value. Please provide a real API token from your Strapi admin panel or use admin credentials instead."
-      );
-      process.exit(1);
-    }
   }
 
   // Only log connection message once
   if (!hasValidated) {
     logger.info(`[Setup] Connecting to Strapi at ${strapi.url}`);
     logger.info(`[Setup] Development mode: ${strapi.devMode ? "enabled" : "disabled"}`);
-
-    // Determine authentication method
-    if (strapi.adminEmail && strapi.adminPassword) {
-      logger.info(`[Setup] Authentication: Using admin credentials (priority)`);
-      if (
-        strapi.apiToken &&
-        strapi.apiToken !== "strapi_token" &&
-        !strapi.apiToken.includes("placeholder")
-      ) {
-        logger.info(`[Setup] API token also available as fallback`);
-      }
-    } else if (strapi.apiToken) {
-      logger.info(`[Setup] Authentication: Using API token`);
-    }
+    logger.info(`[Setup] Authentication: Using admin credentials`);
 
     hasValidated = true;
   }

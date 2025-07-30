@@ -39,13 +39,6 @@ jobs:
         fi
         echo "=== Checking health endpoint ==="
         curl -s http://localhost:1337/_health || echo "Failed to connect"
-        echo "=== Checking tokens ==="
-        if [ -f test-tokens.json ]; then
-          echo "✅ test-tokens.json exists"
-          head -3 test-tokens.json
-        else
-          echo "❌ test-tokens.json not found"
-        fi
     
     - name: Install dependencies
       run: npm ci
@@ -55,16 +48,11 @@ jobs:
     
     - name: Run tests
       run: |
-        # Load test tokens which includes admin credentials and API token
-        if [ -f test-tokens.json ]; then
-          export STRAPI_API_TOKEN=$(grep -o '"fullAccessToken"[[:space:]]*:[[:space:]]*"[^"]*"' test-tokens.json | sed 's/.*: *"\([^"]*\)".*/\1/')
-          export STRAPI_READ_ONLY_TOKEN=$(grep -o '"readOnlyToken"[[:space:]]*:[[:space:]]*"[^"]*"' test-tokens.json | sed 's/.*: *"\([^"]*\)".*/\1/')
-          export STRAPI_ADMIN_EMAIL=$(grep -o '"adminEmail"[[:space:]]*:[[:space:]]*"[^"]*"' test-tokens.json | sed 's/.*: *"\([^"]*\)".*/\1/')
-          export STRAPI_ADMIN_PASSWORD=$(grep -o '"adminPassword"[[:space:]]*:[[:space:]]*"[^"]*"' test-tokens.json | sed 's/.*: *"\([^"]*\)".*/\1/')
-          echo "✅ Loaded credentials from test-tokens.json"
-          echo "STRAPI_API_TOKEN=${STRAPI_API_TOKEN:0:20}..."
-          echo "STRAPI_ADMIN_EMAIL=$STRAPI_ADMIN_EMAIL"
-        fi
+        # Load static test credentials from .env.test
+        export $(grep -v '^#' .env.test | xargs)
+        echo "✅ Loaded credentials from .env.test"
+        echo "STRAPI_URL=$STRAPI_URL"
+        echo "STRAPI_ADMIN_EMAIL=$STRAPI_ADMIN_EMAIL"
         
         # Check Strapi is still running before tests
         echo "🔍 Checking Strapi status before tests..."
@@ -75,6 +63,8 @@ jobs:
         timeout 600 npm test || (echo "❌ Tests failed or timed out"; exit 1)
       env:
         STRAPI_URL: http://localhost:1337
+        NODE_ENV: test
+        VITEST: true
     
     - name: Upload logs on failure
       if: failure()

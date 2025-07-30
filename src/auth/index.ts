@@ -1,5 +1,4 @@
-import { config } from "../config/index.js";
-
 export function hasApiToken(): boolean {
-  return !!config.strapi.apiToken;
+  // API token support has been removed - we only use admin JWT tokens now
+  return false;
 }
