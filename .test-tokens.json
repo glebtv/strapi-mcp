@@ -1,6 +1,6 @@
 {
   "adminJwtToken": {
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiaWF0IjoxNzUzODY3NzYxLCJleHAiOjE3NTY0NTk3NjF9.UuNAOIjgN7CjYcLNUjERaDOsD_DoTgLBWOvOeWycjyM",
-    "timestamp": 1753867761464
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiaWF0IjoxNzUzODY5NTc0LCJleHAiOjE3NTY0NjE1NzR9.VvA3DBSKbncvSS21UwBmV_pRKx0MHL_jk-tKP0dEprI",
+    "timestamp": 1753869574309
   }
 }

@@ -103,16 +103,9 @@ EOF
 
 # Start Strapi
 echo "🚀 Starting Strapi..."
-if [ ! -z "$CI" ]; then
-  echo "Running in CI mode - building first"
-  # Build Strapi (this includes admin panel)
-  npm run build
-  # Start in production mode
-  NODE_ENV=production npm run start > strapi_output.log 2>&1 &
-else
-  echo "Running in local mode - using development"
-  NODE_ENV=development npm run develop > strapi_output.log 2>&1 &
-fi
+# Always use development mode for faster startup in tests
+echo "Starting Strapi in development mode for tests..."
+NODE_ENV=development npm run develop > strapi_output.log 2>&1 &
 STRAPI_PID=$!
 echo "Strapi PID: $STRAPI_PID"
 
