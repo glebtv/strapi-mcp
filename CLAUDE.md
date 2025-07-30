@@ -61,24 +61,28 @@ npm run test:watch
    - Entry point that sets up the MCP server
    - Handles resource listing and tool execution
    - Validates environment configuration on startup
+   - Removed debug logging for cleaner test output (v0.3.1)
 
 2. **Authentication Manager (`src/auth-manager.ts`)**
    - Manages JWT token lifecycle with automatic refresh
    - Handles admin login with email/password
    - Falls back to API token if admin credentials unavailable
    - Caches tokens to avoid rate limiting
+   - Silent login attempts for cleaner output (v0.3.1)
 
 3. **Strapi Client (`src/strapi-client.ts`)**
    - Core API client for all Strapi operations
    - Implements health check and graceful reload handling for dev mode
    - Filters base64 data from responses to prevent context overflow
    - Handles both admin and public API endpoints
+   - **STRAPI V5 SUPPORT**: Uses document IDs instead of numeric IDs
+   - **SCHEMA UPDATES**: Uses update-schema endpoint for all content type operations
 
 4. **Tool Organization (`src/tools/`)**
    - `content-management.ts`: CRUD operations for entries
    - `media.ts`: File upload tools with size limits
-   - `relation.ts`: Relation management with ID validation
-   - `content-type-builder.ts`: Schema management tools
+   - `relation.ts`: Relation management with **Strapi v5 document IDs**
+   - `content-type-builder.ts`: Schema management tools with proper i18n support
    - `component.ts`: Component CRUD operations
    - `direct-api.ts`: Direct REST API access
    - `schema.ts`: Content type schema retrieval
@@ -134,6 +138,7 @@ When `STRAPI_DEV_MODE=true`:
 - Tests use a shared MCP server instance to avoid multiple logins and rate limiting
 - Content types must be created before running integration tests that depend on them
 - Use `./scripts/run-tests.sh` to run tests with proper environment setup
+- **I18N TESTING**: Uses pre-existing i18n-doc content type from fixtures because Strapi v5 doesn't create REST routes for dynamically created content types
 
 ### Common Issues
 
@@ -142,6 +147,8 @@ When `STRAPI_DEV_MODE=true`:
 3. **Module Not Found**: The output is in `dist/` not `build/`
 4. **Context Overflow**: Media upload tools have size limits to prevent base64 overflow
 5. **Health Check 204**: Strapi returns 204 (No Content) for `/_health` endpoint when healthy
+6. **Strapi v5 Document IDs**: Relation tools now expect string document IDs, not numeric IDs
+7. **Content Type Updates**: All content type operations use the `update-schema` endpoint in Strapi v5
 
 ### Test Execution Notes
 - Use `@scripts/run-tests.sh` to run tests

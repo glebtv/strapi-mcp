@@ -53,7 +53,7 @@ create_test_app() {
     fi
     
     # Create Strapi app with recommended flags
-    npx create-strapi@latest "$TEST_DIR" \
+    npx -y create-strapi@latest "$TEST_DIR" \
         --typescript \
         --no-run \
         --no-example \
@@ -218,6 +218,37 @@ create_test_content() {
     fi
     
     log_info "Successfully logged in as admin"
+    
+    # Configure public permissions for i18n-doc content type
+    log_info "Configuring public permissions for i18n-doc..."
+    
+    # Get the public role ID - wait for the API to be ready
+    sleep 2
+    local public_role=$(curl -s http://localhost:$STRAPI_PORT/users-permissions/roles \
+        -H "Authorization: Bearer $jwt_token" | \
+        python3 -c "import sys, json; data = json.load(sys.stdin); print(next((r['id'] for r in data.get('roles', []) if r.get('type') == 'public'), ''))" 2>/dev/null || echo "")
+    
+    if [ -z "$public_role" ]; then
+        log_warn "Could not find public role ID, permissions may need manual configuration"
+    else
+        # Get current permissions
+        local permissions=$(curl -s http://localhost:$STRAPI_PORT/users-permissions/permissions \
+            -H "Authorization: Bearer $jwt_token" | \
+            python3 -c "import sys, json; data = json.load(sys.stdin); perms = data.get('permissions', {}); perms.setdefault('api::i18n-doc', {}).setdefault('controllers', {})['i18n-doc'] = {'find': {'enabled': True, 'policy': ''}, 'findOne': {'enabled': True, 'policy': ''}, 'create': {'enabled': False, 'policy': ''}, 'update': {'enabled': False, 'policy': ''}, 'delete': {'enabled': False, 'policy': ''}}; print(json.dumps(perms))" 2>/dev/null || echo "{}")
+        
+        # Enable find and findOne for i18n-doc
+        curl -s -X PUT http://localhost:$STRAPI_PORT/users-permissions/roles/$public_role \
+            -H "Authorization: Bearer $jwt_token" \
+            -H "Content-Type: application/json" \
+            -d "{
+                \"name\": \"Public\",
+                \"description\": \"Default role given to unauthenticated user.\",
+                \"permissions\": $permissions,
+                \"users\": []
+            }" > /dev/null
+        
+        log_info "Public permissions configured for i18n-doc"
+    fi
 }
 
 # Main function
