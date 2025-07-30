@@ -33,7 +33,7 @@ jobs:
       run: npm run build
     
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: dist
         path: dist/
@@ -66,7 +66,7 @@ jobs:
     
     - name: Upload coverage
       if: matrix.node-version == '22.x'
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         files: ./coverage/lcov.info
         flags: unittests
@@ -74,7 +74,7 @@ jobs:
     
     - name: Upload Strapi logs on failure
       if: failure()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: strapi-logs
         path: test-strapi-app/strapi.log
