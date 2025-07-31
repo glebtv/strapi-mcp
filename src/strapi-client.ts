@@ -811,10 +811,16 @@ export class StrapiClient {
    * Get component schema
    */
   async getComponentSchema(componentUid: string): Promise<any> {
-    const response = await this.adminRequest<any>(
-      `/admin/content-type-builder/components/${componentUid}`
+    // Always fetch all schemas from /content-type-builder/schema
+    const allSchemas = await this.adminRequest<any>(
+      '/content-type-builder/schema'
     );
-    return response?.data || response;
+    
+    if (allSchemas?.data?.components?.[componentUid]) {
+      return allSchemas.data.components[componentUid];
+    }
+    
+    throw new Error(`Component ${componentUid} not found`);
   }
 
   /**
