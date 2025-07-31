@@ -85,13 +85,13 @@ describe('Content Management Tools - Unit Tests', () => {
       mockClient.createEntry.mockResolvedValue(mockResponse);
 
       const result = await getTool().execute({
-        contentType: 'Article',
+        contentType: 'api::article.article',
         pluralApiId: 'articles',
         data: { title: 'Test' },
         publish: true
       });
 
-      expect(mockClient.createEntry).toHaveBeenCalledWith('Article', 'articles', { title: 'Test' }, true);
+      expect(mockClient.createEntry).toHaveBeenCalledWith('api::article.article', 'articles', { title: 'Test' }, true, undefined);
       expect(result).toEqual(mockResponse);
     });
 
@@ -100,12 +100,12 @@ describe('Content Management Tools - Unit Tests', () => {
       mockClient.createEntry.mockResolvedValue(mockResponse);
 
       const result = await getTool().execute({
-        contentType: 'Article',
+        contentType: 'api::article.article',
         pluralApiId: 'articles',
         data: { title: 'Test' }
       });
 
-      expect(mockClient.createEntry).toHaveBeenCalledWith('Article', 'articles', { title: 'Test' }, undefined);
+      expect(mockClient.createEntry).toHaveBeenCalledWith('api::article.article', 'articles', { title: 'Test' }, undefined, undefined);
       expect(result).toEqual(mockResponse);
     });
   });
@@ -123,7 +123,7 @@ describe('Content Management Tools - Unit Tests', () => {
         data: { title: 'Updated' }
       });
 
-      expect(mockClient.updateEntry).toHaveBeenCalledWith('articles', 'abc123', { title: 'Updated' });
+      expect(mockClient.updateEntry).toHaveBeenCalledWith('articles', 'abc123', { title: 'Updated' }, undefined);
       expect(result).toEqual(mockResponse);
     });
   });
@@ -157,7 +157,7 @@ describe('Content Management Tools - Unit Tests', () => {
         documentId: 'abc123'
       });
 
-      expect(mockClient.publishEntry).toHaveBeenCalledWith('articles', 'abc123');
+      expect(mockClient.publishEntry).toHaveBeenCalledWith('articles', 'abc123', undefined);
       expect(result).toEqual(mockResponse);
     });
   });
@@ -174,7 +174,7 @@ describe('Content Management Tools - Unit Tests', () => {
         documentId: 'abc123'
       });
 
-      expect(mockClient.unpublishEntry).toHaveBeenCalledWith('articles', 'abc123');
+      expect(mockClient.unpublishEntry).toHaveBeenCalledWith('articles', 'abc123', undefined);
       expect(result).toEqual(mockResponse);
     });
   });
