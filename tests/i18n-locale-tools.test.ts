@@ -48,11 +48,29 @@ describe('i18n Locale Management Tools', () => {
   });
 
   it('should create a new locale', async () => {
+    // First check if locale already exists and delete it
+    const listResult = await client.callTool({
+      name: 'list_locales',
+      arguments: {}
+    });
+    
+    const existingLocales = parseToolResponse(listResult);
+    const existingWolof = existingLocales.find((l: any) => l.code === 'wo');
+    
+    if (existingWolof) {
+      await client.callTool({
+        name: 'delete_locale',
+        arguments: {
+          id: existingWolof.id
+        }
+      });
+    }
+
     const result = await client.callTool({
       name: 'create_locale',
       arguments: {
-        code: 'ru',
-        name: 'Russian (ru)'
+        code: 'wo',
+        name: 'Wolof (wo)'  // Rare African language spoken in Senegal
       }
     });
 
@@ -61,8 +79,8 @@ describe('i18n Locale Management Tools', () => {
     
     // The response might be wrapped
     const locale = createdLocale.data || createdLocale;
-    expect(locale.code).toBe('ru');
-    expect(locale.name).toBe('Russian (ru)');
+    expect(locale.code).toBe('wo');
+    expect(locale.name).toBe('Wolof (wo)');
     expect(locale.isDefault).toBe(false);
     
     // Store ID for cleanup
@@ -70,12 +88,30 @@ describe('i18n Locale Management Tools', () => {
   });
 
   it('should delete a locale', async () => {
+    // First check if locale already exists and delete it
+    const checkListResult = await client.callTool({
+      name: 'list_locales',
+      arguments: {}
+    });
+    
+    const existingLocales = parseToolResponse(checkListResult);
+    const existingLuganda = existingLocales.find((l: any) => l.code === 'lg');
+    
+    if (existingLuganda) {
+      await client.callTool({
+        name: 'delete_locale',
+        arguments: {
+          id: existingLuganda.id
+        }
+      });
+    }
+
     // First create a locale to delete
     const createResult = await client.callTool({
       name: 'create_locale',
       arguments: {
-        code: 'es',
-        name: 'Spanish (es)'
+        code: 'lg',
+        name: 'Luganda (lg)'  // Rare African language spoken in Uganda
       }
     });
     
@@ -99,7 +135,7 @@ describe('i18n Locale Management Tools', () => {
     });
     
     const locales = parseToolResponse(listResult);
-    const deletedLocale = locales.find((l: any) => l.code === 'es');
+    const deletedLocale = locales.find((l: any) => l.code === 'lg');
     expect(deletedLocale).toBeUndefined();
   });
 });
