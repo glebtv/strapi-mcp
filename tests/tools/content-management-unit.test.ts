@@ -11,6 +11,27 @@ describe('Content Management Tools - Unit Tests', () => {
 
   beforeEach(() => {
     mockClient = new StrapiClient({} as StrapiConfig) as jest.Mocked<StrapiClient>;
+    
+    // Mock listContentTypes for i18n checks
+    mockClient.listContentTypes = jest.fn().mockResolvedValue([
+      {
+        uid: 'api::article.article',
+        pluralApiId: 'articles',
+        isLocalized: false
+      },
+      {
+        uid: 'api::i18n-doc.i18n-doc',
+        pluralApiId: 'i18n-docs',
+        isLocalized: true
+      }
+    ]);
+    
+    // Mock adminRequest for default locale fetching
+    mockClient.adminRequest = jest.fn().mockResolvedValue([
+      { code: 'en', name: 'English', isDefault: true },
+      { code: 'fr', name: 'French', isDefault: false }
+    ]);
+    
     tools = contentManagementTools(mockClient);
   });
 
@@ -119,7 +140,7 @@ describe('Content Management Tools - Unit Tests', () => {
         documentId: 'abc123'
       });
 
-      expect(mockClient.deleteEntry).toHaveBeenCalledWith('articles', 'abc123');
+      expect(mockClient.deleteEntry).toHaveBeenCalledWith('articles', 'abc123', undefined);
       expect(result).toEqual(mockResponse);
     });
   });

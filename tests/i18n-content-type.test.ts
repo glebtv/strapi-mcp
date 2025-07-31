@@ -128,6 +128,7 @@ describe('Internationalization (i18n) Content Type Management', () => {
           contentType: 'api::i18n-doc.i18n-doc',
           pluralApiId: 'i18n-docs',
           data: documentData,
+          locale: 'ru',
           publish: true
         }
       });
@@ -179,6 +180,7 @@ describe('Internationalization (i18n) Content Type Management', () => {
           contentType: 'api::i18n-doc.i18n-doc',
           pluralApiId: 'i18n-docs',
           data: documentData,
+          locale: 'zh',
           publish: true
         }
       });

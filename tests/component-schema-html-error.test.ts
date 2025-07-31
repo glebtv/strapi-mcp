@@ -15,9 +15,9 @@ describe('Component Schema HTML Error', () => {
       await expect(client.callTool({
         name: 'get_component_schema',
         arguments: {
-          componentUid: 'sections.hero'
+          componentUid: 'non.existent.component'
         }
-      })).rejects.toThrow('Component sections.hero not found');
+      })).rejects.toThrow('Component non.existent.component not found');
     });
 
     it('should list components first to ensure we have valid component UIDs', async () => {
