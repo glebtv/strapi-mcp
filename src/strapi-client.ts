@@ -56,7 +56,7 @@ export class StrapiClient {
       } else {
         return { status: 'unhealthy', message: `Health check returned ${response.status}` };
       }
-    } catch (error) {
+    } catch {
       // Silently handle connection errors to avoid polluting test output
       return { status: 'unhealthy', message: 'Failed to connect to Strapi' };
     }
