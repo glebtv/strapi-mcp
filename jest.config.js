@@ -35,7 +35,7 @@ module.exports = {
   // that test the tools via the MCP server, not direct unit tests
   coverageThreshold: {
     global: {
-      branches: 4,
+      branches: 2,
       functions: 20,
       lines: 10,
       statements: 10

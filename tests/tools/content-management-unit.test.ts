@@ -111,7 +111,7 @@ describe('Content Management Tools - Unit Tests', () => {
     const getTool = () => tools.find(t => t.name === 'delete_entry')!;
 
     it('should delete entry', async () => {
-      const mockResponse = { message: 'Deleted' };
+      const mockResponse = { success: true, message: 'Entry abc123 deleted successfully' };
       mockClient.deleteEntry.mockResolvedValue(mockResponse);
 
       const result = await getTool().execute({
