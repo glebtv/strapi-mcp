@@ -105,6 +105,17 @@ EOF
         log_info "Copied content type fixtures"
     fi
     
+    # Copy components
+    if [ -d "$PROJECT_ROOT/fixtures/strapi-test/src/components" ]; then
+        mkdir -p src/components
+        cp -r "$PROJECT_ROOT/fixtures/strapi-test/src/components/"* src/components/
+        log_info "Copied component fixtures"
+        
+        # List what was copied for debugging
+        log_info "Component structure:"
+        find src/components -type f -name "*.json" | head -20
+    fi
+    
     # Update config/admin.ts to disable rate limiting
     log_info "Configuring admin settings..."
     
@@ -234,9 +245,9 @@ create_test_content() {
         # Get current permissions
         local permissions=$(curl -s http://localhost:$STRAPI_PORT/users-permissions/permissions \
             -H "Authorization: Bearer $jwt_token" | \
-            python3 -c "import sys, json; data = json.load(sys.stdin); perms = data.get('permissions', {}); perms.setdefault('api::i18n-doc', {}).setdefault('controllers', {})['i18n-doc'] = {'find': {'enabled': True, 'policy': ''}, 'findOne': {'enabled': True, 'policy': ''}, 'create': {'enabled': False, 'policy': ''}, 'update': {'enabled': False, 'policy': ''}, 'delete': {'enabled': False, 'policy': ''}}; print(json.dumps(perms))" 2>/dev/null || echo "{}")
+            python3 -c "import sys, json; data = json.load(sys.stdin); perms = data.get('permissions', {}); perms.setdefault('api::i18n-doc', {}).setdefault('controllers', {})['i18n-doc'] = {'find': {'enabled': True, 'policy': ''}, 'findOne': {'enabled': True, 'policy': ''}, 'create': {'enabled': False, 'policy': ''}, 'update': {'enabled': False, 'policy': ''}, 'delete': {'enabled': False, 'policy': ''}}; perms.setdefault('api::page', {}).setdefault('controllers', {})['page'] = {'find': {'enabled': True, 'policy': ''}, 'findOne': {'enabled': True, 'policy': ''}, 'create': {'enabled': False, 'policy': ''}, 'update': {'enabled': False, 'policy': ''}, 'delete': {'enabled': False, 'policy': ''}}; print(json.dumps(perms))" 2>/dev/null || echo "{}")
         
-        # Enable find and findOne for i18n-doc
+        # Enable find and findOne for i18n-doc and page
         curl -s -X PUT http://localhost:$STRAPI_PORT/users-permissions/roles/$public_role \
             -H "Authorization: Bearer $jwt_token" \
             -H "Content-Type: application/json" \
@@ -247,7 +258,7 @@ create_test_content() {
                 \"users\": []
             }" > /dev/null
         
-        log_info "Public permissions configured for i18n-doc"
+        log_info "Public permissions configured for i18n-doc and page"
     fi
 }
 
