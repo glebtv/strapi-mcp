@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { StrapiClient } from '../strapi-client.js';
 import { Tool } from './types.js';
 
-const AttributeSchema = z.record(z.object({
+const AttributeSchema = z.object({
   type: z.string(),
   required: z.boolean().optional(),
   unique: z.boolean().optional(),
@@ -13,8 +13,13 @@ const AttributeSchema = z.record(z.object({
   max: z.number().optional(),
   enum: z.array(z.string()).optional(),
   private: z.boolean().optional(),
-  configurable: z.boolean().optional()
-}));
+  configurable: z.boolean().optional(),
+  target: z.string().optional(),
+  relation: z.string().optional(),
+  component: z.string().optional(),
+  repeatable: z.boolean().optional(),
+  pluginOptions: z.any().optional()
+});
 
 export function contentTypeBuilderTools(client: StrapiClient): Tool[] {
   return [
@@ -28,7 +33,7 @@ export function contentTypeBuilderTools(client: StrapiClient): Tool[] {
         kind: z.enum(['collectionType', 'singleType']).optional().describe('Content type kind'),
         description: z.string().optional().describe('Description'),
         draftAndPublish: z.boolean().optional().describe('Enable draft/publish'),
-        attributes: z.record(z.any()).describe('Field definitions'),
+        attributes: z.record(AttributeSchema).describe('Field definitions'),
         pluginOptions: z.object({
           i18n: z.object({
             localized: z.boolean().describe('Enable i18n for this content type')
@@ -44,7 +49,7 @@ export function contentTypeBuilderTools(client: StrapiClient): Tool[] {
       description: 'Updates an existing content type\'s attributes. Requires admin privileges',
       inputSchema: z.object({
         contentType: z.string().describe('Content type UID'),
-        attributes: z.record(z.any()).describe('Attributes to add/update'),
+        attributes: z.record(AttributeSchema).describe('Attributes to add/update'),
         pluginOptions: z.object({
           i18n: z.object({
             localized: z.boolean().describe('Enable i18n for this content type')

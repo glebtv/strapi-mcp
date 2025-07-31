@@ -39,8 +39,12 @@ export function contentManagementTools(client: StrapiClient): Tool[] {
         let options = {};
         if (args.options) {
           try {
-            options = JSON.parse(args.options);
+            const parsedOptions = JSON.parse(args.options);
+            options = QueryOptionsSchema.parse(parsedOptions);
           } catch (error) {
+            if (error instanceof z.ZodError) {
+              throw new Error(`Invalid query options: ${error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')}`);
+            }
             throw new Error(`Invalid options JSON: ${error}`);
           }
         }
@@ -59,8 +63,12 @@ export function contentManagementTools(client: StrapiClient): Tool[] {
         let options = {};
         if (args.options) {
           try {
-            options = JSON.parse(args.options);
+            const parsedOptions = JSON.parse(args.options);
+            options = QueryOptionsSchema.parse(parsedOptions);
           } catch (error) {
+            if (error instanceof z.ZodError) {
+              throw new Error(`Invalid query options: ${error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')}`);
+            }
             throw new Error(`Invalid options JSON: ${error}`);
           }
         }

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
   CallToolRequestSchema,
   ListResourcesRequestSchema,
@@ -9,8 +9,8 @@ import {
   ReadResourceRequestSchema,
   ErrorCode,
   McpError,
-} from "@modelcontextprotocol/sdk/types.js";
-import { z } from "zod";
+} from '@modelcontextprotocol/sdk/types.js';
+import { z } from 'zod';
 import dotenv from 'dotenv';
 import { StrapiClient } from './strapi-client.js';
 import { StrapiConfig } from './types.js';
@@ -20,21 +20,21 @@ import { getTools } from './tools/index.js';
 dotenv.config();
 
 // Validate environment variables
-const STRAPI_URL = process.env.STRAPI_URL || "http://localhost:1337";
+const STRAPI_URL = process.env.STRAPI_URL || 'http://localhost:1337';
 const STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN;
 const STRAPI_ADMIN_EMAIL = process.env.STRAPI_ADMIN_EMAIL;
 const STRAPI_ADMIN_PASSWORD = process.env.STRAPI_ADMIN_PASSWORD;
-const STRAPI_DEV_MODE = process.env.STRAPI_DEV_MODE === "true";
+const STRAPI_DEV_MODE = process.env.STRAPI_DEV_MODE === 'true';
 
 // Validate authentication
 if (!STRAPI_API_TOKEN && !(STRAPI_ADMIN_EMAIL && STRAPI_ADMIN_PASSWORD)) {
-  console.error("[Error] Missing required authentication. Please provide either STRAPI_API_TOKEN or both STRAPI_ADMIN_EMAIL and STRAPI_ADMIN_PASSWORD");
+  console.error('[Error] Missing required authentication. Please provide either STRAPI_API_TOKEN or both STRAPI_ADMIN_EMAIL and STRAPI_ADMIN_PASSWORD');
   process.exit(1);
 }
 
 // Validate placeholder tokens
-if (STRAPI_API_TOKEN && (STRAPI_API_TOKEN === "strapi_token" || STRAPI_API_TOKEN === "your-api-token-here" || STRAPI_API_TOKEN.includes("placeholder"))) {
-  console.error("[Error] STRAPI_API_TOKEN appears to be a placeholder value. Please provide a real API token.");
+if (STRAPI_API_TOKEN && (STRAPI_API_TOKEN === 'strapi_token' || STRAPI_API_TOKEN === 'your-api-token-here' || STRAPI_API_TOKEN.includes('placeholder'))) {
+  console.error('[Error] STRAPI_API_TOKEN appears to be a placeholder value. Please provide a real API token.');
   process.exit(1);
 }
 
@@ -54,8 +54,8 @@ const strapiClient = new StrapiClient(strapiConfig);
 // Create MCP server
 const server = new Server(
   {
-    name: "strapi-mcp",
-    version: "0.3.0",
+    name: 'strapi-mcp',
+    version: '0.3.0',
   },
   {
     capabilities: {
@@ -79,14 +79,14 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
     // Create resources for content types
     const resources = contentTypes.map(ct => ({
       uri: `strapi://content-type/${ct.pluralApiId}`,
-      mimeType: "application/json",
+      mimeType: 'application/json',
       name: ct.info.displayName,
       description: ct.info.description || `${ct.info.displayName} content type`
     }));
     
     return { resources };
   } catch (error) {
-    console.error("[Error] Failed to list resources:", error);
+    console.error('[Error] Failed to list resources:', error);
     throw new McpError(
       ErrorCode.InternalError,
       `Failed to list resources: ${error instanceof Error ? error.message : String(error)}`
@@ -135,12 +135,12 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     return {
       contents: [{
         uri,
-        mimeType: "application/json",
+        mimeType: 'application/json',
         text: JSON.stringify(content, null, 2)
       }]
     };
   } catch (error) {
-    console.error("[Error] Failed to read resource:", error);
+    console.error('[Error] Failed to read resource:', error);
     throw new McpError(
       ErrorCode.InternalError,
       `Failed to read resource: ${error instanceof Error ? error.message : String(error)}`
@@ -181,7 +181,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     
     return {
       content: [{
-        type: "text",
+        type: 'text',
         text: JSON.stringify(result, null, 2)
       }]
     };
@@ -202,7 +202,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 });
 
 // Handle errors
-process.on('unhandledRejection', (reason, promise) => {
+process.on('unhandledRejection', (reason, _promise) => {
   console.error('[Fatal] Unhandled Rejection:', reason);
 });
 
@@ -218,6 +218,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error("[Fatal] Failed to start server:", error);
+  console.error('[Fatal] Failed to start server:', error);
   process.exit(1);
 });

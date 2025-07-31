@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios';
-import { StrapiConfig, AuthTokens, StrapiError } from './types.js';
+import { StrapiConfig, AuthTokens } from './types.js';
 
 export class AuthManager {
   private config: StrapiConfig;

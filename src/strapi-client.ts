@@ -1,4 +1,4 @@
-import axios, { AxiosInstance, AxiosError, AxiosRequestConfig } from 'axios';
+import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import FormData from 'form-data';
 import { AuthManager } from './auth-manager.js';
 import { TokenManager } from './token-manager.js';
@@ -57,6 +57,7 @@ export class StrapiClient {
         return { status: 'unhealthy', message: `Health check returned ${response.status}` };
       }
     } catch (error) {
+      console.error('[Health] Failed to connect to Strapi:', error);
       return { status: 'unhealthy', message: 'Failed to connect to Strapi' };
     }
   }
@@ -412,6 +413,7 @@ export class StrapiClient {
     try {
       buffer = Buffer.from(fileData, 'base64');
     } catch (error) {
+      console.error('[Upload] Failed to decode base64 data:', error);
       throw new Error('Invalid base64 data');
     }
     const formData = new FormData();
@@ -570,6 +572,7 @@ export class StrapiClient {
         }
       }
     } catch (error) {
+      console.error('[Schema] content-type-builder/schema endpoint failed, trying fallbacks:', error);
       // Continue to fallbacks if this endpoint fails
     }
     
