@@ -57,7 +57,7 @@ export class StrapiClient {
         return { status: 'unhealthy', message: `Health check returned ${response.status}` };
       }
     } catch (error) {
-      console.error('[Health] Failed to connect to Strapi:', error);
+      // Silently handle connection errors to avoid polluting test output
       return { status: 'unhealthy', message: 'Failed to connect to Strapi' };
     }
   }
@@ -82,8 +82,6 @@ export class StrapiClient {
       
       // If Strapi is already restarting, wait for it to come back
       if (initialCheck.status === 'unhealthy' || initialCheck.status === 'reloading') {
-        console.error('[Health] Strapi is restarting, waiting for it to come back online...');
-        
         // Wait a bit longer for the restart to complete
         await new Promise(resolve => setTimeout(resolve, 3000));
         
@@ -92,20 +90,17 @@ export class StrapiClient {
           const health = await this.checkHealth();
           
           if (health.status === 'healthy') {
-            console.error('[Health] Strapi is healthy after restart');
             // Wait a bit more to ensure everything is initialized
             await new Promise(resolve => setTimeout(resolve, 1000));
             return;
           }
           
-          console.error(`[Health] Strapi status: ${health.status} - ${health.message || 'waiting...'}`);
           await new Promise(resolve => setTimeout(resolve, 2000));
         }
         
         throw new Error('Strapi did not become healthy within timeout period');
       } else {
         // Strapi is healthy, just return
-        console.error('[Health] Strapi is healthy (no restart needed)');
         return;
       }
     } finally {
