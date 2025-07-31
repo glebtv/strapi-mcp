@@ -57,10 +57,11 @@ export function contentManagementTools(client: StrapiClient): Tool[] {
       inputSchema: z.object({
         pluralApiId: z.string().describe('The plural API ID'),
         documentId: z.string().describe('The document ID'),
+        locale: z.string().optional().describe('The locale to retrieve (e.g., "en", "fr", "ru"). If not specified, uses default locale'),
         options: z.string().optional().describe('JSON string with populate and fields options')
       }),
       execute: async (args) => {
-        let options = {};
+        let options: any = {};
         if (args.options) {
           try {
             const parsedOptions = JSON.parse(args.options);
@@ -72,6 +73,12 @@ export function contentManagementTools(client: StrapiClient): Tool[] {
             throw new Error(`Invalid options JSON: ${error}`);
           }
         }
+        
+        // Add locale to options if specified
+        if (args.locale) {
+          options.locale = args.locale;
+        }
+        
         return await client.getEntry(args.pluralApiId, args.documentId, options);
       }
     },
@@ -82,10 +89,33 @@ export function contentManagementTools(client: StrapiClient): Tool[] {
         contentType: z.string().describe('The content type UID'),
         pluralApiId: z.string().describe('The plural API ID'),
         data: z.record(z.any()).describe('The entry data'),
+        locale: z.string().optional().describe('The locale for the entry (e.g., "en", "fr", "ru"). Required for i18n-enabled content types'),
         publish: z.boolean().optional().describe('Whether to publish the entry immediately after creation')
       }),
       execute: async (args) => {
-        return await client.createEntry(args.contentType, args.pluralApiId, args.data, args.publish);
+        // Check if content type is i18n-enabled
+        const contentTypes = await client.listContentTypes();
+        const contentType = contentTypes.find((ct: any) => ct.uid === args.contentType);
+        
+        if (!contentType) {
+          throw new Error(`Content type not found: ${args.contentType}`);
+        }
+        
+        // If content type is i18n-enabled, locale is required
+        if (contentType.isLocalized && !args.locale) {
+          // Get default locale
+          const locales = await client.adminRequest<any[]>('/i18n/locales');
+          const defaultLocale = locales.find((l: any) => l.isDefault);
+          
+          if (!defaultLocale) {
+            throw new Error('Content type is i18n-enabled but no locale was specified and no default locale found');
+          }
+          
+          // Use default locale
+          args.locale = defaultLocale.code;
+        }
+        
+        return await client.createEntry(args.contentType, args.pluralApiId, args.data, args.publish, args.locale);
       }
     },
     {
@@ -94,10 +124,35 @@ export function contentManagementTools(client: StrapiClient): Tool[] {
       inputSchema: z.object({
         pluralApiId: z.string().describe('The plural API ID'),
         documentId: z.string().describe('The document ID'),
-        data: z.record(z.any()).describe('The updated data')
+        data: z.record(z.any()).describe('The updated data'),
+        locale: z.string().optional().describe('The locale to update (e.g., "en", "fr", "ru"). Required for i18n-enabled content types')
       }),
       execute: async (args) => {
-        return await client.updateEntry(args.pluralApiId, args.documentId, args.data);
+        // Get the content type to check if it's i18n-enabled
+        const contentTypes = await client.listContentTypes();
+        const contentType = contentTypes.find((ct: any) => 
+          ct.pluralApiId === args.pluralApiId || ct.uid === args.pluralApiId
+        );
+        
+        if (!contentType) {
+          throw new Error(`Content type not found: ${args.pluralApiId}`);
+        }
+        
+        // If content type is i18n-enabled, locale is required
+        if (contentType.isLocalized && !args.locale) {
+          // Get default locale
+          const locales = await client.adminRequest<any[]>('/i18n/locales');
+          const defaultLocale = locales.find((l: any) => l.isDefault);
+          
+          if (!defaultLocale) {
+            throw new Error('Content type is i18n-enabled but no locale was specified and no default locale found');
+          }
+          
+          // Use default locale
+          args.locale = defaultLocale.code;
+        }
+        
+        return await client.updateEntry(args.pluralApiId, args.documentId, args.data, args.locale);
       }
     },
     {
@@ -105,10 +160,11 @@ export function contentManagementTools(client: StrapiClient): Tool[] {
       description: 'Deletes an entry',
       inputSchema: z.object({
         pluralApiId: z.string().describe('The plural API ID'),
-        documentId: z.string().describe('The document ID')
+        documentId: z.string().describe('The document ID'),
+        locale: z.string().optional().describe('The locale to delete (e.g., "en", "fr", "ru"). If not specified, deletes all locales')
       }),
       execute: async (args) => {
-        await client.deleteEntry(args.pluralApiId, args.documentId);
+        await client.deleteEntry(args.pluralApiId, args.documentId, args.locale);
         return { success: true, message: `Entry ${args.documentId} deleted successfully` };
       }
     },
@@ -137,10 +193,35 @@ export function contentManagementTools(client: StrapiClient): Tool[] {
       description: 'Publishes a draft entry',
       inputSchema: z.object({
         pluralApiId: z.string().describe('The plural API ID'),
-        documentId: z.string().describe('The document ID')
+        documentId: z.string().describe('The document ID'),
+        locale: z.string().optional().describe('The locale to publish (e.g., "en", "fr", "ru"). Required for i18n-enabled content types')
       }),
       execute: async (args) => {
-        return await client.publishEntry(args.pluralApiId, args.documentId);
+        // Get the content type to check if it's i18n-enabled
+        const contentTypes = await client.listContentTypes();
+        const contentType = contentTypes.find((ct: any) => 
+          ct.pluralApiId === args.pluralApiId || ct.uid === args.pluralApiId
+        );
+        
+        if (!contentType) {
+          throw new Error(`Content type not found: ${args.pluralApiId}`);
+        }
+        
+        // If content type is i18n-enabled, locale is required
+        if (contentType.isLocalized && !args.locale) {
+          // Get default locale
+          const locales = await client.adminRequest<any[]>('/i18n/locales');
+          const defaultLocale = locales.find((l: any) => l.isDefault);
+          
+          if (!defaultLocale) {
+            throw new Error('Content type is i18n-enabled but no locale was specified and no default locale found');
+          }
+          
+          // Use default locale
+          args.locale = defaultLocale.code;
+        }
+        
+        return await client.publishEntry(args.pluralApiId, args.documentId, args.locale);
       }
     },
     {
@@ -148,10 +229,35 @@ export function contentManagementTools(client: StrapiClient): Tool[] {
       description: 'Unpublishes a published entry (converts to draft)',
       inputSchema: z.object({
         pluralApiId: z.string().describe('The plural API ID'),
-        documentId: z.string().describe('The document ID')
+        documentId: z.string().describe('The document ID'),
+        locale: z.string().optional().describe('The locale to unpublish (e.g., "en", "fr", "ru"). Required for i18n-enabled content types')
       }),
       execute: async (args) => {
-        return await client.unpublishEntry(args.pluralApiId, args.documentId);
+        // Get the content type to check if it's i18n-enabled
+        const contentTypes = await client.listContentTypes();
+        const contentType = contentTypes.find((ct: any) => 
+          ct.pluralApiId === args.pluralApiId || ct.uid === args.pluralApiId
+        );
+        
+        if (!contentType) {
+          throw new Error(`Content type not found: ${args.pluralApiId}`);
+        }
+        
+        // If content type is i18n-enabled, locale is required
+        if (contentType.isLocalized && !args.locale) {
+          // Get default locale
+          const locales = await client.adminRequest<any[]>('/i18n/locales');
+          const defaultLocale = locales.find((l: any) => l.isDefault);
+          
+          if (!defaultLocale) {
+            throw new Error('Content type is i18n-enabled but no locale was specified and no default locale found');
+          }
+          
+          // Use default locale
+          args.locale = defaultLocale.code;
+        }
+        
+        return await client.unpublishEntry(args.pluralApiId, args.documentId, args.locale);
       }
     }
   ];

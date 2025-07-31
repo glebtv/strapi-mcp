@@ -1,0 +1,19 @@
+{
+  "collectionName": "components_sections_columns",
+  "info": {
+    "displayName": "Columns",
+    "icon": "apps",
+    "description": ""
+  },
+  "options": {},
+  "attributes": {
+    "title": {
+      "type": "string"
+    },
+    "columns": {
+      "type": "component",
+      "repeatable": true,
+      "component": "shared.column"
+    }
+  }
+}

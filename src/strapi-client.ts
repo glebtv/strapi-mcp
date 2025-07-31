@@ -318,15 +318,21 @@ export class StrapiClient {
   /**
    * Create an entry
    */
-  async createEntry(contentType: string, pluralApiId: string, data: any, publish: boolean = false): Promise<any> {
+  async createEntry(contentType: string, pluralApiId: string, data: any, publish: boolean = false, locale?: string): Promise<any> {
     const endpoint = publish 
       ? `/content-manager/collection-types/${contentType}/actions/publish`
       : `/content-manager/collection-types/${contentType}`;
     
+    const params: any = {};
+    if (locale) {
+      params.locale = locale;
+    }
+    
     const response = await this.adminRequest<any>(
       endpoint,
       'POST',
-      data
+      data,
+      params
     );
     return response?.data || response;
   }
@@ -334,13 +340,19 @@ export class StrapiClient {
   /**
    * Update an entry
    */
-  async updateEntry(pluralApiId: string, documentId: string, data: any): Promise<any> {
+  async updateEntry(pluralApiId: string, documentId: string, data: any, locale?: string): Promise<any> {
+    const params: any = {};
+    if (locale) {
+      params.locale = locale;
+    }
+    
     // First try to use it as a content type UID directly
     if (pluralApiId.includes('::')) {
       const response = await this.adminRequest<any>(
         `/content-manager/collection-types/${pluralApiId}/${documentId}`,
         'PUT',
-        data
+        data,
+        params
       );
       return response?.data || response;
     }
@@ -354,7 +366,8 @@ export class StrapiClient {
     const response = await this.adminRequest<any>(
       `/content-manager/collection-types/${contentType.uid}/${documentId}`,
       'PUT',
-      data
+      data,
+      params
     );
     return response?.data || response;
   }
@@ -362,11 +375,14 @@ export class StrapiClient {
   /**
    * Delete an entry
    */
-  async deleteEntry(pluralApiId: string, documentId: string): Promise<void> {
+  async deleteEntry(pluralApiId: string, documentId: string, locale?: string): Promise<void> {
+    // If locale is specified, delete only that locale. Otherwise delete all locales
+    const localeParam = locale ? `locale=${locale}` : 'locale=*';
+    
     // First try to use it as a content type UID directly
     if (pluralApiId.includes('::')) {
       await this.adminRequest<any>(
-        `/content-manager/collection-types/${pluralApiId}/${documentId}?locale=*`,
+        `/content-manager/collection-types/${pluralApiId}/${documentId}?${localeParam}`,
         'DELETE'
       );
       return;
@@ -379,7 +395,7 @@ export class StrapiClient {
     }
     
     await this.adminRequest<any>(
-      `/content-manager/collection-types/${contentType.uid}/${documentId}?locale=*`,
+      `/content-manager/collection-types/${contentType.uid}/${documentId}?${localeParam}`,
       'DELETE'
     );
   }
@@ -487,13 +503,19 @@ export class StrapiClient {
   /**
    * Publish an entry
    */
-  async publishEntry(pluralApiId: string, documentId: string): Promise<any> {
+  async publishEntry(pluralApiId: string, documentId: string, locale?: string): Promise<any> {
+    const params: any = {};
+    if (locale) {
+      params.locale = locale;
+    }
+    
     // First try to use it as a content type UID directly
     if (pluralApiId.includes('::')) {
       const response = await this.adminRequest<any>(
         `/content-manager/collection-types/${pluralApiId}/${documentId}/actions/publish`,
         'POST',
-        {}
+        {},
+        params
       );
       return response?.data || response;
     }
@@ -507,7 +529,8 @@ export class StrapiClient {
     const response = await this.adminRequest<any>(
       `/content-manager/collection-types/${contentType.uid}/${documentId}/actions/publish`,
       'POST',
-      {}
+      {},
+      params
     );
     return response?.data || response;
   }
@@ -515,13 +538,19 @@ export class StrapiClient {
   /**
    * Unpublish an entry
    */
-  async unpublishEntry(pluralApiId: string, documentId: string): Promise<any> {
+  async unpublishEntry(pluralApiId: string, documentId: string, locale?: string): Promise<any> {
+    const params: any = {};
+    if (locale) {
+      params.locale = locale;
+    }
+    
     // First try to use it as a content type UID directly
     if (pluralApiId.includes('::')) {
       const response = await this.adminRequest<any>(
         `/content-manager/collection-types/${pluralApiId}/${documentId}/actions/unpublish`,
         'POST',
-        { discardDraft: false }
+        { discardDraft: false },
+        params
       );
       return response?.data || response;
     }
@@ -535,7 +564,8 @@ export class StrapiClient {
     const response = await this.adminRequest<any>(
       `/content-manager/collection-types/${contentType.uid}/${documentId}/actions/unpublish`,
       'POST',
-      { discardDraft: false }
+      { discardDraft: false },
+      params
     );
     return response?.data || response;
   }
