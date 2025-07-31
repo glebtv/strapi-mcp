@@ -171,7 +171,8 @@ This project uses GitHub Actions for continuous integration:
   - Tests on Node.js 22.x
   - Automatically sets up a local Strapi 5 instance
   - Creates required content types and admin user
-  - Runs linting, type checking, and all tests
+  - Runs linting, type checking, and all tests with coverage
+  - Displays coverage report in CI output
 
 ## Troubleshooting
 

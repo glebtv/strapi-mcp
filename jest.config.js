@@ -31,6 +31,14 @@ module.exports = {
     '!src/**/*.d.ts',
     '!src/**/*.test.ts',
   ],
+  coverageThreshold: {
+    global: {
+      branches: 70,
+      functions: 70,
+      lines: 70,
+      statements: 70
+    }
+  },
   // Run tests sequentially to avoid conflicts with Strapi API
   maxWorkers: 1,
   testSequencer: '<rootDir>/tests/test-sequencer.js',

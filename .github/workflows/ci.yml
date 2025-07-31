@@ -63,16 +63,8 @@ jobs:
     - name: Setup test Strapi instance
       run: ./scripts/setup-test-strapi.sh setup
     
-    - name: Run all tests
-      run: ./scripts/run-tests.sh
-    
-    - name: Upload coverage
-      if: matrix.node-version == '22.x'
-      uses: codecov/codecov-action@v4
-      with:
-        files: ./coverage/lcov.info
-        flags: unittests
-        name: codecov-umbrella
+    - name: Run all tests with coverage
+      run: ./scripts/run-tests.sh coverage
     
     - name: Upload Strapi logs on failure
       if: failure()
