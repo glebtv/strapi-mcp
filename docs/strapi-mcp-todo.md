@@ -1,5 +1,28 @@
 # Strapi MCP Tool Improvements TODO
 
+## Version 0.3.1 - Fixed Issues ✅
+
+### 1. Enhanced Validation Error Reporting
+**Problem**: When Strapi returns validation errors, users only saw generic messages like "2 errors occurred" without seeing the actual validation issues.
+
+**Solution**: Modified error handling in `index.ts` to extract and format validation error details from the Strapi response:
+- Checks for `details.errors` array in error objects
+- Formats each error with its path and message (e.g., `title: Title is required`)
+- Falls back to JSON stringification for non-standard error structures
+
+**Impact**: Users now see clear, actionable error messages when validation fails, making debugging much easier.
+
+### 2. API Token Name Conflict Resolution
+**Problem**: When creating API tokens, if the name "strapi-mcp" was already taken, the creation would fail completely.
+
+**Solution**: Implemented retry logic in `TokenManager`:
+- First attempt uses simple name: `strapi-mcp`
+- On "Name already taken" error, retries with random suffix: `strapi-mcp-abc123`
+- Retries up to 5 times with different random suffixes
+- Only fails if all attempts fail or a different error occurs
+
+**Impact**: Multiple instances of strapi-mcp can now run against the same Strapi instance without conflicts.
+
 ## Current Issues and Limitations
 
 ### 1. Publishing Entries with i18n (Internationalization)
@@ -83,6 +106,48 @@ All content manipulation tools should accept an optional `locale` parameter that
 - Include available parameters in error messages
 - Suggest alternatives when operations fail
 - Provide locale-specific error context
+
+### 6. Component Schema Discovery Issues
+
+**Issue**: The `list_components` and `get_component_schema` tools have reliability issues.
+
+**Current Behavior**:
+- `list_components` returns empty array even when components exist
+- `get_component_schema` fails with "Component not found" for valid component UIDs
+- No way to discover component structure programmatically
+
+**Expected Behavior**:
+- Should list all available components with their UIDs
+- Should return schema for nested components (e.g., sections.hero, pricing.plan)
+- Should work with Strapi's component naming convention
+
+**Examples of Missing Components**:
+- `sections.hero`
+- `sections.best-app-ever`
+- `sections.numbered-features`
+- `sections.key-features`
+- `sections.client-testimonials`
+- `sections.pricing-plan`
+- `sections.newsletter`
+- Nested components like `pricing.plan` (within pricing-plan section)
+
+**Workaround**:
+- Currently must inspect actual data responses to understand component structure
+- Use the Strapi Admin UI to view component schemas
+
+### 7. Nested Component Field Updates
+
+**Issue**: Updating nested component fields (like `period` in pricing plans) requires special handling.
+
+**Current Behavior**:
+- Simple field updates on nested components don't always persist
+- Field names might differ between API response and update payload
+- Some fields like `price_period` vs `period` have naming inconsistencies
+
+**Proposed Enhancement**:
+- Document field mapping for common components
+- Provide examples of updating nested component fields
+- Add validation for component field updates
 
 ## Implementation Priority
 

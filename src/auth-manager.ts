@@ -112,6 +112,12 @@ export class AuthManager {
         console.error(`[Auth] Login failed with status ${response.status}`);
         return false;
       } catch (error) {
+        // Handle connection refused errors specifically
+        if (axios.isAxiosError(error) && error.code === 'ECONNREFUSED') {
+          console.error('[Auth] Connection refused, check if Strapi instance is running');
+          throw new Error('Connection refused, check if Strapi instance is running');
+        }
+        
         console.error('[Auth] Login error:', error);
         if (attempt < maxRetries) {
           await new Promise(resolve => setTimeout(resolve, retryDelay));

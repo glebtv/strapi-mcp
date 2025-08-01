@@ -62,6 +62,7 @@ npm run test:watch
    - Handles resource listing and tool execution
    - Validates environment configuration on startup
    - Removed debug logging for cleaner test output (v0.3.1)
+   - Enhanced error reporting for validation errors (v0.3.1)
 
 2. **Authentication Manager (`src/auth-manager.ts`)**
    - Manages JWT token lifecycle with automatic refresh
@@ -69,6 +70,7 @@ npm run test:watch
    - Falls back to API token if admin credentials unavailable
    - Caches tokens to avoid rate limiting
    - Silent login attempts for cleaner output (v0.3.1)
+   - Automatic retry with random suffix for API token name conflicts (v0.3.1)
 
 3. **Strapi Client (`src/strapi-client.ts`)**
    - Core API client for all Strapi operations

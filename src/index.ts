@@ -56,7 +56,7 @@ const strapiClient = new StrapiClient(strapiConfig);
 const server = new Server(
   {
     name: 'strapi-mcp',
-    version: '0.3.0',
+    version: '0.4.0',
   },
   {
     capabilities: {
@@ -195,9 +195,34 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
     
     console.error(`[Error] Tool ${name} failed:`, error);
+    
+    // Extract detailed error information
+    let errorMessage = error instanceof Error ? error.message : String(error);
+    
+    // If the error has validation details, format them nicely
+    if (error instanceof Error && (error as any).details) {
+      const details = (error as any).details;
+      
+      // Handle Strapi validation errors with nested structure
+      if (details.errors && Array.isArray(details.errors)) {
+        const formattedErrors = details.errors.map((err: any) => {
+          if (err.path && err.message) {
+            // Format path array into a readable string
+            const pathStr = Array.isArray(err.path) ? err.path.join('.') : err.path;
+            return `${pathStr}: ${err.message}`;
+          }
+          return err.message || JSON.stringify(err);
+        });
+        errorMessage = `${errorMessage}\n\nValidation errors:\n- ${formattedErrors.join('\n- ')}`;
+      } else {
+        // Fallback for other error structures
+        errorMessage = `${errorMessage}\n\nDetails: ${JSON.stringify(details, null, 2)}`;
+      }
+    }
+    
     throw new McpError(
       ErrorCode.InternalError,
-      `Tool execution failed: ${error instanceof Error ? error.message : String(error)}`
+      `Tool execution failed: ${errorMessage}`
     );
   }
 });

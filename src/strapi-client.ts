@@ -56,8 +56,12 @@ export class StrapiClient {
       } else {
         return { status: 'unhealthy', message: `Health check returned ${response.status}` };
       }
-    } catch {
-      // Silently handle connection errors to avoid polluting test output
+    } catch (error) {
+      // Check specifically for connection refused
+      if (axios.isAxiosError(error) && error.code === 'ECONNREFUSED') {
+        return { status: 'unhealthy', message: 'Connection refused, check if Strapi instance is running' };
+      }
+      // Silently handle other connection errors to avoid polluting test output
       return { status: 'unhealthy', message: 'Failed to connect to Strapi' };
     }
   }
@@ -131,6 +135,11 @@ export class StrapiClient {
       
       return response.data;
     } catch (error) {
+      // Handle connection refused errors specifically
+      if (axios.isAxiosError(error) && error.code === 'ECONNREFUSED') {
+        throw new Error('Connection refused, check if Strapi instance is running');
+      }
+      
       if (axios.isAxiosError(error) && error.response?.status === 401) {
         // Try to re-login if using admin auth
         const reLoginSuccess = await this.authManager.handleAuthError(error);
@@ -822,15 +831,18 @@ export class StrapiClient {
    * List components
    */
   async listComponents(): Promise<ComponentData[]> {
-    const response = await this.adminRequest<any>(
-      '/admin/content-type-builder/components'
+    // Use the schema endpoint to get all components
+    const allSchemas = await this.adminRequest<any>(
+      '/content-type-builder/schema'
     );
-
-    const components = response?.data || [];
-    return components.map((comp: any) => ({
-      uid: comp.uid,
-      category: comp.category,
-      displayName: comp.info?.displayName || comp.uid.split('.').pop(),
+    
+    const components = allSchemas?.data?.components || {};
+    
+    // Transform the components object into an array
+    return Object.entries(components).map(([uid, comp]: [string, any]) => ({
+      uid: uid,
+      category: comp.category || uid.split('.')[0],
+      displayName: comp.info?.displayName || uid.split('.').pop(),
       description: comp.info?.description,
       icon: comp.info?.icon,
       attributes: comp.attributes
@@ -847,7 +859,16 @@ export class StrapiClient {
     );
     
     if (allSchemas?.data?.components?.[componentUid]) {
-      return allSchemas.data.components[componentUid];
+      const component = allSchemas.data.components[componentUid];
+      // Return in the expected format with uid and schema properties
+      return {
+        uid: componentUid,
+        schema: {
+          ...component,
+          // Ensure attributes are in the expected location
+          attributes: component.attributes || {}
+        }
+      };
     }
     
     throw new Error(`Component ${componentUid} not found`);
@@ -955,13 +976,21 @@ export class StrapiClient {
     });
 
     // Use a separate axios instance for REST API calls to avoid auth interceptor
-    const response = await axios.request({
-      ...config,
-      baseURL: this.config.url,
-      validateStatus: (status) => status < 500
-    });
-    
-    return response.data;
+    try {
+      const response = await axios.request({
+        ...config,
+        baseURL: this.config.url,
+        validateStatus: (status) => status < 500
+      });
+      
+      return response.data;
+    } catch (error) {
+      // Handle connection refused errors specifically
+      if (axios.isAxiosError(error) && error.code === 'ECONNREFUSED') {
+        throw new Error('Connection refused, check if Strapi instance is running');
+      }
+      throw error;
+    }
   }
 
   /**

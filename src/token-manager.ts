@@ -33,33 +33,53 @@ export class TokenManager {
       return cache.apiKey;
     }
 
-    // Create a new API token
-    try {
-      console.error('[TokenManager] Creating new API token for REST API access');
-      const response = await this.client.adminRequest<any>(
-        '/admin/api-tokens',
-        'POST',
-        {
-          name: 'MCP REST API Access',
-          description: 'Auto-generated token for MCP server REST API access',
-          type: 'full-access',
-          lifespan: null,
-          permissions: null
-        }
-      );
-
-      if (response?.data?.accessKey) {
-        // Save the token
-        cache.apiKey = response.data.accessKey;
-        cache.adminJwt = this.client.getAuthManager().getJwtToken();
-        cache.createdAt = new Date().toISOString();
-        this.saveTokenCache(cache);
+    // Create a new API token with retry logic for name conflicts
+    const maxRetries = 5;
+    let retryCount = 0;
+    
+    while (retryCount < maxRetries) {
+      try {
+        // Generate token name with random suffix after first attempt
+        const tokenName = retryCount === 0 
+          ? 'strapi-mcp' 
+          : `strapi-mcp-${Math.random().toString(36).substr(2, 6)}`;
         
-        console.error('[TokenManager] API token created and saved');
-        return response.data.accessKey;
+        console.error(`[TokenManager] Creating new API token: ${tokenName}`);
+        
+        const response = await this.client.adminRequest<any>(
+          '/admin/api-tokens',
+          'POST',
+          {
+            name: tokenName,
+            description: 'Auto-generated token for MCP server REST API access',
+            type: 'full-access',
+            lifespan: null,
+            permissions: null
+          }
+        );
+
+        if (response?.data?.accessKey) {
+          // Save the token
+          cache.apiKey = response.data.accessKey;
+          cache.adminJwt = this.client.getAuthManager().getJwtToken();
+          cache.createdAt = new Date().toISOString();
+          this.saveTokenCache(cache);
+          
+          console.error('[TokenManager] API token created and saved');
+          return response.data.accessKey;
+        }
+      } catch (error) {
+        // Check if it's a "name already taken" error
+        if (error instanceof Error && error.message.includes('Name already taken')) {
+          retryCount++;
+          console.error(`[TokenManager] Token name already taken, retrying with different name (attempt ${retryCount}/${maxRetries})`);
+          continue;
+        }
+        
+        // For other errors, log and exit
+        console.error('[TokenManager] Failed to create API token:', error);
+        break;
       }
-    } catch (error) {
-      console.error('[TokenManager] Failed to create API token:', error);
     }
 
     return null;

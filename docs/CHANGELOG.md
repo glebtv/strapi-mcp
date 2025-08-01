@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2025-01-30
+### Added
+- **IMPROVED ERROR MESSAGES:** Connection refused errors now show user-friendly message "Connection refused, check if Strapi instance is running" instead of verbose stack traces
+
+### Fixed
+- **VALIDATION ERROR DETAILS:** Update entry errors now display actual validation messages instead of generic "2 errors occurred"
+- **API TOKEN CONFLICTS:** Token creation automatically retries with random suffixes when name conflicts occur
+
 ## [0.3.1] - 2025-01-30
 - **STRAPI V5 COMPATIBILITY:** Full support for Strapi v5 document IDs and API changes
 - **ENHANCED RELATION TOOLS:** Updated to use Strapi v5 document IDs instead of numeric IDs
