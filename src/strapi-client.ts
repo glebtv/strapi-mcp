@@ -831,12 +831,53 @@ export class StrapiClient {
    * List components
    */
   async listComponents(): Promise<ComponentData[]> {
-    // Use the schema endpoint to get all components
-    const allSchemas = await this.adminRequest<any>(
-      '/content-type-builder/schema'
-    );
+    // Try both endpoints to get components in the correct format
+    let components: any = {};
     
-    const components = allSchemas?.data?.components || {};
+    // First try content-manager/init which might have components in correct format
+    try {
+      const initResponse = await this.adminRequest<any>('/content-manager/init');
+      if (initResponse?.data?.components) {
+        const initComponents = initResponse.data.components;
+        
+        // Convert array or numeric-keyed object to UID-keyed object
+        if (Array.isArray(initComponents)) {
+          // It's an array, convert to object using uid as key
+          for (const comp of initComponents) {
+            if (comp.uid) {
+              components[comp.uid] = comp;
+            }
+          }
+        } else if (typeof initComponents === 'object') {
+          // It's an object, might have numeric keys or UIDs
+          for (const [key, comp] of Object.entries(initComponents)) {
+            const component = comp as any;
+            if (component.uid) {
+              // Use the uid as the key
+              components[component.uid] = component;
+            } else if (!isNaN(Number(key))) {
+              // Skip numeric keys without uid
+              continue;
+            } else {
+              // Key might be the UID itself
+              components[key] = component;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      // Fall back to schema endpoint
+    }
+    
+    // If we didn't get good data from init, use schema endpoint
+    if (Object.keys(components).length === 0) {
+      const allSchemas = await this.adminRequest<any>('/content-type-builder/schema');
+      
+      // Check if we have schema data in the expected format
+      if (allSchemas?.uid === 'schema' && allSchemas?.data?.components) {
+        components = allSchemas.data.components;
+      }
+    }
     
     // Transform the components object into an array
     return Object.entries(components).map(([uid, comp]: [string, any]) => ({
@@ -853,22 +894,83 @@ export class StrapiClient {
    * Get component schema
    */
   async getComponentSchema(componentUid: string): Promise<any> {
-    // Always fetch all schemas from /content-type-builder/schema
-    const allSchemas = await this.adminRequest<any>(
-      '/content-type-builder/schema'
-    );
-    
-    if (allSchemas?.data?.components?.[componentUid]) {
-      const component = allSchemas.data.components[componentUid];
-      // Return in the expected format with uid and schema properties
-      return {
-        uid: componentUid,
-        schema: {
-          ...component,
-          // Ensure attributes are in the expected location
-          attributes: component.attributes || {}
+    // First try content-manager/init endpoint which might have the correct format
+    try {
+      const initResponse = await this.adminRequest<any>('/content-manager/init');
+      
+      // Check if this endpoint has components in the expected format
+      if (initResponse?.data?.components) {
+        const componentsData = initResponse.data.components;
+        
+        // Components might be an array with numeric indices
+        // Convert to object if needed
+        let components: any = {};
+        
+        if (Array.isArray(componentsData)) {
+          // It's an actual array, look for the component by uid
+          const component = componentsData.find((c: any) => c.uid === componentUid);
+          if (component && component.attributes && typeof component.attributes === 'object' && !Array.isArray(component.attributes)) {
+            return {
+              uid: componentUid,
+              schema: component
+            };
+          }
+        } else {
+          // It's an object, could be numeric keys or UIDs
+          for (const [key, component] of Object.entries(componentsData)) {
+            // Check if this component matches our UID
+            if ((component as any).uid === componentUid || key === componentUid) {
+              const comp = component as any;
+              // Check if attributes are already in object format
+              if (comp.attributes && typeof comp.attributes === 'object' && !Array.isArray(comp.attributes)) {
+                return {
+                  uid: componentUid,
+                  schema: comp
+                };
+              }
+            }
+          }
         }
-      };
+      }
+    } catch (error) {
+      // If content-manager/init fails, fall back to content-type-builder/schema
+      console.error('[StrapiClient] Failed to get component from content-manager/init, trying content-type-builder/schema');
+    }
+    
+    // Fall back to content-type-builder/schema endpoint
+    const allSchemas = await this.adminRequest<any>('/content-type-builder/schema');
+    
+    // Check if we have schema data
+    if (allSchemas?.uid === 'schema' && allSchemas?.data) {
+      const schemaData = allSchemas.data;
+      
+      // Look for components in the schema data structure
+      if (schemaData.components && schemaData.components[componentUid]) {
+        const component = schemaData.components[componentUid];
+        
+        // Transform attributes from array format to object format if needed
+        let attributes = component.attributes || {};
+        
+        // Strapi v5 returns attributes as an array, transform it to object format
+        if (Array.isArray(component.attributes)) {
+          attributes = {};
+          for (const attr of component.attributes) {
+            if (attr.name) {
+              const { name, ...attrProps } = attr;
+              attributes[name] = attrProps;
+            }
+          }
+        }
+        
+        // Return in the expected format with uid and schema properties
+        return {
+          uid: componentUid,
+          schema: {
+            ...component,
+            attributes
+          }
+        };
+      }
     }
     
     throw new Error(`Component ${componentUid} not found`);
