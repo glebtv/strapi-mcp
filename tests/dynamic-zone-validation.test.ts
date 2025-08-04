@@ -44,15 +44,13 @@ describe('Dynamic Zone Component Validation', () => {
     it('should prevent creation with unregistered dynamic zone components', async () => {
       // Data with invalid components that would be silently dropped
       const dataWithInvalidComponents = {
-        name: "Test Validation",
-        title: "Test Validation Title",
+        title: "Test Validation Page",
         slug: "test-validation-" + Date.now(),
-        page_type: "other",
         sections: [
           {
             __component: "sections.hero", // Valid ✓
             title: "Valid Hero Section",
-            layout: "centered"
+            subtitle: "Test subtitle"
           },
           {
             __component: "sections.stats", // Invalid ✗
@@ -71,10 +69,10 @@ describe('Dynamic Zone Component Validation', () => {
         await client.callTool({
           name: 'create_entry',
           arguments: {
-            contentType: 'api::landing-page.landing-page',
-            pluralApiId: 'landing-pages',
+            contentType: 'api::page.page',
+            pluralApiId: 'pages',
             data: dataWithInvalidComponents,
-            locale: 'ru',
+            locale: 'en',
             publish: true
           }
         });
@@ -95,16 +93,13 @@ describe('Dynamic Zone Component Validation', () => {
 
     it('should succeed with only valid dynamic zone components', async () => {
       const validData = {
-        name: "Test Valid Components",
-        title: "Test Valid Components Title",
+        title: "Test Valid Components Page",
         slug: "test-valid-" + Date.now(),
-        page_type: "other",
         sections: [
           {
             __component: "sections.hero",
             title: "Hero Section",
-            subtitle: "Valid component",
-            layout: "centered"
+            subtitle: "Valid component"
           }
         ]
       };
@@ -112,10 +107,10 @@ describe('Dynamic Zone Component Validation', () => {
       const result = await client.callTool({
         name: 'create_entry',
         arguments: {
-          contentType: 'api::landing-page.landing-page',
-          pluralApiId: 'landing-pages',
+          contentType: 'api::page.page',
+          pluralApiId: 'pages',
           data: validData,
-          locale: 'ru',
+          locale: 'en',
           publish: true
         }
       });
@@ -129,24 +124,22 @@ describe('Dynamic Zone Component Validation', () => {
       await client.callTool({
         name: 'delete_entry',
         arguments: {
-          pluralApiId: 'landing-pages',
+          pluralApiId: 'pages',
           documentId: response.documentId,
-          locale: 'ru'
+          locale: 'en'
         }
       });
     });
 
     it('should catch missing __component field in dynamic zone', async () => {
       const dataWithMissingComponent = {
-        name: "Test Missing Component",
-        title: "Test Missing Component Title",
+        title: "Test Missing Component Page",
         slug: "test-missing-component-" + Date.now(),
-        page_type: "other",
         sections: [
           {
             // Missing __component field!
             title: "Section without component",
-            layout: "centered"
+            subtitle: "This should fail"
           }
         ]
       };
@@ -155,10 +148,10 @@ describe('Dynamic Zone Component Validation', () => {
         await client.callTool({
           name: 'create_entry',
           arguments: {
-            contentType: 'api::landing-page.landing-page',
-            pluralApiId: 'landing-pages',
+            contentType: 'api::page.page',
+            pluralApiId: 'pages',
             data: dataWithMissingComponent,
-            locale: 'ru',
+            locale: 'en',
             publish: true
           }
         });
@@ -177,15 +170,13 @@ describe('Dynamic Zone Component Validation', () => {
     beforeAll(async () => {
       // Create a valid entry to update
       const validData = {
-        name: "Test Update Entry",
-        title: "Test Update Entry Title",
+        title: "Test Update Entry Page",
         slug: "test-update-" + Date.now(),
-        page_type: "other",
         sections: [
           {
             __component: "sections.hero",
             title: "Initial Hero",
-            layout: "centered"
+            subtitle: "Initial subtitle"
           }
         ]
       };
@@ -193,10 +184,10 @@ describe('Dynamic Zone Component Validation', () => {
       const result = await client.callTool({
         name: 'create_entry',
         arguments: {
-          contentType: 'api::landing-page.landing-page',
-          pluralApiId: 'landing-pages',
+          contentType: 'api::page.page',
+          pluralApiId: 'pages',
           data: validData,
-          locale: 'ru',
+          locale: 'en',
           publish: true
         }
       });
@@ -211,9 +202,9 @@ describe('Dynamic Zone Component Validation', () => {
         await client.callTool({
           name: 'delete_entry',
           arguments: {
-            pluralApiId: 'landing-pages',
+            pluralApiId: 'pages',
             documentId: testEntryId,
-            locale: 'ru'
+            locale: 'en'
           }
         });
       }
@@ -225,7 +216,7 @@ describe('Dynamic Zone Component Validation', () => {
           {
             __component: "sections.hero", // Valid
             title: "Updated Hero",
-            layout: "fullwidth"
+            subtitle: "Updated subtitle"
           },
           {
             __component: "sections.cta", // Invalid!
@@ -239,10 +230,10 @@ describe('Dynamic Zone Component Validation', () => {
         await client.callTool({
           name: 'update_entry',
           arguments: {
-            pluralApiId: 'landing-pages',
+            pluralApiId: 'pages',
             documentId: testEntryId,
             data: updateWithInvalid,
-            locale: 'ru'
+            locale: 'en'
           }
         });
         
@@ -260,8 +251,7 @@ describe('Dynamic Zone Component Validation', () => {
           {
             __component: "sections.hero",
             title: "Successfully Updated Hero",
-            subtitle: "This update should work",
-            layout: "fullwidth"
+            subtitle: "This update should work"
           }
         ]
       };
@@ -269,10 +259,10 @@ describe('Dynamic Zone Component Validation', () => {
       const result = await client.callTool({
         name: 'update_entry',
         arguments: {
-          pluralApiId: 'landing-pages',
+          pluralApiId: 'pages',
           documentId: testEntryId,
           data: validUpdate,
-          locale: 'ru'
+          locale: 'en'
         }
       });
 
