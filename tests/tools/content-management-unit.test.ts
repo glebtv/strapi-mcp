@@ -32,6 +32,15 @@ describe('Content Management Tools - Unit Tests', () => {
       { code: 'fr', name: 'French', isDefault: false }
     ]);
     
+    // Mock getContentTypeSchema for validation
+    mockClient.getContentTypeSchema = jest.fn().mockResolvedValue({
+      uid: 'api::article.article',
+      attributes: [
+        { name: 'title', type: 'string', required: true },
+        { name: 'content', type: 'richtext', required: false }
+      ]
+    });
+    
     tools = contentManagementTools(mockClient);
   });
 
