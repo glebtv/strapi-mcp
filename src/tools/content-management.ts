@@ -17,6 +17,55 @@ const QueryOptionsSchema = z.object({
   locale: z.string().optional()
 });
 
+// Helper function to validate dynamic zone components
+function validateDynamicZoneComponents(data: any, schema: any): void {
+  const errors: string[] = [];
+  
+  if (!schema.attributes || !Array.isArray(schema.attributes)) {
+    return; // No attributes to validate
+  }
+  
+  for (const attr of schema.attributes) {
+    if (attr.type === 'dynamiczone' && data[attr.name]) {
+      const fieldName = attr.name;
+      const allowedComponents = attr.components || [];
+      const providedComponents = data[fieldName];
+      
+      if (!Array.isArray(providedComponents)) {
+        continue; // Skip if not an array
+      }
+      
+      const invalidComponents: string[] = [];
+      
+      for (const component of providedComponents) {
+        if (!component.__component) {
+          errors.push(`Component in ${fieldName} is missing __component field`);
+          continue;
+        }
+        
+        if (!allowedComponents.includes(component.__component)) {
+          invalidComponents.push(component.__component);
+        }
+      }
+      
+      if (invalidComponents.length > 0) {
+        errors.push(
+          `Invalid components for dynamic zone '${fieldName}':\n` +
+          `  Provided: ${invalidComponents.join(', ')}\n` +
+          `  Allowed: ${allowedComponents.join(', ')}`
+        );
+      }
+    }
+  }
+  
+  if (errors.length > 0) {
+    throw new Error(
+      'Dynamic zone validation failed:\n' + errors.join('\n\n') +
+      '\n\nTip: Check the content type schema for allowed components or create missing components in Strapi admin.'
+    );
+  }
+}
+
 export function contentManagementTools(client: StrapiClient): Tool[] {
   return [
     {
@@ -30,10 +79,10 @@ export function contentManagementTools(client: StrapiClient): Tool[] {
     },
     {
       name: 'get_entries',
-      description: 'Retrieves entries for a specific content type with support for filtering, pagination, sorting, and population',
+      description: 'Retrieves entries for a specific content type with support for filtering, pagination, sorting, and population. IMPORTANT: populate="*" only goes 1 level deep and does NOT populate dynamic zones. For dynamic zones use: {"populate": {"dynamicZoneName": {"populate": "*"}}}. For deep population of all fields, nest the populate parameter.',
       inputSchema: z.object({
         pluralApiId: z.string().describe('The plural API ID (e.g., "articles")'),
-        options: z.string().optional().describe('JSON string with query options')
+        options: z.string().optional().describe('JSON string with query options. Example for dynamic zones: {"populate": {"sections": {"populate": "*"}}}')
       }),
       execute: async (args) => {
         let options = {};
@@ -53,12 +102,12 @@ export function contentManagementTools(client: StrapiClient): Tool[] {
     },
     {
       name: 'get_entry',
-      description: 'Retrieves a specific entry by its document ID',
+      description: 'Retrieves a specific entry by its document ID. IMPORTANT: populate="*" only goes 1 level deep and does NOT populate dynamic zones. For dynamic zones use: {"populate": {"dynamicZoneName": {"populate": "*"}}}. For deep population of all fields, nest the populate parameter.',
       inputSchema: z.object({
         pluralApiId: z.string().describe('The plural API ID'),
         documentId: z.string().describe('The document ID'),
         locale: z.string().optional().describe('The locale to retrieve (e.g., "en", "fr", "ru"). If not specified, uses default locale'),
-        options: z.string().optional().describe('JSON string with populate and fields options')
+        options: z.string().optional().describe('JSON string with populate and fields options. Example for dynamic zones: {"populate": {"sections": {"populate": "*"}}}')
       }),
       execute: async (args) => {
         let options: any = {};
@@ -127,6 +176,9 @@ export function contentManagementTools(client: StrapiClient): Tool[] {
           );
         }
         
+        // Validate dynamic zone components
+        validateDynamicZoneComponents(args.data, schema);
+        
         // If content type is i18n-enabled, locale is required
         if (contentType.isLocalized && !args.locale) {
           // Get default locale
@@ -163,6 +215,12 @@ export function contentManagementTools(client: StrapiClient): Tool[] {
         if (!contentType) {
           throw new Error(`Content type not found: ${args.pluralApiId}`);
         }
+        
+        // Get the full schema to validate dynamic zones
+        const schema = await client.getContentTypeSchema(contentType.uid);
+        
+        // Validate dynamic zone components
+        validateDynamicZoneComponents(args.data, schema);
         
         // If content type is i18n-enabled, locale is required
         if (contentType.isLocalized && !args.locale) {

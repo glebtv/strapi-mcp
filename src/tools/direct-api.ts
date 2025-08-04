@@ -5,11 +5,11 @@ import { Tool } from './types.js';
 export function directApiTool(client: StrapiClient): Tool {
   return {
     name: 'strapi_rest',
-    description: 'Executes direct REST API requests against Strapi endpoints for advanced use cases',
+    description: 'Executes direct REST API requests against Strapi endpoints for advanced use cases. IMPORTANT for GET requests: populate="*" only goes 1 level deep and does NOT populate dynamic zones. For dynamic zones use nested objects in params: {"populate": {"dynamicZoneName": {"populate": "*"}}}',
     inputSchema: z.object({
       endpoint: z.string().describe('API endpoint (e.g., "api/articles")'),
       method: z.enum(['GET', 'POST', 'PUT', 'DELETE', 'PATCH']).optional().default('GET').describe('HTTP method'),
-      params: z.record(z.any()).optional().describe('Query parameters for GET requests'),
+      params: z.record(z.any()).optional().describe('Query parameters for GET requests. For dynamic zones: {"populate": {"sections": {"populate": "*"}}}'),
       body: z.record(z.any()).optional().describe('Request body for POST/PUT requests'),
       authenticated: z.boolean().optional().default(true).describe('Whether to include authentication token (true) or test public access (false)')
     }),

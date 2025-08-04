@@ -1,0 +1,284 @@
+// Jest test - describe, it, expect, beforeAll, afterAll are globals
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+
+describe('Dynamic Zone Component Validation', () => {
+  let client: Client;
+  let transport: StdioClientTransport;
+  
+  // Use the test Strapi instance credentials
+  const STRAPI_URL = 'http://localhost:1337';
+  const STRAPI_ADMIN_EMAIL = 'admin@test.com';
+  const STRAPI_ADMIN_PASSWORD = 'Admin123!';
+
+  beforeAll(async () => {
+    // Create a new transport and client for this test suite
+    transport = new StdioClientTransport({
+      command: 'node',
+      args: ['dist/index.js'],
+      env: {
+        ...process.env,
+        STRAPI_URL,
+        STRAPI_ADMIN_EMAIL,
+        STRAPI_ADMIN_PASSWORD
+      }
+    });
+
+    client = new Client({
+      name: 'test-client',
+      version: '1.0.0'
+    }, {
+      capabilities: {}
+    });
+
+    await client.connect(transport);
+  }, 60000);
+
+  afterAll(async () => {
+    if (client) {
+      await client.close();
+    }
+  });
+
+  describe('create_entry with dynamic zone validation', () => {
+    it('should prevent creation with unregistered dynamic zone components', async () => {
+      // Data with invalid components that would be silently dropped
+      const dataWithInvalidComponents = {
+        name: "Test Validation",
+        title: "Test Validation Title",
+        slug: "test-validation-" + Date.now(),
+        page_type: "other",
+        sections: [
+          {
+            __component: "sections.hero", // Valid ✓
+            title: "Valid Hero Section",
+            layout: "centered"
+          },
+          {
+            __component: "sections.stats", // Invalid ✗
+            title: "Invalid Stats Section",
+            stats: []
+          },
+          {
+            __component: "sections.features", // Invalid ✗
+            title: "Invalid Features Section",
+            features: []
+          }
+        ]
+      };
+
+      try {
+        await client.callTool({
+          name: 'create_entry',
+          arguments: {
+            contentType: 'api::landing-page.landing-page',
+            pluralApiId: 'landing-pages',
+            data: dataWithInvalidComponents,
+            locale: 'ru',
+            publish: true
+          }
+        });
+        
+        expect(true).toBe(false); // Should not reach here
+      } catch (error: any) {
+        console.log('Validation error:', error.message);
+        
+        // Verify we get a clear error about invalid components
+        expect(error.message).toContain('Dynamic zone validation failed');
+        expect(error.message).toContain('Invalid components for dynamic zone \'sections\'');
+        expect(error.message).toContain('sections.stats');
+        expect(error.message).toContain('sections.features');
+        expect(error.message).toContain('Allowed:');
+        expect(error.message).toContain('sections.hero');
+      }
+    });
+
+    it('should succeed with only valid dynamic zone components', async () => {
+      const validData = {
+        name: "Test Valid Components",
+        title: "Test Valid Components Title",
+        slug: "test-valid-" + Date.now(),
+        page_type: "other",
+        sections: [
+          {
+            __component: "sections.hero",
+            title: "Hero Section",
+            subtitle: "Valid component",
+            layout: "centered"
+          }
+        ]
+      };
+
+      const result = await client.callTool({
+        name: 'create_entry',
+        arguments: {
+          contentType: 'api::landing-page.landing-page',
+          pluralApiId: 'landing-pages',
+          data: validData,
+          locale: 'ru',
+          publish: true
+        }
+      });
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.documentId).toBeDefined();
+      expect(response.sections).toHaveLength(1);
+      expect(response.sections[0].__component).toBe('sections.hero');
+
+      // Clean up
+      await client.callTool({
+        name: 'delete_entry',
+        arguments: {
+          pluralApiId: 'landing-pages',
+          documentId: response.documentId,
+          locale: 'ru'
+        }
+      });
+    });
+
+    it('should catch missing __component field in dynamic zone', async () => {
+      const dataWithMissingComponent = {
+        name: "Test Missing Component",
+        title: "Test Missing Component Title",
+        slug: "test-missing-component-" + Date.now(),
+        page_type: "other",
+        sections: [
+          {
+            // Missing __component field!
+            title: "Section without component",
+            layout: "centered"
+          }
+        ]
+      };
+
+      try {
+        await client.callTool({
+          name: 'create_entry',
+          arguments: {
+            contentType: 'api::landing-page.landing-page',
+            pluralApiId: 'landing-pages',
+            data: dataWithMissingComponent,
+            locale: 'ru',
+            publish: true
+          }
+        });
+        
+        expect(true).toBe(false); // Should not reach here
+      } catch (error: any) {
+        expect(error.message).toContain('Dynamic zone validation failed');
+        expect(error.message).toContain('Component in sections is missing __component field');
+      }
+    });
+  });
+
+  describe('update_entry with dynamic zone validation', () => {
+    let testEntryId: string;
+
+    beforeAll(async () => {
+      // Create a valid entry to update
+      const validData = {
+        name: "Test Update Entry",
+        title: "Test Update Entry Title",
+        slug: "test-update-" + Date.now(),
+        page_type: "other",
+        sections: [
+          {
+            __component: "sections.hero",
+            title: "Initial Hero",
+            layout: "centered"
+          }
+        ]
+      };
+
+      const result = await client.callTool({
+        name: 'create_entry',
+        arguments: {
+          contentType: 'api::landing-page.landing-page',
+          pluralApiId: 'landing-pages',
+          data: validData,
+          locale: 'ru',
+          publish: true
+        }
+      });
+
+      const response = JSON.parse(result.content[0].text);
+      testEntryId = response.documentId;
+    });
+
+    afterAll(async () => {
+      // Clean up
+      if (testEntryId) {
+        await client.callTool({
+          name: 'delete_entry',
+          arguments: {
+            pluralApiId: 'landing-pages',
+            documentId: testEntryId,
+            locale: 'ru'
+          }
+        });
+      }
+    });
+
+    it('should prevent update with invalid dynamic zone components', async () => {
+      const updateWithInvalid = {
+        sections: [
+          {
+            __component: "sections.hero", // Valid
+            title: "Updated Hero",
+            layout: "fullwidth"
+          },
+          {
+            __component: "sections.cta", // Invalid!
+            title: "Invalid CTA",
+            buttons: []
+          }
+        ]
+      };
+
+      try {
+        await client.callTool({
+          name: 'update_entry',
+          arguments: {
+            pluralApiId: 'landing-pages',
+            documentId: testEntryId,
+            data: updateWithInvalid,
+            locale: 'ru'
+          }
+        });
+        
+        expect(true).toBe(false); // Should not reach here
+      } catch (error: any) {
+        expect(error.message).toContain('Dynamic zone validation failed');
+        expect(error.message).toContain('sections.cta');
+      }
+    });
+
+    it('should succeed with valid dynamic zone components', async () => {
+      const validUpdate = {
+        title: "Updated Title",
+        sections: [
+          {
+            __component: "sections.hero",
+            title: "Successfully Updated Hero",
+            subtitle: "This update should work",
+            layout: "fullwidth"
+          }
+        ]
+      };
+
+      const result = await client.callTool({
+        name: 'update_entry',
+        arguments: {
+          pluralApiId: 'landing-pages',
+          documentId: testEntryId,
+          data: validUpdate,
+          locale: 'ru'
+        }
+      });
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.title).toBe("Updated Title");
+      expect(response.sections[0].title).toBe("Successfully Updated Hero");
+    });
+  });
+});
