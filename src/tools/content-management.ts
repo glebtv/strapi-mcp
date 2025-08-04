@@ -84,11 +84,11 @@ export function contentManagementTools(client: StrapiClient): Tool[] {
     },
     {
       name: 'create_entry',
-      description: 'Creates a new entry for a content type',
+      description: 'Creates a new entry for a content type. IMPORTANT: Use get_content_type_schema first to check which fields are required. Each content type has different required fields. Common validation errors occur when required fields like "title", "name", or enum fields are missing.',
       inputSchema: z.object({
         contentType: z.string().describe('The content type UID'),
         pluralApiId: z.string().describe('The plural API ID'),
-        data: z.record(z.any()).describe('The entry data'),
+        data: z.record(z.any()).describe('The entry data. Must include all required fields as defined in the content type schema'),
         locale: z.string().optional().describe('The locale for the entry (e.g., "en", "fr", "ru"). Required for i18n-enabled content types'),
         publish: z.boolean().optional().describe('Whether to publish the entry immediately after creation')
       }),
@@ -99,6 +99,32 @@ export function contentManagementTools(client: StrapiClient): Tool[] {
         
         if (!contentType) {
           throw new Error(`Content type not found: ${args.contentType}`);
+        }
+        
+        // Get the full schema to check required fields
+        const schema = await client.getContentTypeSchema(args.contentType);
+        
+        // Check for missing required fields
+        const missingFields: string[] = [];
+        if (schema.attributes && Array.isArray(schema.attributes)) {
+          for (const attr of schema.attributes) {
+            if (attr.required && attr.name && !(attr.name in args.data)) {
+              missingFields.push(attr.name);
+            }
+          }
+        }
+        
+        if (missingFields.length > 0) {
+          const schemaHint = missingFields.map(field => {
+            const attr = schema.attributes.find((a: any) => a.name === field);
+            return `- ${field} (type: ${attr?.type || 'unknown'})`;
+          }).join('\n');
+          
+          throw new Error(
+            `Missing required fields in data object:\n${schemaHint}\n\n` +
+            `Current data only includes: ${Object.keys(args.data).join(', ')}\n\n` +
+            `Please add the missing fields at the root level of your data object.`
+          );
         }
         
         // If content type is i18n-enabled, locale is required

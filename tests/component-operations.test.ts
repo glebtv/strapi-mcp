@@ -31,10 +31,11 @@ describe('Component Management Operations', () => {
     }, 60000);
 
     it('should create a test component', async () => {
-      const timestamp = Date.now();
+      // Use a shorter random string to avoid long collection names
+      const randomId = Math.random().toString(36).substring(2, 8);
       const componentData = {
-        displayName: `TestSEO${timestamp}`,
-        category: 'seo',
+        displayName: `Test${randomId}`,
+        category: 'shared',  // Use existing category
         icon: 'search',
         attributes: {
           metaTitle: {
@@ -62,7 +63,7 @@ describe('Component Management Operations', () => {
       expect(response).toBeDefined();
       
       // Store component UID for future tests
-      testComponentUid = `seo.test-seo-${timestamp}`;
+      testComponentUid = `shared.test${randomId.toLowerCase()}`;
     }, 60000);
 
     it('should get component schema', async () => {

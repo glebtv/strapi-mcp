@@ -195,6 +195,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
     
     console.error(`[Error] Tool ${name} failed:`, error);
+    console.error(`[Error] Tool arguments:`, JSON.stringify(args, null, 2));
     
     // Extract detailed error information
     let errorMessage = error instanceof Error ? error.message : String(error);
@@ -209,11 +210,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           if (err.path && err.message) {
             // Format path array into a readable string
             const pathStr = Array.isArray(err.path) ? err.path.join('.') : err.path;
-            return `${pathStr}: ${err.message}`;
+            // Make it clear if the field should be at root level
+            const fieldLocation = pathStr ? `data.${pathStr}` : 'data (root level)';
+            return `${fieldLocation}: ${err.message}`;
           }
           return err.message || JSON.stringify(err);
         });
-        errorMessage = `${errorMessage}\n\nValidation errors:\n- ${formattedErrors.join('\n- ')}`;
+        
+        // Check if this is a create_entry or update_entry call to provide more specific help
+        const isContentOperation = ['create_entry', 'update_entry'].includes(name);
+        const tipMessage = isContentOperation 
+          ? '\n\nTip: Use get_content_type_schema first to check ALL required fields. Required fields must be included at the root level of the data object, not nested inside components.'
+          : '\n\nTip: Use get_content_type_schema to check which fields are required before creating entries.';
+        
+        errorMessage = `${errorMessage}\n\nValidation errors:\n- ${formattedErrors.join('\n- ')}${tipMessage}`;
       } else {
         // Fallback for other error structures
         errorMessage = `${errorMessage}\n\nDetails: ${JSON.stringify(details, null, 2)}`;

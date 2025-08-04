@@ -94,6 +94,44 @@ describe('Component Tools', () => {
       expect(mockClient.createComponent).toHaveBeenCalledWith(componentData);
       expect(result).toEqual(mockResponse);
     });
+
+    it('should properly handle HTTP 405 Method Not Allowed error', async () => {
+      const componentData = {
+        displayName: 'Test Component',
+        category: 'test',
+        attributes: {}
+      };
+
+      // Mock the client to throw an error similar to what happens with 405
+      const error = new Error('HTTP 405 Method Not Allowed: Method Not Allowed');
+      (error as any).status = 405;
+      (error as any).statusText = 'Method Not Allowed';
+      mockClient.createComponent.mockRejectedValue(error);
+
+      const tool = tools.find(t => t.name === 'create_component')!;
+      
+      // The tool should throw an error, not return success
+      await expect(tool.execute({ componentData })).rejects.toThrow('HTTP 405 Method Not Allowed: Method Not Allowed');
+      expect(mockClient.createComponent).toHaveBeenCalledWith(componentData);
+    });
+
+    it('should handle other HTTP errors properly', async () => {
+      const componentData = {
+        displayName: 'Test Component',
+        category: 'test',
+        attributes: {}
+      };
+
+      // Mock a 400 Bad Request error
+      const error = new Error('HTTP 400 Bad Request: Invalid component data');
+      (error as any).status = 400;
+      (error as any).statusText = 'Bad Request';
+      mockClient.createComponent.mockRejectedValue(error);
+
+      const tool = tools.find(t => t.name === 'create_component')!;
+      
+      await expect(tool.execute({ componentData })).rejects.toThrow('HTTP 400 Bad Request: Invalid component data');
+    });
   });
 
   describe('update_component', () => {

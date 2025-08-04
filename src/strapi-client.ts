@@ -122,6 +122,13 @@ export class StrapiClient {
       // Check if the response contains a Strapi error structure
       if (response.data && typeof response.data === 'object' && 'error' in response.data && response.data.error) {
         const error = response.data.error as any;
+        
+        // Log the full error for debugging
+        if (config.url?.includes('update-schema')) {
+          console.error('[Update Schema Error] Request:', JSON.stringify(config.data, null, 2));
+          console.error('[Update Schema Error] Response:', JSON.stringify(response.data, null, 2));
+        }
+        
         const errorMessage = error.message || 'Strapi API error';
         const strapiError = new Error(errorMessage);
         
@@ -140,29 +147,68 @@ export class StrapiClient {
         throw new Error('Connection refused, check if Strapi instance is running');
       }
       
-      if (axios.isAxiosError(error) && error.response?.status === 401) {
-        // Try to re-login if using admin auth
-        const reLoginSuccess = await this.authManager.handleAuthError(error);
-        if (reLoginSuccess) {
-          // Retry the request with new auth
-          const response = await this.axios.request<T>(config);
-          
-          // Check for Strapi errors in retry response too
-          if (response.data && typeof response.data === 'object' && 'error' in response.data && response.data.error) {
-            const error = response.data.error as any;
-            const errorMessage = error.message || 'Strapi API error';
-            const strapiError = new Error(errorMessage);
+      // Handle HTTP errors (4xx, 5xx)
+      if (axios.isAxiosError(error) && error.response) {
+        const status = error.response.status;
+        const statusText = error.response.statusText;
+        
+        // Special handling for 401 - try to re-login
+        if (status === 401) {
+          const reLoginSuccess = await this.authManager.handleAuthError(error);
+          if (reLoginSuccess) {
+            // Retry the request with new auth
+            const response = await this.axios.request<T>(config);
             
-            (strapiError as any).status = error.status;
-            (strapiError as any).name = error.name;
-            (strapiError as any).details = error.details;
+            // Check for Strapi errors in retry response too
+            if (response.data && typeof response.data === 'object' && 'error' in response.data && response.data.error) {
+              const error = response.data.error as any;
+              const errorMessage = error.message || 'Strapi API error';
+              const strapiError = new Error(errorMessage);
+              
+              (strapiError as any).status = error.status;
+              (strapiError as any).name = error.name;
+              (strapiError as any).details = error.details;
+              
+              throw strapiError;
+            }
             
-            throw strapiError;
+            return response.data;
           }
-          
-          return response.data;
         }
+        
+        // Extract error message from response
+        let errorMessage = `HTTP ${status} ${statusText}`;
+        
+        // Try to extract more detailed error information
+        if (error.response.data) {
+          if (typeof error.response.data === 'string') {
+            // Plain text error response (like "Method Not Allowed")
+            errorMessage = `${errorMessage}: ${error.response.data}`;
+          } else if (error.response.data.error) {
+            // Strapi error format
+            const strapiError = error.response.data.error;
+            errorMessage = strapiError.message || errorMessage;
+            
+            // Create proper error with all details
+            const detailedError = new Error(errorMessage);
+            (detailedError as any).status = status;
+            (detailedError as any).statusText = statusText;
+            (detailedError as any).details = strapiError.details;
+            throw detailedError;
+          } else if (error.response.data.message) {
+            // Generic message format
+            errorMessage = error.response.data.message;
+          }
+        }
+        
+        // Throw a proper error for all HTTP errors
+        const httpError = new Error(errorMessage);
+        (httpError as any).status = status;
+        (httpError as any).statusText = statusText;
+        throw httpError;
       }
+      
+      // Re-throw other errors as-is
       throw error;
     }
   }
@@ -980,29 +1026,45 @@ export class StrapiClient {
    * Create component
    */
   async createComponent(componentData: any): Promise<any> {
+    // Generate component UID from category and display name
+    const componentName = componentData.displayName.toLowerCase().replace(/\s+/g, '-');
+    const componentUid = `${componentData.category}.${componentName}`;
+    
+    // Build the update-schema payload for creating a component
     const payload = {
-      component: {
-        category: componentData.category,
-        icon: componentData.icon || 'brush',
-        displayName: componentData.displayName,
-        attributes: componentData.attributes || {}
+      data: {
+        components: [{
+          action: 'create',
+          uid: componentUid,
+          category: componentData.category,
+          icon: componentData.icon || 'brush',
+          displayName: componentData.displayName,
+          description: componentData.description || '',
+          collectionName: `components_${componentData.category.replace(/-/g, '_')}_${componentName.replace(/-/g, '_')}`,
+          attributes: Object.entries(componentData.attributes || {}).map(([name, config]: [string, any]) => ({
+            action: 'create',
+            name,
+            properties: config
+          }))
+        }],
+        contentTypes: []
       }
     };
-
+    
     const response = await this.adminRequest<any>(
-      '/admin/content-type-builder/components',
+      '/content-type-builder/update-schema',
       'POST',
       payload
     );
-
+    
     // Wait for Strapi to reload after schema change
     if (this.config.devMode) {
       // Force wait to ensure Strapi has time to start restarting
       await new Promise(resolve => setTimeout(resolve, 2000));
       await this.waitForHealthy();
     }
-
-    return response?.data || response;
+    
+    return response?.uid ? response : { uid: componentUid };
   }
 
   /**
@@ -1011,23 +1073,67 @@ export class StrapiClient {
   async updateComponent(componentUid: string, attributesToUpdate: Record<string, any>): Promise<any> {
     // Fetch current schema
     const currentSchema = await this.getComponentSchema(componentUid);
+    const componentData = currentSchema.schema || currentSchema;
     
-    const payload = {
-      component: {
-        ...currentSchema,
-        attributes: {
-          ...currentSchema.attributes,
-          ...attributesToUpdate
+    // Filter out system fields that shouldn't be included in schema updates
+    const systemFields = ['id', 'documentId', 'createdAt', 'updatedAt', 'publishedAt', 'createdBy', 'updatedBy'];
+    
+    // Build attributes array with ALL existing attributes + new/modified ones
+    const attributesArray = [];
+    const existingAttributes = componentData.attributes || {};
+    
+    // First, add all existing attributes with action: "update"
+    for (const [name, config] of Object.entries(existingAttributes)) {
+      if (!systemFields.includes(name)) {
+        // Check if this attribute is being modified
+        if (attributesToUpdate[name]) {
+          attributesArray.push({
+            action: 'update',
+            name,
+            properties: attributesToUpdate[name]
+          });
+        } else {
+          // Keep existing attribute unchanged
+          attributesArray.push({
+            action: 'update', 
+            name,
+            properties: config
+          });
         }
+      }
+    }
+    
+    // Then add any new attributes with action: "create"
+    for (const [name, config] of Object.entries(attributesToUpdate)) {
+      if (!existingAttributes[name] && !systemFields.includes(name)) {
+        attributesArray.push({
+          action: 'create',
+          name,
+          properties: config
+        });
+      }
+    }
+    
+    // Build the update-schema payload for updating a component
+    const payload = {
+      data: {
+        components: [{
+          action: 'update',
+          uid: componentUid,
+          category: componentData.category || componentUid.split('.')[0],
+          icon: componentData.info?.icon || componentData.icon || 'brush',
+          displayName: componentData.info?.displayName || componentData.displayName,
+          description: componentData.info?.description || componentData.description || '',
+          collectionName: componentData.collectionName,
+          attributes: attributesArray
+        }],
+        contentTypes: []
       }
     };
 
-    // Remove uid from payload
-    delete payload.component.uid;
-
     const response = await this.adminRequest<any>(
-      `/admin/content-type-builder/components/${componentUid}`,
-      'PUT',
+      '/content-type-builder/update-schema',
+      'POST',
       payload
     );
 
