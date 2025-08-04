@@ -75,28 +75,31 @@ describe('Admin Authentication Tests', () => {
         }
       };
 
-      try {
-        const result = await clientWithAdmin.callTool({
-          name: 'create_component',
-          arguments: {
-            componentData
-          }
-        });
+      const result = await clientWithAdmin.callTool({
+        name: 'create_component',
+        arguments: {
+          componentData
+        }
+      });
 
-        const response = JSON.parse(result.content[0].text);
-        expect(response).toBeDefined();
-        expect(response.uid).toBeDefined();
-        expect(response.schema).toBeDefined();
-      } catch (error: any) {
-        // If component already exists or other error, just verify we can list components
-        console.log('Component creation error (may already exist):', error.message);
-        const listResult = await clientWithAdmin.callTool({
-          name: 'list_components',
-          arguments: {}
-        });
-        const components = JSON.parse(listResult.content[0].text);
-        expect(components).toBeInstanceOf(Array);
-      }
+      const response = JSON.parse(result.content[0].text);
+      console.log('Component creation response:', JSON.stringify(response, null, 2));
+      
+      expect(response).toBeDefined();
+      expect(response.uid).toBeDefined();
+      expect(response.schema).toBeDefined();
+      expect(response.schema.attributes).toBeDefined();
+      expect(response.schema.attributes.title).toBeDefined();
+      expect(response.schema.attributes.description).toBeDefined();
+      
+      // Verify the component was actually created by listing all components
+      const listResult = await clientWithAdmin.callTool({
+        name: 'list_components',
+        arguments: {}
+      });
+      const allComponents = JSON.parse(listResult.content[0].text);
+      const createdComponent = allComponents.find((c: any) => c.uid === response.uid);
+      expect(createdComponent).toBeDefined();
     }, 60000);
 
   });

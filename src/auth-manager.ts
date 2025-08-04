@@ -77,7 +77,7 @@ export class AuthManager {
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        // Login attempt - removed log for cleaner output
+        console.error(`[Auth] Login attempt ${attempt}/${maxRetries} to ${this.config.url}/admin/login`);
         
         const response = await axios.post(
           `${this.config.url}/admin/login`,
@@ -101,7 +101,7 @@ export class AuthManager {
         
         if (response.status === 429) {
           // Rate limited - wait and retry
-          console.error(`[Auth] Login rate limited (429), attempt ${attempt}/${maxRetries}`);
+          console.error(`[Auth] Login rate limited (429), attempt ${attempt}/${maxRetries}, waiting ${retryDelay}ms before retry`);
           if (attempt < maxRetries) {
             await new Promise(resolve => setTimeout(resolve, retryDelay));
             retryDelay *= 2; // Exponential backoff
@@ -109,7 +109,9 @@ export class AuthManager {
           }
         }
 
-        console.error(`[Auth] Login failed with status ${response.status}`);
+        // For any other error (including 400/401), fail immediately without retrying
+        const errorData = response.data?.error || response.data;
+        console.error(`[Auth] Login failed with status ${response.status}: ${errorData?.message || 'Unknown error'}`);
         return false;
       } catch (error) {
         // Handle connection refused errors specifically
@@ -118,12 +120,18 @@ export class AuthManager {
           throw new Error('Connection refused, check if Strapi instance is running');
         }
         
-        console.error('[Auth] Login error:', error);
-        if (attempt < maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, retryDelay));
-          retryDelay *= 2;
-          continue;
+        // Only retry on network errors, not authentication errors
+        if (axios.isAxiosError(error) && error.response?.status === 429) {
+          console.error(`[Auth] Login rate limited in catch block, attempt ${attempt}/${maxRetries}`);
+          if (attempt < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+            retryDelay *= 2;
+            continue;
+          }
         }
+        
+        // For any other error, fail immediately
+        console.error('[Auth] Login error:', error);
         return false;
       }
     }

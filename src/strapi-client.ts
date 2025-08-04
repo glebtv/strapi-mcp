@@ -237,15 +237,10 @@ export class StrapiClient {
    * List all content types
    */
   async listContentTypes(): Promise<ContentType[]> {
-    // Use content-manager/init endpoint which provides more complete information including pluginOptions
+    // ONLY use content-manager/init endpoint for listing content types
     const response = await this.adminRequest<any>('/content-manager/init');
     if (response?.data?.contentTypes && Array.isArray(response.data.contentTypes)) {
       return this.processContentTypes(response.data.contentTypes);
-    }
-    // Fallback to content-type-builder endpoint
-    const builderResponse = await this.adminRequest<any>('/admin/content-type-builder/content-types');
-    if (builderResponse?.data && Array.isArray(builderResponse.data)) {
-      return this.processContentTypes(builderResponse.data);
     }
     return [];
   }
@@ -629,50 +624,29 @@ export class StrapiClient {
    * Get content type schema
    */
   async getContentTypeSchema(contentType: string): Promise<any> {
-    // Try the comprehensive content-type-builder/schema endpoint first
-    try {
-      const schemaResponse = await this.adminRequest<any>('/content-type-builder/schema');
+    // ONLY use content-type-builder/schema endpoint for getting content type schemas
+    const schemaResponse = await this.adminRequest<any>('/content-type-builder/schema');
+    
+    // The response contains all schemas in different categories
+    if (schemaResponse?.data) {
+      // Check in contentTypes
+      const contentTypes = schemaResponse.data.contentTypes || {};
+      for (const ct of Object.values(contentTypes)) {
+        if ((ct as any).uid === contentType) {
+          return ct;
+        }
+      }
       
-      // The response contains all schemas in different categories
-      if (schemaResponse?.data) {
-        // Check in contentTypes
-        const contentTypes = schemaResponse.data.contentTypes || {};
-        for (const ct of Object.values(contentTypes)) {
-          if ((ct as any).uid === contentType) {
-            return ct;
-          }
+      // Check in singleTypes
+      const singleTypes = schemaResponse.data.singleTypes || {};
+      for (const st of Object.values(singleTypes)) {
+        if ((st as any).uid === contentType) {
+          return st;
         }
-        
-        // Check in singleTypes
-        const singleTypes = schemaResponse.data.singleTypes || {};
-        for (const st of Object.values(singleTypes)) {
-          if ((st as any).uid === contentType) {
-            return st;
-          }
-        }
-      }
-    } catch (error) {
-      console.error('[Schema] content-type-builder/schema endpoint failed, trying fallbacks:', error);
-      // Continue to fallbacks if this endpoint fails
-    }
-    
-    // Try content-manager/init to get full schema with pluginOptions
-    const initResponse = await this.adminRequest<any>('/content-manager/init');
-    if (initResponse?.data?.contentTypes) {
-      const contentTypes = Array.isArray(initResponse.data.contentTypes) 
-        ? initResponse.data.contentTypes 
-        : [];
-      const found = contentTypes.find((ct: any) => ct.uid === contentType);
-      if (found) {
-        return found;
       }
     }
     
-    // Fallback to content-type-builder endpoint
-    const response = await this.adminRequest<any>(
-      `/admin/content-type-builder/content-types/${contentType}`
-    );
-    return response?.data || response;
+    throw new Error(`Content type ${contentType} not found`);
   }
 
   /**
@@ -877,117 +851,36 @@ export class StrapiClient {
    * List components
    */
   async listComponents(): Promise<ComponentData[]> {
-    // Try both endpoints to get components in the correct format
-    let components: any = {};
+    // ONLY use content-type-builder/schema endpoint for listing components
+    const allSchemas = await this.adminRequest<any>('/content-type-builder/schema');
     
-    // First try content-manager/init which might have components in correct format
-    try {
-      const initResponse = await this.adminRequest<any>('/content-manager/init');
-      if (initResponse?.data?.components) {
-        const initComponents = initResponse.data.components;
-        
-        // Convert array or numeric-keyed object to UID-keyed object
-        if (Array.isArray(initComponents)) {
-          // It's an array, convert to object using uid as key
-          for (const comp of initComponents) {
-            if (comp.uid) {
-              components[comp.uid] = comp;
-            }
-          }
-        } else if (typeof initComponents === 'object') {
-          // It's an object, might have numeric keys or UIDs
-          for (const [key, comp] of Object.entries(initComponents)) {
-            const component = comp as any;
-            if (component.uid) {
-              // Use the uid as the key
-              components[component.uid] = component;
-            } else if (!isNaN(Number(key))) {
-              // Skip numeric keys without uid
-              continue;
-            } else {
-              // Key might be the UID itself
-              components[key] = component;
-            }
-          }
-        }
-      }
-    } catch (error) {
-      // Fall back to schema endpoint
-    }
-    
-    // If we didn't get good data from init, use schema endpoint
-    if (Object.keys(components).length === 0) {
-      const allSchemas = await this.adminRequest<any>('/content-type-builder/schema');
+    // The response structure is { data: { contentTypes: {...}, components: {...} } }
+    if (allSchemas?.data?.components) {
+      const components = allSchemas.data.components;
       
-      // Check if we have schema data in the expected format
-      if (allSchemas?.uid === 'schema' && allSchemas?.data?.components) {
-        components = allSchemas.data.components;
-      }
+      // Transform the components object into an array
+      return Object.entries(components).map(([uid, comp]: [string, any]) => ({
+        uid: uid,
+        category: comp.category || uid.split('.')[0],
+        displayName: comp.info?.displayName || uid.split('.').pop(),
+        description: comp.info?.description,
+        icon: comp.info?.icon,
+        attributes: comp.attributes
+      }));
     }
     
-    // Transform the components object into an array
-    return Object.entries(components).map(([uid, comp]: [string, any]) => ({
-      uid: uid,
-      category: comp.category || uid.split('.')[0],
-      displayName: comp.info?.displayName || uid.split('.').pop(),
-      description: comp.info?.description,
-      icon: comp.info?.icon,
-      attributes: comp.attributes
-    }));
+    return [];
   }
 
   /**
    * Get component schema
    */
   async getComponentSchema(componentUid: string): Promise<any> {
-    // First try content-manager/init endpoint which might have the correct format
-    try {
-      const initResponse = await this.adminRequest<any>('/content-manager/init');
-      
-      // Check if this endpoint has components in the expected format
-      if (initResponse?.data?.components) {
-        const componentsData = initResponse.data.components;
-        
-        // Components might be an array with numeric indices
-        // Convert to object if needed
-        let components: any = {};
-        
-        if (Array.isArray(componentsData)) {
-          // It's an actual array, look for the component by uid
-          const component = componentsData.find((c: any) => c.uid === componentUid);
-          if (component && component.attributes && typeof component.attributes === 'object' && !Array.isArray(component.attributes)) {
-            return {
-              uid: componentUid,
-              schema: component
-            };
-          }
-        } else {
-          // It's an object, could be numeric keys or UIDs
-          for (const [key, component] of Object.entries(componentsData)) {
-            // Check if this component matches our UID
-            if ((component as any).uid === componentUid || key === componentUid) {
-              const comp = component as any;
-              // Check if attributes are already in object format
-              if (comp.attributes && typeof comp.attributes === 'object' && !Array.isArray(comp.attributes)) {
-                return {
-                  uid: componentUid,
-                  schema: comp
-                };
-              }
-            }
-          }
-        }
-      }
-    } catch (error) {
-      // If content-manager/init fails, fall back to content-type-builder/schema
-      console.error('[StrapiClient] Failed to get component from content-manager/init, trying content-type-builder/schema');
-    }
-    
-    // Fall back to content-type-builder/schema endpoint
+    // ONLY use content-type-builder/schema endpoint for getting component schemas
     const allSchemas = await this.adminRequest<any>('/content-type-builder/schema');
     
-    // Check if we have schema data
-    if (allSchemas?.uid === 'schema' && allSchemas?.data) {
+    // The response structure is { data: { contentTypes: {...}, components: {...} } }
+    if (allSchemas?.data) {
       const schemaData = allSchemas.data;
       
       // Look for components in the schema data structure
@@ -1057,14 +950,37 @@ export class StrapiClient {
       payload
     );
     
+    console.error('[StrapiClient] Component creation response:', JSON.stringify(response, null, 2));
+    
     // Wait for Strapi to reload after schema change
     if (this.config.devMode) {
       // Force wait to ensure Strapi has time to start restarting
       await new Promise(resolve => setTimeout(resolve, 2000));
       await this.waitForHealthy();
+      // Additional wait for schema to be fully available
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
     
-    return response?.uid ? response : { uid: componentUid };
+    // The update-schema endpoint only returns { uid: "..." } for created components
+    // We need to fetch the full component schema after creation
+    try {
+      const fullSchema = await this.getComponentSchema(componentUid);
+      return fullSchema;
+    } catch (error) {
+      // If we can't get the schema, return what we know
+      console.error('[StrapiClient] Failed to fetch created component schema:', error);
+      return {
+        uid: componentUid,
+        schema: {
+          uid: componentUid,
+          category: componentData.category,
+          displayName: componentData.displayName,
+          description: componentData.description || '',
+          icon: componentData.icon || 'brush',
+          attributes: componentData.attributes
+        }
+      };
+    }
   }
 
   /**
@@ -1155,17 +1071,31 @@ export class StrapiClient {
     
     // Only add authentication if requested
     if (authenticated) {
-      // First, ensure we're logged in as admin (if admin credentials are available)
-      if (this.config.adminEmail && this.config.adminPassword) {
-        await this.authManager.login();
-      }
+      // Check if this is an admin endpoint
+      const isAdminEndpoint = endpoint.startsWith('admin/') || endpoint.startsWith('/admin/') || 
+                             endpoint.includes('content-manager') || endpoint.includes('content-type-builder');
       
-      // Try to get or create an API token for REST API access
-      const apiToken = await this.tokenManager.getApiToken();
-      if (apiToken) {
-        headers['Authorization'] = `Bearer ${apiToken}`;
+      if (isAdminEndpoint) {
+        // Admin endpoints require JWT token from admin login
+        if (this.config.adminEmail && this.config.adminPassword) {
+          await this.authManager.login();
+          const jwtToken = this.authManager.getJwtToken();
+          if (jwtToken) {
+            headers['Authorization'] = `Bearer ${jwtToken}`;
+          } else {
+            console.error('[StrapiClient] Failed to get JWT token for admin API access');
+          }
+        } else {
+          throw new Error('Admin credentials required for admin endpoint access');
+        }
       } else {
-        console.error('[StrapiClient] Failed to get API token for REST API access');
+        // Regular API endpoints can use API token
+        const apiToken = await this.tokenManager.getApiToken();
+        if (apiToken) {
+          headers['Authorization'] = `Bearer ${apiToken}`;
+        } else {
+          console.error('[StrapiClient] Failed to get API token for REST API access');
+        }
       }
     }
     
@@ -1204,6 +1134,25 @@ export class StrapiClient {
         };
         console.error('[StrapiClient] REST API error:', errorDetails);
         throw new Error(`Strapi API error: ${errorMessage}`, { cause: errorDetails });
+      }
+      
+      // Check if response is HTML (which indicates wrong endpoint or auth failure)
+      const contentType = response.headers['content-type'] || '';
+      if (contentType.includes('text/html') && typeof response.data === 'string') {
+        const isLoginPage = response.data.includes('Strapi Admin') || response.data.includes('strapi--root');
+        const errorMsg = isLoginPage 
+          ? `Authentication failed or wrong endpoint. Got HTML login page for ${method} ${endpoint}. Check if endpoint requires admin auth.`
+          : `Invalid API endpoint ${method} ${endpoint}. Got HTML response instead of JSON.`;
+        
+        console.error('[StrapiClient] HTML response detected:', {
+          endpoint,
+          method,
+          contentType,
+          isLoginPage,
+          htmlSnippet: response.data.substring(0, 200)
+        });
+        
+        throw new Error(errorMsg);
       }
       
       return response.data;

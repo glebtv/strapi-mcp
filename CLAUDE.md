@@ -23,31 +23,41 @@ npm run lint
 ```
 
 ### Testing
+
+**⚠️ IMPORTANT: You MUST use `./scripts/run-tests.sh` to run tests locally! ⚠️**
+
+The test helper script is REQUIRED because it:
+- Ensures Strapi test instance is running
+- Sets proper environment variables (STRAPI_URL, STRAPI_ADMIN_EMAIL, etc.)
+- Builds the TypeScript project before running tests
+- Handles test instance startup if needed
+
 ```bash
-# Run all tests
-npm test
-
-# Run specific test file
-npm test -- tests/admin-auth.test.ts
-
-# Run tests with proper environment setup (recommended)
+# REQUIRED: Use the test helper script for ALL test runs
 ./scripts/run-tests.sh                           # Run all tests
 ./scripts/run-tests.sh unit                      # Run unit tests only
 ./scripts/run-tests.sh integration               # Run integration tests only
 ./scripts/run-tests.sh tests/admin-auth.test.ts  # Run specific test file
 ./scripts/run-tests.sh tests/component-operations.test.ts tests/admin-auth.test.ts  # Run multiple test files
 
-# Run tests with coverage
-npm run test:coverage
+# DO NOT use npm test directly - it will fail without proper environment setup!
+# ❌ WRONG: npm test
+# ❌ WRONG: npm test -- tests/admin-auth.test.ts
+# ✅ CORRECT: ./scripts/run-tests.sh tests/admin-auth.test.ts
 
-# Run tests in watch mode
-npm run test:watch
+# Run tests with coverage (through the helper)
+./scripts/run-tests.sh coverage
 
-# Set up local test Strapi instance (required for integration tests)
+# Run tests in watch mode (through the helper)
+./scripts/run-tests.sh watch
+
+# Set up local test Strapi instance (required before first test run)
 ./scripts/setup-test-strapi.sh setup
 
-# Create test content types in Strapi
-./scripts/create-test-content-types.sh
+# Start/stop/check test Strapi instance
+./scripts/setup-test-strapi.sh start    # Start test instance
+./scripts/setup-test-strapi.sh stop     # Stop test instance
+./scripts/setup-test-strapi.sh status   # Check if running
 
 # Run full CI pipeline locally
 ./scripts/test-ci.sh
@@ -157,7 +167,9 @@ When `STRAPI_DEV_MODE=true`:
 7. **Content Type Updates**: All content type operations use the `update-schema` endpoint in Strapi v5
 
 ### Test Execution Notes
-- Use `@scripts/run-tests.sh` to run tests
+- **ALWAYS** use `./scripts/run-tests.sh` to run tests - never use `npm test` directly
+- The test helper script sets required environment variables and ensures Strapi is running
+- Example: `./scripts/run-tests.sh tests/admin-auth.test.ts`
 
 ### Strapi Specific Memories
 - In the SETUP SCRIPT @scripts/setup-test-strapi.sh WE DO ALL CHANGES TO STRAPI IN THE SETUP SCRIPT

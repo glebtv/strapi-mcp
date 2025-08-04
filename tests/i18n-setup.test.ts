@@ -2,20 +2,13 @@
 import { createTestClient, closeTestClient, parseToolResponse } from './helpers/admin-client.js';
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import type { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import axios from 'axios';
-
-// Create axios instance with shorter timeout to avoid hanging
-const axiosInstance = axios.create({
-  timeout: 5000
-});
 
 describe('i18n Plugin Setup and Configuration', () => {
   let client: Client;
   let transport: StdioClientTransport;
-  const strapiUrl = process.env.STRAPI_URL || 'http://localhost:1337';
 
   beforeAll(async () => {
-    const result = await createTestClient({ useAdminAuth: false, useApiToken: true });
+    const result = await createTestClient({ useAdminAuth: true });
     client = result.client;
     transport = result.transport;
   });
@@ -26,59 +19,48 @@ describe('i18n Plugin Setup and Configuration', () => {
 
   describe('i18n Plugin Availability', () => {
     it('should have i18n plugin installed', async () => {
-      try {
-        // Try to fetch locales endpoint
-        const response = await axiosInstance.get(`${strapiUrl}/api/i18n/locales`);
-        expect(response.status).toBe(200);
-        expect(response.data).toBeInstanceOf(Array);
-      } catch (error: any) {
-        // If i18n is not installed (404) or no permissions (403), skip these tests
-        if (error.response?.status === 404) {
-          console.warn('i18n plugin not installed, skipping i18n tests');
-        } else if (error.response?.status === 403) {
-          console.warn('i18n plugin installed but API token lacks permissions, continuing with limited tests');
-        }
-        expect([403, 404]).toContain(error.response?.status);
-      }
+      // Use the MCP tool to list locales
+      const result = await client.callTool({
+        name: 'list_locales',
+        arguments: {}
+      });
+      
+      const locales = parseToolResponse(result);
+      expect(locales).toBeInstanceOf(Array);
+      expect(locales.length).toBeGreaterThan(0);
     });
 
     it('should have default locale as English', async () => {
-      try {
-        const response = await axiosInstance.get(`${strapiUrl}/api/i18n/locales`);
-        const locales = response.data;
-        
-        const defaultLocale = locales.find((l: any) => l.isDefault);
-        expect(defaultLocale).toBeDefined();
-        expect(defaultLocale.code).toBe('en');
-      } catch (error: any) {
-        // Skip if i18n not available
-        console.log('i18n not available for default locale test:', error.response?.status || error.message);
-        // Let the test framework know this test was skipped due to missing i18n
-        expect([403, 404]).toContain(error.response?.status);
-      }
+      const result = await client.callTool({
+        name: 'list_locales',
+        arguments: {}
+      });
+      
+      const locales = parseToolResponse(result);
+      
+      const defaultLocale = locales.find((l: any) => l.isDefault);
+      expect(defaultLocale).toBeDefined();
+      expect(defaultLocale.code).toBe('en');
     });
 
     it('should check for required locales (ru, zh)', async () => {
-      try {
-        const response = await axiosInstance.get(`${strapiUrl}/api/i18n/locales`);
-        const locales = response.data;
-        const localeCodes = locales.map((l: any) => l.code);
-        
-        // These locales might need to be added manually
-        if (!localeCodes.includes('ru')) {
-          console.warn('Russian locale (ru) not found - you may need to add it manually in Strapi admin');
-        }
-        if (!localeCodes.includes('zh')) {
-          console.warn('Chinese locale (zh) not found - you may need to add it manually in Strapi admin');
-        }
-        
-        expect(localeCodes).toContain('en'); // At least English should be there
-      } catch (error: any) {
-        // Skip if i18n not available
-        console.log('i18n not available for locale check test:', error.response?.status || error.message);
-        // Let the test framework know this test was skipped due to missing i18n
-        expect([403, 404]).toContain(error.response?.status);
+      const result = await client.callTool({
+        name: 'list_locales',
+        arguments: {}
+      });
+      
+      const locales = parseToolResponse(result);
+      const localeCodes = locales.map((l: any) => l.code);
+      
+      // These locales might need to be added manually
+      if (!localeCodes.includes('ru')) {
+        console.warn('Russian locale (ru) not found - you may need to add it manually in Strapi admin');
       }
+      if (!localeCodes.includes('zh')) {
+        console.warn('Chinese locale (zh) not found - you may need to add it manually in Strapi admin');
+      }
+      
+      expect(localeCodes).toContain('en'); // At least English should be there
     });
   });
 
