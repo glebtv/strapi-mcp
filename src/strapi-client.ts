@@ -1191,6 +1191,21 @@ export class StrapiClient {
         validateStatus: (status) => status < 500
       });
       
+      // Check if the response indicates an error
+      if (response.status >= 400) {
+        const error = response.data?.error || response.data;
+        const errorMessage = error?.message || `Request failed with status ${response.status}`;
+        const errorDetails = {
+          status: response.status,
+          statusText: response.statusText,
+          endpoint,
+          method,
+          ...(error?.details && { details: error.details })
+        };
+        console.error('[StrapiClient] REST API error:', errorDetails);
+        throw new Error(`Strapi API error: ${errorMessage}`, { cause: errorDetails });
+      }
+      
       return response.data;
     } catch (error) {
       // Handle connection refused errors specifically

@@ -135,7 +135,11 @@ When `STRAPI_DEV_MODE=true`:
 
 ### Testing Considerations
 
-- Always run `./scripts/setup-test-strapi.sh setup` before running integration tests
+- **IMPORTANT**: Always ensure the proper test Strapi instance is running before tests:
+  - Run `./scripts/setup-test-strapi.sh start` to start the test instance
+  - Run `./scripts/setup-test-strapi.sh status` to check if it's running
+  - The test instance runs on port 1337 with admin credentials: admin@test.com / Admin123!
+- Always run `./scripts/setup-test-strapi.sh setup` before running integration tests for the first time
 - The test Strapi instance uses `strapi-plugin-init-admin-user` for reliable admin creation
 - Tests use a shared MCP server instance to avoid multiple logins and rate limiting
 - Content types must be created before running integration tests that depend on them
