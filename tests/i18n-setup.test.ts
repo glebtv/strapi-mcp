@@ -50,8 +50,11 @@ describe('i18n Plugin Setup and Configuration', () => {
         const defaultLocale = locales.find((l: any) => l.isDefault);
         expect(defaultLocale).toBeDefined();
         expect(defaultLocale.code).toBe('en');
-      } catch (error) {
+      } catch (error: any) {
         // Skip if i18n not available
+        console.log('i18n not available for default locale test:', error.response?.status || error.message);
+        // Let the test framework know this test was skipped due to missing i18n
+        expect([403, 404]).toContain(error.response?.status);
       }
     });
 
@@ -70,8 +73,11 @@ describe('i18n Plugin Setup and Configuration', () => {
         }
         
         expect(localeCodes).toContain('en'); // At least English should be there
-      } catch (error) {
+      } catch (error: any) {
         // Skip if i18n not available
+        console.log('i18n not available for locale check test:', error.response?.status || error.message);
+        // Let the test framework know this test was skipped due to missing i18n
+        expect([403, 404]).toContain(error.response?.status);
       }
     });
   });

@@ -119,6 +119,7 @@ describe('Component Schema Discovery Issue Reproduction', () => {
         expect(response).toBeDefined();
       } catch (error: any) {
         console.error('Direct API error:', error.message);
+        throw error; // Re-throw to fail the test
       }
     }, 60000);
 
@@ -145,6 +146,7 @@ describe('Component Schema Discovery Issue Reproduction', () => {
         expect(components).toHaveProperty('shared.button');
       } catch (error: any) {
         console.error('Schema endpoint error:', error.message);
+        throw error; // Re-throw to fail the test
       }
     }, 60000);
   });
