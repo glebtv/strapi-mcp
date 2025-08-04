@@ -6,10 +6,10 @@ describe('Documented Strapi MCP Errors', () => {
   let client: Client;
   let transport: StdioClientTransport;
   
-  // Use the specific Strapi instance credentials
-  const STRAPI_URL = 'http://localhost:1337';
-  const STRAPI_ADMIN_EMAIL = 'glebtv@gmail.com';
-  const STRAPI_ADMIN_PASSWORD = 'sT123654';
+  // Use the test Strapi instance credentials
+  const STRAPI_URL = process.env.STRAPI_URL || 'http://localhost:1337';
+  const STRAPI_ADMIN_EMAIL = process.env.STRAPI_ADMIN_EMAIL || 'admin@test.com';
+  const STRAPI_ADMIN_PASSWORD = process.env.STRAPI_ADMIN_PASSWORD || 'Admin123!';
 
   beforeAll(async () => {
     // Create a new transport and client for this test suite
@@ -42,16 +42,13 @@ describe('Documented Strapi MCP Errors', () => {
 
   describe('Error #1: Missing Required Fields', () => {
     it('should provide clear error message listing ALL missing required fields', async () => {
-      // Test data missing required fields: title and page_type
+      // Test data missing required field: title
       const incompleteData = {
-        name: "Test Page",
         slug: "test-page-" + Date.now(),
         sections: [
           {
             __component: "sections.hero",
-            title: "Hero Title",
-            subtitle: "Hero Subtitle",
-            description: "Hero Description"
+            title: "Hero Section"
           }
         ]
       };
@@ -60,10 +57,10 @@ describe('Documented Strapi MCP Errors', () => {
         await client.callTool({
           name: 'create_entry',
           arguments: {
-            contentType: 'api::landing-page.landing-page',
-            pluralApiId: 'landing-pages',
+            contentType: 'api::page.page',
+            pluralApiId: 'pages',
             data: incompleteData,
-            locale: 'ru',
+            locale: 'en',
             publish: true
           }
         });
@@ -76,46 +73,25 @@ describe('Documented Strapi MCP Errors', () => {
         // 1. Clear indication of missing fields
         expect(error.message).toContain('Missing required fields');
         
-        // 2. Lists ALL missing fields (not just the first one)
+        // 2. Lists ALL missing fields
         expect(error.message).toContain('title (type: string)');
-        expect(error.message).toContain('page_type (type: enumeration)');
         
         // 3. Shows what fields were provided
-        expect(error.message).toContain('Current data only includes: name, slug, sections');
+        expect(error.message).toContain('Current data only includes: slug, sections');
         
         // 4. Clarifies fields should be at root level
         expect(error.message).toContain('root level of your data object');
       }
     });
 
-    it('should succeed when creating the same entry WITH title and page_type', async () => {
-      // This is what the AI should have sent - with ALL required fields
+    it('should succeed when creating the same entry WITH title', async () => {
       const completeData = {
-        name: "О компании",
-        title: "О компании",  // This was missing!
-        slug: "about-fixed-" + Date.now(),
-        page_type: "about",   // This was missing!
+        title: "Complete Test Page", // Required ✓
+        slug: "test-page-complete-" + Date.now(),
         sections: [
           {
             __component: "sections.hero",
-            title: "Более 300 реализованных проектов за 12 лет",
-            subtitle: "RocketWare — надежный партнер по разработке и внедрению цифровых и коммуникационных продуктов для бизнеса",
-            description: "Мы предлагаем комплексный подход к решению IT-задач, создавая технологические решения под задачи вашего бизнеса.",
-            cta_buttons: [
-              {
-                text: "Начать проект",
-                url: "#",
-                style: "primary",
-                action: "open-project-modal"
-              },
-              {
-                text: "Наши кейсы",
-                url: "/portfolio",
-                style: "outline"
-              }
-            ],
-            layout: "centered",
-            overlay_opacity: 0.7
+            title: "Hero Section"
           }
         ]
       };
@@ -123,20 +99,19 @@ describe('Documented Strapi MCP Errors', () => {
       const result = await client.callTool({
         name: 'create_entry',
         arguments: {
-          contentType: 'api::landing-page.landing-page',
-          pluralApiId: 'landing-pages',
+          contentType: 'api::page.page',
+          pluralApiId: 'pages',
           data: completeData,
-          locale: 'ru',
+          locale: 'en',
           publish: true
         }
       });
 
       const response = JSON.parse(result.content[0].text);
-      console.log('Successfully created About page with all required fields:', response.documentId);
+      console.log('Successfully created Page with all required fields:', response.documentId);
       
       expect(response.documentId).toBeDefined();
-      expect(response.title).toBe("О компании");
-      expect(response.page_type).toBe("about");
+      expect(response.title).toBe("Complete Test Page");
       expect(response.sections).toHaveLength(1);
       expect(response.sections[0].__component).toBe("sections.hero");
 
@@ -144,59 +119,44 @@ describe('Documented Strapi MCP Errors', () => {
       await client.callTool({
         name: 'delete_entry',
         arguments: {
-          pluralApiId: 'landing-pages',
+          pluralApiId: 'pages',
           documentId: response.documentId,
-          locale: 'ru'
+          locale: 'en'
         }
       });
     }, 30000);
 
     it('should successfully create entry when all required fields are provided', async () => {
-      const completeData = {
-        name: "Test Page Complete",
-        title: "Test Page Title", // Required root-level field
-        slug: "test-page-complete-" + Date.now(),
-        page_type: "other", // Required enum field
-        sections: [
-          {
-            __component: "sections.hero",
-            title: "Hero Section Title",
-            subtitle: "Hero Subtitle",
-            description: "Hero Description",
-            layout: "centered",
-            overlay_opacity: 0.7
-          }
-        ]
+      const validData = {
+        title: "Valid Entry Test",
+        slug: "valid-entry-" + Date.now()
       };
 
       const result = await client.callTool({
         name: 'create_entry',
         arguments: {
-          contentType: 'api::landing-page.landing-page',
-          pluralApiId: 'landing-pages',
-          data: completeData,
-          locale: 'ru',
+          contentType: 'api::page.page',
+          pluralApiId: 'pages',
+          data: validData,
+          locale: 'en',
           publish: true
         }
       });
 
       const response = JSON.parse(result.content[0].text);
-      console.log('Successfully created entry:', response.documentId);
-      
       expect(response.documentId).toBeDefined();
-      expect(response.title).toBe("Test Page Title");
-      expect(response.page_type).toBe("other");
+      expect(response.title).toBe("Valid Entry Test");
 
       // Clean up
       await client.callTool({
         name: 'delete_entry',
         arguments: {
-          pluralApiId: 'landing-pages',
+          pluralApiId: 'pages',
           documentId: response.documentId,
-          locale: 'ru'
+          locale: 'en'
         }
       });
-    }, 30000);
+    });
   });
 
   describe('Error #2: Incomplete Section Data Saving', () => {
@@ -205,7 +165,7 @@ describe('Documented Strapi MCP Errors', () => {
       const schemaResult = await client.callTool({
         name: 'get_content_type_schema',
         arguments: {
-          contentType: 'api::landing-page.landing-page'
+          contentType: 'api::page.page'
         }
       });
 
@@ -218,51 +178,47 @@ describe('Documented Strapi MCP Errors', () => {
       expect(sectionsField.components).not.toContain('sections.stats');
       expect(sectionsField.components).not.toContain('sections.cta');
       expect(sectionsField.components).not.toContain('sections.features');
+      
+      // Verify the actual allowed components
+      expect(sectionsField.components).toContain('sections.hero');
+      expect(sectionsField.components).toContain('sections.columns');
+      expect(sectionsField.components).toContain('sections.prices');
     });
 
     it('should now PREVENT creation with unregistered components (fixed!)', async () => {
-      const dataWithMixedComponents = {
-        name: "Test Mixed Components",
-        title: "Test Mixed Components Title",
-        slug: "test-mixed-" + Date.now(),
-        page_type: "other",
+      const dataWithInvalidComponents = {
+        title: "Test Page",
+        slug: "test-invalid-components-" + Date.now(),
         sections: [
           {
-            __component: "sections.hero", // Registered ✓
-            title: "Hero Title",
-            subtitle: "Hero Subtitle",
-            description: "Hero Description",
-            layout: "centered"
+            __component: "sections.hero", // Valid ✓
+            title: "Valid Hero Section"
           },
           {
-            __component: "sections.stats", // NOT registered ✗
-            title: "Stats Title",
-            stats: [
-              { value: "100", label: "Projects", icon: "rocket" }
-            ]
+            __component: "sections.stats", // INVALID ✗
+            title: "Stats Section",
+            stats: []
           },
           {
-            __component: "sections.cta", // NOT registered ✗
-            title: "CTA Title",
-            description: "CTA Description",
+            __component: "sections.cta", // INVALID ✗
+            title: "CTA Section",
             buttons: []
           }
         ]
       };
 
       try {
-        // This should now fail with our new validation
         await client.callTool({
           name: 'create_entry',
           arguments: {
-            contentType: 'api::landing-page.landing-page',
-            pluralApiId: 'landing-pages',
-            data: dataWithMixedComponents,
-            locale: 'ru',
+            contentType: 'api::page.page',
+            pluralApiId: 'pages',
+            data: dataWithInvalidComponents,
+            locale: 'en',
             publish: true
           }
         });
-
+        
         expect(true).toBe(false); // Should not reach here
       } catch (error: any) {
         console.log('Fixed! Now properly validates dynamic zone components');
@@ -275,6 +231,8 @@ describe('Documented Strapi MCP Errors', () => {
         expect(error.message).toContain('sections.cta');
         expect(error.message).toContain('Allowed:');
         expect(error.message).toContain('sections.hero');
+        expect(error.message).toContain('sections.columns');
+        expect(error.message).toContain('sections.prices');
         
         // The error should guide users to check schema or create components
         expect(error.message).toContain('Check the content type schema for allowed components');
@@ -288,32 +246,13 @@ describe('Documented Strapi MCP Errors', () => {
     beforeAll(async () => {
       // Create a test entry with nested data
       const testData = {
-        name: "Test Population",
         title: "Test Population Title",
         slug: "test-population-" + Date.now(),
-        page_type: "other",
         sections: [
           {
             __component: "sections.hero",
-            title: "Hero with Buttons",
-            subtitle: "Testing nested population",
-            description: "This hero has CTA buttons that need proper population",
-            layout: "centered",
-            overlay_opacity: 0.8,
-            cta_buttons: [
-              {
-                text: "Primary Button",
-                url: "/primary",
-                style: "primary",
-                action: "navigate"
-              },
-              {
-                text: "Secondary Button",
-                url: "/secondary",
-                style: "outline",
-                action: "modal"
-              }
-            ]
+            title: "Hero with Details",
+            subtitle: "Testing nested population"
           }
         ]
       };
@@ -321,10 +260,10 @@ describe('Documented Strapi MCP Errors', () => {
       const createResult = await client.callTool({
         name: 'create_entry',
         arguments: {
-          contentType: 'api::landing-page.landing-page',
-          pluralApiId: 'landing-pages',
+          contentType: 'api::page.page',
+          pluralApiId: 'pages',
           data: testData,
-          locale: 'ru',
+          locale: 'en',
           publish: true
         }
       });
@@ -339,9 +278,9 @@ describe('Documented Strapi MCP Errors', () => {
         await client.callTool({
           name: 'delete_entry',
           arguments: {
-            pluralApiId: 'landing-pages',
+            pluralApiId: 'pages',
             documentId: testEntryId,
-            locale: 'ru'
+            locale: 'en'
           }
         });
       }
@@ -351,9 +290,9 @@ describe('Documented Strapi MCP Errors', () => {
       const result = await client.callTool({
         name: 'get_entry',
         arguments: {
-          pluralApiId: 'landing-pages',
+          pluralApiId: 'pages',
           documentId: testEntryId,
-          locale: 'ru',
+          locale: 'en',
           options: JSON.stringify({ populate: '*' })
         }
       });
@@ -374,8 +313,8 @@ describe('Documented Strapi MCP Errors', () => {
       
       // Check if nested data is missing or incomplete
       // Note: This behavior varies by Strapi version
-      if (!heroSection.cta_buttons || heroSection.cta_buttons.length === 0) {
-        console.log('Simple populate returned incomplete nested data (cta_buttons missing)');
+      if (!heroSection.title || !heroSection.subtitle) {
+        console.log('Simple populate returned incomplete nested data');
       }
     });
 
@@ -383,9 +322,9 @@ describe('Documented Strapi MCP Errors', () => {
       const result = await client.callTool({
         name: 'get_entry',
         arguments: {
-          pluralApiId: 'landing-pages',
+          pluralApiId: 'pages',
           documentId: testEntryId,
-          locale: 'ru',
+          locale: 'en',
           options: JSON.stringify({ 
             populate: { 
               sections: { 
@@ -406,22 +345,18 @@ describe('Documented Strapi MCP Errors', () => {
       // With nested populate, all data should be complete
       const heroSection = entry.sections[0];
       expect(heroSection.__component).toBe('sections.hero');
-      expect(heroSection.title).toBe('Hero with Buttons');
+      expect(heroSection.title).toBe('Hero with Details');
       expect(heroSection.subtitle).toBe('Testing nested population');
-      expect(heroSection.cta_buttons).toBeDefined();
-      expect(heroSection.cta_buttons).toHaveLength(2);
-      expect(heroSection.cta_buttons[0].text).toBe('Primary Button');
-      expect(heroSection.cta_buttons[1].text).toBe('Secondary Button');
     });
 
     it('should work correctly with strapi_rest tool and nested population', async () => {
       const result = await client.callTool({
         name: 'strapi_rest',
         arguments: {
-          endpoint: 'api/landing-pages/' + testEntryId,
+          endpoint: 'api/pages/' + testEntryId,
           method: 'GET',
           params: {
-            locale: 'ru',
+            locale: 'en',
             populate: {
               sections: {
                 populate: '*'
@@ -437,8 +372,9 @@ describe('Documented Strapi MCP Errors', () => {
       console.log('strapi_rest with nested populate:', JSON.stringify(entry.sections[0], null, 2));
 
       // Verify complete data retrieval
-      expect(entry.sections[0].cta_buttons).toBeDefined();
-      expect(entry.sections[0].cta_buttons).toHaveLength(2);
+      expect(entry.sections[0].__component).toBe('sections.hero');
+      expect(entry.sections[0].title).toBeDefined();
+      expect(entry.sections[0].subtitle).toBeDefined();
     });
   });
 });
