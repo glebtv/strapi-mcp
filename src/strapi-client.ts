@@ -633,7 +633,49 @@ export class StrapiClient {
       const contentTypes = schemaResponse.data.contentTypes || {};
       for (const ct of Object.values(contentTypes)) {
         if ((ct as any).uid === contentType) {
-          return ct;
+          const schema = ct as any;
+          
+          // Fix attributes if they're in the wrong format
+          // Sometimes Strapi returns attributes as an object with numeric keys like {"0": {...}, "1": {...}}
+          // These numeric keys are array indices, not field names
+          if (schema.attributes) {
+            const attrs = schema.attributes;
+            
+            // Check if we have an object with numeric keys (incorrectly serialized array)
+            const keys = Object.keys(attrs);
+            const hasNumericKeys = keys.some(key => /^\d+$/.test(key));
+            
+            if (hasNumericKeys) {
+              // This is an incorrectly serialized array - convert it properly
+              const attributesObj: Record<string, any> = {};
+              
+              // Process all values, using the 'name' field from each attribute as the key
+              for (const key of keys) {
+                const attr = attrs[key];
+                if (attr && attr.name && !(/^\d+$/.test(attr.name))) {
+                  // Use the actual field name from the attribute, not the numeric key
+                  const { name, ...attrProps } = attr;
+                  attributesObj[name] = attrProps;
+                }
+              }
+              
+              schema.attributes = attributesObj;
+            } else if (Array.isArray(attrs)) {
+              // Handle actual array format
+              const attributesObj: Record<string, any> = {};
+              
+              for (const attr of attrs) {
+                if (attr && attr.name) {
+                  const { name, ...attrProps } = attr;
+                  attributesObj[name] = attrProps;
+                }
+              }
+              
+              schema.attributes = attributesObj;
+            }
+          }
+          
+          return schema;
         }
       }
       
@@ -641,7 +683,49 @@ export class StrapiClient {
       const singleTypes = schemaResponse.data.singleTypes || {};
       for (const st of Object.values(singleTypes)) {
         if ((st as any).uid === contentType) {
-          return st;
+          const schema = st as any;
+          
+          // Fix attributes if they're in the wrong format
+          // Sometimes Strapi returns attributes as an object with numeric keys like {"0": {...}, "1": {...}}
+          // These numeric keys are array indices, not field names
+          if (schema.attributes) {
+            const attrs = schema.attributes;
+            
+            // Check if we have an object with numeric keys (incorrectly serialized array)
+            const keys = Object.keys(attrs);
+            const hasNumericKeys = keys.some(key => /^\d+$/.test(key));
+            
+            if (hasNumericKeys) {
+              // This is an incorrectly serialized array - convert it properly
+              const attributesObj: Record<string, any> = {};
+              
+              // Process all values, using the 'name' field from each attribute as the key
+              for (const key of keys) {
+                const attr = attrs[key];
+                if (attr && attr.name && !(/^\d+$/.test(attr.name))) {
+                  // Use the actual field name from the attribute, not the numeric key
+                  const { name, ...attrProps } = attr;
+                  attributesObj[name] = attrProps;
+                }
+              }
+              
+              schema.attributes = attributesObj;
+            } else if (Array.isArray(attrs)) {
+              // Handle actual array format
+              const attributesObj: Record<string, any> = {};
+              
+              for (const attr of attrs) {
+                if (attr && attr.name) {
+                  const { name, ...attrProps } = attr;
+                  attributesObj[name] = attrProps;
+                }
+              }
+              
+              schema.attributes = attributesObj;
+            }
+          }
+          
+          return schema;
         }
       }
     }

@@ -154,20 +154,31 @@ export function contentManagementTools(client: StrapiClient): Tool[] {
         const schema = await client.getContentTypeSchema(args.contentType);
         
         // Check for missing required fields
-        const missingFields: string[] = [];
-        if (schema.attributes && Array.isArray(schema.attributes)) {
-          for (const attr of schema.attributes) {
-            if (attr.required && attr.name && !(attr.name in args.data)) {
-              missingFields.push(attr.name);
+        const missingFields: Array<{ name: string; type?: string }> = [];
+        
+        // Handle both object and array formats for attributes
+        if (schema.attributes) {
+          if (Array.isArray(schema.attributes)) {
+            // Attributes as array (some Strapi v5 responses)
+            for (const attr of schema.attributes) {
+              if (attr.required && attr.name && !(attr.name in args.data)) {
+                missingFields.push({ name: attr.name, type: attr.type });
+              }
+            }
+          } else if (typeof schema.attributes === 'object') {
+            // Attributes as object (standard format)
+            for (const [name, attr] of Object.entries(schema.attributes)) {
+              if ((attr as any).required && !(name in args.data)) {
+                missingFields.push({ name, type: (attr as any).type });
+              }
             }
           }
         }
         
         if (missingFields.length > 0) {
-          const schemaHint = missingFields.map(field => {
-            const attr = schema.attributes.find((a: any) => a.name === field);
-            return `- ${field} (type: ${attr?.type || 'unknown'})`;
-          }).join('\n');
+          const schemaHint = missingFields.map(field => 
+            `- ${field.name} (type: ${field.type || 'unknown'})`
+          ).join('\n');
           
           throw new Error(
             `Missing required fields in data object:\n${schemaHint}\n\n` +
