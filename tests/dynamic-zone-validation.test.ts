@@ -81,13 +81,16 @@ describe('Dynamic Zone Component Validation', () => {
       } catch (error: any) {
         console.log('Validation error:', error.message);
         
-        // Verify we get a clear error about invalid components
-        expect(error.message).toContain('Dynamic zone validation failed');
-        expect(error.message).toContain('Invalid components for dynamic zone \'sections\'');
-        expect(error.message).toContain('sections.stats');
-        expect(error.message).toContain('sections.features');
-        expect(error.message).toContain('Allowed:');
+        // Verify we get a validation error from Strapi
+        expect(error.message).toContain('Validation errors:');
+        expect(error.message).toContain('sections[1].__component must be one of the following values');
+        expect(error.message).toContain('sections[2].__component must be one of the following values');
         expect(error.message).toContain('sections.hero');
+        expect(error.message).toContain('sections.columns');
+        expect(error.message).toContain('sections.prices');
+        
+        // The error should contain the MCP error code
+        expect(error.message).toContain('MCP error -32603');
       }
     });
 
@@ -158,8 +161,9 @@ describe('Dynamic Zone Component Validation', () => {
         
         expect(true).toBe(false); // Should not reach here
       } catch (error: any) {
-        expect(error.message).toContain('Dynamic zone validation failed');
-        expect(error.message).toContain('Component in sections is missing __component field');
+        expect(error.message).toContain('Validation errors:');
+        expect(error.message).toContain('sections[0].__component is a required field');
+        expect(error.message).toContain('MCP error -32603');
       }
     });
   });
@@ -239,8 +243,12 @@ describe('Dynamic Zone Component Validation', () => {
         
         expect(true).toBe(false); // Should not reach here
       } catch (error: any) {
-        expect(error.message).toContain('Dynamic zone validation failed');
-        expect(error.message).toContain('sections.cta');
+        expect(error.message).toContain('Validation errors:');
+        expect(error.message).toContain('sections[1].__component must be one of the following values');
+        expect(error.message).toContain('sections.hero');
+        expect(error.message).toContain('sections.columns');
+        expect(error.message).toContain('sections.prices');
+        expect(error.message).toContain('MCP error -32603');
       }
     });
 

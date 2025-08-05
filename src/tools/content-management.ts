@@ -17,54 +17,6 @@ const QueryOptionsSchema = z.object({
   locale: z.string().optional()
 });
 
-// Helper function to validate dynamic zone components
-function validateDynamicZoneComponents(data: any, schema: any): void {
-  const errors: string[] = [];
-  
-  if (!schema.attributes || !Array.isArray(schema.attributes)) {
-    return; // No attributes to validate
-  }
-  
-  for (const attr of schema.attributes) {
-    if (attr.type === 'dynamiczone' && data[attr.name]) {
-      const fieldName = attr.name;
-      const allowedComponents = attr.components || [];
-      const providedComponents = data[fieldName];
-      
-      if (!Array.isArray(providedComponents)) {
-        continue; // Skip if not an array
-      }
-      
-      const invalidComponents: string[] = [];
-      
-      for (const component of providedComponents) {
-        if (!component.__component) {
-          errors.push(`Component in ${fieldName} is missing __component field`);
-          continue;
-        }
-        
-        if (!allowedComponents.includes(component.__component)) {
-          invalidComponents.push(component.__component);
-        }
-      }
-      
-      if (invalidComponents.length > 0) {
-        errors.push(
-          `Invalid components for dynamic zone '${fieldName}':\n` +
-          `  Provided: ${invalidComponents.join(', ')}\n` +
-          `  Allowed: ${allowedComponents.join(', ')}`
-        );
-      }
-    }
-  }
-  
-  if (errors.length > 0) {
-    throw new Error(
-      'Dynamic zone validation failed:\n' + errors.join('\n\n') +
-      '\n\nTip: Check the content type schema for allowed components or create missing components in Strapi admin.'
-    );
-  }
-}
 
 export function contentManagementTools(client: StrapiClient): Tool[] {
   return [
@@ -187,8 +139,6 @@ export function contentManagementTools(client: StrapiClient): Tool[] {
           );
         }
         
-        // Validate dynamic zone components
-        validateDynamicZoneComponents(args.data, schema);
         
         // If content type is i18n-enabled, locale is required
         if (contentType.isLocalized && !args.locale) {
@@ -230,8 +180,6 @@ export function contentManagementTools(client: StrapiClient): Tool[] {
         // Get the full schema to validate dynamic zones
         const schema = await client.getContentTypeSchema(contentType.uid);
         
-        // Validate dynamic zone components
-        validateDynamicZoneComponents(args.data, schema);
         
         // If content type is i18n-enabled, locale is required
         if (contentType.isLocalized && !args.locale) {

@@ -170,7 +170,8 @@ describe('Documented Strapi MCP Errors', () => {
       });
 
       const schema = JSON.parse(schemaResult.content[0].text);
-      const sectionsField = schema.attributes.find((attr: any) => attr.name === 'sections');
+      // schema.attributes is now an object, not an array
+      const sectionsField = schema.attributes.sections;
       
       console.log('Allowed dynamic zone components:', sectionsField.components);
       
@@ -224,18 +225,16 @@ describe('Documented Strapi MCP Errors', () => {
         console.log('Fixed! Now properly validates dynamic zone components');
         console.log('Error message:', error.message);
         
-        // Verify we get a clear error about invalid components
-        expect(error.message).toContain('Dynamic zone validation failed');
-        expect(error.message).toContain('Invalid components for dynamic zone \'sections\'');
-        expect(error.message).toContain('sections.stats');
-        expect(error.message).toContain('sections.cta');
-        expect(error.message).toContain('Allowed:');
+        // Verify we get a validation error from Strapi
+        expect(error.message).toContain('Validation errors:');
+        expect(error.message).toContain('sections[1].__component must be one of the following values');
+        expect(error.message).toContain('sections[2].__component must be one of the following values');
         expect(error.message).toContain('sections.hero');
         expect(error.message).toContain('sections.columns');
         expect(error.message).toContain('sections.prices');
         
-        // The error should guide users to check schema or create components
-        expect(error.message).toContain('Check the content type schema for allowed components');
+        // The error should contain the MCP error code
+        expect(error.message).toContain('MCP error -32603');
       }
     }, 30000);
   });
