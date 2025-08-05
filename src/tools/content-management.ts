@@ -172,7 +172,7 @@ export function contentManagementTools(client: StrapiClient): Tool[] {
           throw new Error(
             `Missing required fields in data object:\n${schemaHint}\n\n` +
             `Current data only includes: ${Object.keys(args.data).join(', ')}\n\n` +
-            `Please add the missing fields at the root level of your data object.`
+            'Please add the missing fields at the root level of your data object.'
           );
         }
         

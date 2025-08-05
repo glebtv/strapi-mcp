@@ -260,9 +260,9 @@ describe('Error Handling', () => {
 
       try {
         await invalidAdminClient.connect(invalidAdminTransport);
-        // Try a component operation which requires admin auth
+        // Try a content type operation which requires admin auth
         await invalidAdminClient.callTool({
-          name: 'list_components',
+          name: 'list_content_types',
           arguments: {}
         });
         throw new Error('Should have thrown an error');

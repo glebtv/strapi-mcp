@@ -29,6 +29,7 @@ describe('i18n Content Type Configuration', () => {
     console.log('Current i18n status:', currentSchema.pluginOptions?.i18n);
 
     // Update content type to enable i18n
+    // Include all existing attributes to avoid deletion
     const updateResult = await client.callTool({
       name: 'update_content_type',
       arguments: {
@@ -50,6 +51,21 @@ describe('i18n Content Type Configuration', () => {
                 localized: true
               }
             }
+          },
+          slug: {
+            type: 'uid',
+            targetField: 'name',
+            pluginOptions: {
+              i18n: {
+                localized: true
+              }
+            }
+          },
+          technologies: {
+            type: 'relation',
+            relation: 'manyToMany',
+            target: 'api::technology.technology',
+            inversedBy: 'projects'
           }
         },
         pluginOptions: {

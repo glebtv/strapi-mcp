@@ -752,15 +752,26 @@ export class StrapiClient {
     const currentSchema = await this.getContentTypeSchema(contentType);
     
     // SAFETY CHECK: Compare existing attributes with provided attributes
-    const existingAttributeNames = Object.keys(currentSchema.attributes || {});
+    // Handle both array and object formats for attributes
+    let existingAttributeNames: string[] = [];
+    if (Array.isArray(currentSchema.attributes)) {
+      // If attributes is an array, extract attribute names from the array
+      existingAttributeNames = currentSchema.attributes
+        .filter((attr: any) => attr && typeof attr === 'object' && attr.name)
+        .map((attr: any) => attr.name);
+    } else if (currentSchema.attributes && typeof currentSchema.attributes === 'object') {
+      // If attributes is an object, use the keys
+      existingAttributeNames = Object.keys(currentSchema.attributes);
+    }
+    
     const providedAttributeNames = Object.keys(attributes);
     const deletedAttributes = existingAttributeNames.filter(name => !providedAttributeNames.includes(name));
     
     if (deletedAttributes.length > 1) {
       throw new Error(
         `SAFETY BLOCK: This update would delete ${deletedAttributes.length} attributes: ${deletedAttributes.join(', ')}. ` +
-        `To prevent data loss, updates that delete more than one field at a time are blocked. ` +
-        `If this is intentional, please update attributes one at a time or modify the schema files directly.`
+        'To prevent data loss, updates that delete more than one field at a time are blocked. ' +
+        'If this is intentional, please update attributes one at a time or modify the schema files directly.'
       );
     }
     

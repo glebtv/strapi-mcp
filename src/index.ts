@@ -81,8 +81,8 @@ if (!fs.existsSync(LOG_DIR)) {
   fs.mkdirSync(LOG_DIR, { recursive: true });
 }
 
-// Log tool call
-function logToolCall(toolName: string, args: any, result: any, error?: any, duration?: number) {
+// Log tool call asynchronously to avoid blocking the event loop
+async function logToolCall(toolName: string, args: any, result: any, error?: any, duration?: number) {
   const timestamp = new Date().toISOString();
   const logEntry = {
     timestamp,
@@ -98,7 +98,8 @@ function logToolCall(toolName: string, args: any, result: any, error?: any, dura
   };
   
   try {
-    fs.appendFileSync(LOG_FILE, JSON.stringify(logEntry) + '\n');
+    // Use promises version to avoid blocking
+    await fs.promises.appendFile(LOG_FILE, JSON.stringify(logEntry) + '\n');
   } catch (e) {
     console.error('[Warning] Failed to write to log file:', e);
   }
@@ -145,13 +146,36 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     
     const [, pluralApiId, documentId, queryString] = match;
     
-    // Parse query parameters
+    // Parse query parameters with protection against prototype pollution
     let options: any = {};
     if (queryString) {
       const params = new URLSearchParams(queryString);
       for (const [key, value] of params) {
+        // Protect against prototype pollution
+        if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+          console.warn(`[Security] Blocked potentially malicious parameter: ${key}`);
+          continue;
+        }
+        
+        // Check for nested prototype pollution attempts
+        if (key.includes('.') && (
+          key.includes('__proto__') || 
+          key.includes('constructor.prototype') || 
+          key.includes('prototype.')
+        )) {
+          console.warn(`[Security] Blocked potentially malicious nested parameter: ${key}`);
+          continue;
+        }
+        
         try {
-          options[key] = JSON.parse(value);
+          // Use Object.create(null) to create object without prototype
+          const parsed = JSON.parse(value);
+          if (typeof parsed === 'object' && parsed !== null) {
+            // Sanitize parsed objects to prevent prototype pollution
+            options[key] = JSON.parse(JSON.stringify(parsed));
+          } else {
+            options[key] = parsed;
+          }
         } catch {
           options[key] = value;
         }
@@ -218,7 +242,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     
     // Log successful call
     const duration = Date.now() - startTime;
-    logToolCall(name, args, result, undefined, duration);
+    // Don't await to avoid blocking the response
+    logToolCall(name, args, result, undefined, duration).catch(e => 
+      console.error('[Warning] Failed to log tool call:', e)
+    );
     
     // Also log to console for critical schema operations
     if (['create_content_type', 'update_content_type', 'delete_content_type'].includes(name)) {
@@ -242,10 +269,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     
     // Log error
     const duration = Date.now() - startTime;
-    logToolCall(name, args, null, error, duration);
+    // Don't await to avoid blocking the response
+    logToolCall(name, args, null, error, duration).catch(e => 
+      console.error('[Warning] Failed to log tool call error:', e)
+    );
     
     console.error(`[Error] Tool ${name} failed:`, error);
-    console.error(`[Error] Tool arguments:`, JSON.stringify(args, null, 2));
+    console.error('[Error] Tool arguments:', JSON.stringify(args, null, 2));
     
     // Extract detailed error information
     let errorMessage = error instanceof Error ? error.message : String(error);
@@ -290,6 +320,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 // Handle errors
 process.on('unhandledRejection', (reason, _promise) => {
   console.error('[Fatal] Unhandled Rejection:', reason);
+  // Exit immediately to prevent inconsistent state
+  process.exit(1);
 });
 
 process.on('uncaughtException', (error) => {
@@ -303,13 +335,13 @@ async function main() {
   await server.connect(transport);
   
   // Log startup info
-  console.log(`[INFO] Strapi MCP Server v0.4.1 started`);
+  console.log('[INFO] Strapi MCP Server v0.4.1 started');
   console.log(`[INFO] Tool call logs will be written to: ${LOG_FILE}`);
   if (STRAPI_DEV_MODE) {
-    console.log(`[INFO] Dev mode enabled - schema modification tools are available`);
-    console.log(`[WARNING] Schema modification tools can cause data loss if used incorrectly!`);
+    console.log('[INFO] Dev mode enabled - schema modification tools are available');
+    console.log('[WARNING] Schema modification tools can cause data loss if used incorrectly!');
   } else {
-    console.log(`[INFO] Dev mode disabled - schema modification tools are hidden for safety`);
+    console.log('[INFO] Dev mode disabled - schema modification tools are hidden for safety');
   }
 }
 
