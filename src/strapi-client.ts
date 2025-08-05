@@ -751,6 +751,23 @@ export class StrapiClient {
     // Fetch current schema
     const currentSchema = await this.getContentTypeSchema(contentType);
     
+    // SAFETY CHECK: Compare existing attributes with provided attributes
+    const existingAttributeNames = Object.keys(currentSchema.attributes || {});
+    const providedAttributeNames = Object.keys(attributes);
+    const deletedAttributes = existingAttributeNames.filter(name => !providedAttributeNames.includes(name));
+    
+    if (deletedAttributes.length > 1) {
+      throw new Error(
+        `SAFETY BLOCK: This update would delete ${deletedAttributes.length} attributes: ${deletedAttributes.join(', ')}. ` +
+        `To prevent data loss, updates that delete more than one field at a time are blocked. ` +
+        `If this is intentional, please update attributes one at a time or modify the schema files directly.`
+      );
+    }
+    
+    if (deletedAttributes.length === 1) {
+      console.warn(`[WARNING] This update will delete attribute: ${deletedAttributes[0]}`);
+    }
+    
     // Build the update payload in the format expected by update-schema endpoint
     const parts = contentType.split('::');
     const modelName = parts[1]?.split('.')[1] || parts[0];
@@ -773,24 +790,27 @@ export class StrapiClient {
           pluginOptions: pluginOptions,
           collectionName: currentSchema.collectionName || `${modelName}s`,
           modelType: 'contentType',
-          attributes: Object.entries(attributes).map(([name, config]: [string, any]) => {
-            // Find existing attribute - handle both array and object formats
-            let existingAttr = null;
-            if (Array.isArray(currentSchema.attributes)) {
-              existingAttr = currentSchema.attributes.find((attr: any) => attr.name === name);
-            } else if (currentSchema.attributes && typeof currentSchema.attributes === 'object') {
-              existingAttr = currentSchema.attributes[name];
-            }
-            
-            // For update, we need the full config including pluginOptions
-            const properties = existingAttr ? { ...existingAttr, ...config } : config;
-            
-            return {
-              action: 'update',
-              name,
-              properties
-            };
-          }),
+          attributes: [
+            // First, include ALL existing attributes (to preserve them)
+            ...Object.entries(currentSchema.attributes || {}).map(([name, existingConfig]: [string, any]) => {
+              // Check if this attribute is being updated
+              const updatedConfig = attributes[name];
+              
+              return {
+                action: 'update',
+                name,
+                properties: updatedConfig ? { ...existingConfig, ...updatedConfig } : existingConfig
+              };
+            }),
+            // Then, add any NEW attributes that don't exist yet
+            ...Object.entries(attributes)
+              .filter(([name]) => !currentSchema.attributes || !currentSchema.attributes[name])
+              .map(([name, config]: [string, any]) => ({
+                action: 'update',
+                name,
+                properties: config
+              }))
+          ],
           status: 'CHANGED',
           draftAndPublish: currentSchema.draftAndPublish !== false,
           singularName: currentSchema.singularName || modelName,

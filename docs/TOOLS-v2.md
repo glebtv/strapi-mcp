@@ -216,11 +216,18 @@ use_mcp_tool(
 ```
 
 #### `update_content_type`
-Updates an existing content type by adding or modifying attributes.
+**⚠️ WARNING: This tool does NOT support partial updates. It will REPLACE ALL attributes with only the ones you provide, potentially causing data loss!**
+
+Updates an existing content type's attributes. This is a destructive operation that replaces the entire attributes object.
+
+**CRITICAL**: To add a single field without losing existing fields, you must:
+1. First use `get_content_type_schema` to get ALL current attributes
+2. Include ALL existing attributes plus your new field in the update call
+3. Consider modifying Strapi's JSON schema files directly as a safer alternative
 
 **Arguments**:
 - `contentType` (string, required): The content type UID
-- `attributes` (object, required): Attributes to add or update
+- `attributes` (object, required): Complete set of attributes (this will REPLACE all existing attributes)
 - `pluginOptions` (object, optional): Plugin options to update
 
 #### `delete_content_type`

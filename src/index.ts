@@ -16,6 +16,9 @@ import dotenv from 'dotenv';
 import { StrapiClient } from './strapi-client.js';
 import { StrapiConfig } from './types.js';
 import { getTools } from './tools/index.js';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 
 // Load environment variables
 dotenv.config();
@@ -56,7 +59,7 @@ const strapiClient = new StrapiClient(strapiConfig);
 const server = new Server(
   {
     name: 'strapi-mcp',
-    version: '0.4.0',
+    version: '0.4.1',
   },
   {
     capabilities: {
@@ -67,7 +70,39 @@ const server = new Server(
 );
 
 // Get all tool definitions
-const tools = getTools(strapiClient);
+const tools = getTools(strapiClient, STRAPI_DEV_MODE);
+
+// Tool call logging setup
+const LOG_DIR = path.join(os.homedir(), '.mcp', 'strapi-mcp-logs');
+const LOG_FILE = path.join(LOG_DIR, 'tool-calls.log');
+
+// Ensure log directory exists
+if (!fs.existsSync(LOG_DIR)) {
+  fs.mkdirSync(LOG_DIR, { recursive: true });
+}
+
+// Log tool call
+function logToolCall(toolName: string, args: any, result: any, error?: any, duration?: number) {
+  const timestamp = new Date().toISOString();
+  const logEntry = {
+    timestamp,
+    tool: toolName,
+    arguments: args,
+    result: error ? undefined : result,
+    error: error ? {
+      message: error.message || String(error),
+      stack: error.stack,
+      details: (error as any).details
+    } : undefined,
+    duration: duration || 0
+  };
+  
+  try {
+    fs.appendFileSync(LOG_FILE, JSON.stringify(logEntry) + '\n');
+  } catch (e) {
+    console.error('[Warning] Failed to write to log file:', e);
+  }
+}
 
 /**
  * Handle listing available resources
@@ -167,6 +202,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
  */
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
+  const startTime = Date.now();
   
   const tool = tools[name];
   if (!tool) {
@@ -179,6 +215,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     
     // Execute tool
     const result = await tool.execute(validatedArgs);
+    
+    // Log successful call
+    const duration = Date.now() - startTime;
+    logToolCall(name, args, result, undefined, duration);
+    
+    // Also log to console for critical schema operations
+    if (['create_content_type', 'update_content_type', 'delete_content_type'].includes(name)) {
+      console.log(`[TOOL LOG] ${name} called with args:`, JSON.stringify(args, null, 2));
+      console.log(`[TOOL LOG] ${name} result:`, JSON.stringify(result, null, 2));
+    }
     
     return {
       content: [{
@@ -193,6 +239,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         `Invalid arguments: ${error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')}`
       );
     }
+    
+    // Log error
+    const duration = Date.now() - startTime;
+    logToolCall(name, args, null, error, duration);
     
     console.error(`[Error] Tool ${name} failed:`, error);
     console.error(`[Error] Tool arguments:`, JSON.stringify(args, null, 2));
@@ -251,6 +301,16 @@ process.on('uncaughtException', (error) => {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  
+  // Log startup info
+  console.log(`[INFO] Strapi MCP Server v0.4.1 started`);
+  console.log(`[INFO] Tool call logs will be written to: ${LOG_FILE}`);
+  if (STRAPI_DEV_MODE) {
+    console.log(`[INFO] Dev mode enabled - schema modification tools are available`);
+    console.log(`[WARNING] Schema modification tools can cause data loss if used incorrectly!`);
+  } else {
+    console.log(`[INFO] Dev mode disabled - schema modification tools are hidden for safety`);
+  }
 }
 
 main().catch((error) => {

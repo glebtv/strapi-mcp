@@ -1,5 +1,7 @@
 # Strapi MCP
 
+⚠️ **IMPORTANT DISCLAIMER**: This software has been developed with the assistance of AI technology. It is provided as-is and should NOT be used in production environments without thorough testing and validation. The code may contain errors, security vulnerabilities, or unexpected behavior. Use at your own risk for research, learning, or development purposes only.
+
 An MCP (Model Context Protocol) server for Strapi v5 CMS, providing seamless access to content types and entries through standardized tools and resources.
 
 **Requirements**: This server supports Strapi v5. Strapi v4 is not officially supported.
@@ -28,6 +30,8 @@ This TypeScript-based MCP server integrates with Strapi v5 instances to provide:
 - **Advanced Querying**: Filtering, pagination, sorting, and field selection
 - **Direct API Access**: Execute custom REST requests against Strapi
 
+**⚠️ Important Note on Schema Modifications**: The `update_content_type` tool does NOT support partial updates - it will replace ALL attributes with only the ones you provide. For safer schema modifications, we strongly recommend modifying Strapi's JSON schema files directly using AI assistance rather than using the schema modification tools.
+
 For detailed information about all tools and resources, see the [Tools and Resources Reference](./docs/TOOLS-v2.md).
 
 For internationalization (i18n) support and locale parameter usage, see the [i18n Guide](./docs/I18N.md).
@@ -54,7 +58,7 @@ npm run build
 Configure the following environment variables:
 
 - `STRAPI_URL`: The URL of your Strapi instance (default: `http://localhost:1337`)
-- `STRAPI_DEV_MODE`: Set to `"true"` to enable development mode features (defaults to `false`)
+- `STRAPI_DEV_MODE`: Set to `"true"` to enable development mode features and schema modification tools (defaults to `false` for safety)
 
 #### Authentication (choose one):
 
