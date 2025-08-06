@@ -2,6 +2,8 @@
 
 ⚠️ **IMPORTANT DISCLAIMER**: This software has been developed with the assistance of AI technology. It is provided as-is and should NOT be used in production environments without thorough testing and validation. The code may contain errors, security vulnerabilities, or unexpected behavior. Use at your own risk for research, learning, or development purposes only.
 
+BTW, the mcp for structure tself is not really needed, if you look at strapi v5 you can **just ask claude to edit the json schema files**.. I don't even know why I did this. I think it was already there in the vibe code that I forked..
+
 An MCP (Model Context Protocol) server for Strapi v5 CMS, providing seamless access to content types and entries through standardized tools and resources.
 
 **Requirements**: This server supports Strapi v5. Strapi v4 is not officially supported.
