@@ -8,7 +8,7 @@ export function relationTools(client: StrapiClient): Tool[] {
       name: 'connect_relation',
       description: 'Connects entries to a relation field',
       inputSchema: z.object({
-        pluralApiId: z.string().describe('The plural API ID'),
+        contentTypeUid: z.string().describe('The content type UID (e.g., "api::article.article")'),
         documentId: z.string().describe('Main entry document ID'),
         relationField: z.string().describe('Name of the relation field'),
         relatedIds: z.array(z.string()).describe('Array of document IDs to connect')
@@ -19,7 +19,7 @@ export function relationTools(client: StrapiClient): Tool[] {
         }
         
         return await client.connectRelation(
-          args.pluralApiId,
+          args.contentTypeUid,
           args.documentId,
           args.relationField,
           args.relatedIds
@@ -30,7 +30,7 @@ export function relationTools(client: StrapiClient): Tool[] {
       name: 'disconnect_relation',
       description: 'Disconnects entries from a relation field',
       inputSchema: z.object({
-        pluralApiId: z.string().describe('The plural API ID'),
+        contentTypeUid: z.string().describe('The content type UID (e.g., "api::article.article")'),
         documentId: z.string().describe('Main entry document ID'),
         relationField: z.string().describe('Name of the relation field'),
         relatedIds: z.array(z.string()).describe('Array of document IDs to disconnect')
@@ -41,7 +41,7 @@ export function relationTools(client: StrapiClient): Tool[] {
         }
         
         return await client.disconnectRelation(
-          args.pluralApiId,
+          args.contentTypeUid,
           args.documentId,
           args.relationField,
           args.relatedIds
@@ -52,14 +52,14 @@ export function relationTools(client: StrapiClient): Tool[] {
       name: 'set_relation',
       description: 'Sets the complete list of related entries, replacing any existing relations',
       inputSchema: z.object({
-        pluralApiId: z.string().describe('The plural API ID'),
+        contentTypeUid: z.string().describe('The content type UID (e.g., "api::article.article")'),
         documentId: z.string().describe('Main entry document ID'),
         relationField: z.string().describe('Name of the relation field'),
         relatedIds: z.array(z.string()).describe('Array of document IDs to set')
       }),
       execute: async (args) => {
         return await client.setRelation(
-          args.pluralApiId,
+          args.contentTypeUid,
           args.documentId,
           args.relationField,
           args.relatedIds

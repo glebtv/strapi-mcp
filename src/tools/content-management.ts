@@ -25,282 +25,294 @@ export function contentManagementTools(client: StrapiClient): Tool[] {
       description: 'Lists all available content types in the Strapi instance',
       inputSchema: z.object({}),
       execute: async () => {
-        const contentTypes = await client.listContentTypes();
-        return { data: contentTypes };
+        const initData = await client.listContentTypes();
+        return initData;
       }
     },
     {
       name: 'get_entries',
-      description: 'Retrieves entries for a specific content type with support for filtering, pagination, sorting, and population. IMPORTANT: populate="*" only goes 1 level deep and does NOT populate dynamic zones. For dynamic zones use: {"populate": {"dynamicZoneName": {"populate": "*"}}}. For deep population of all fields, nest the populate parameter.',
+      description: 'Retrieves entries for a specific content type with support for filtering, pagination, sorting, and localization.',
       inputSchema: z.object({
-        pluralApiId: z.string().describe('The plural API ID (e.g., "articles")'),
-        options: z.string().optional().describe('JSON string with query options. Example for dynamic zones: {"populate": {"sections": {"populate": "*"}}}')
-      }),
-      execute: async (args) => {
-        let options = {};
-        if (args.options) {
-          try {
-            const parsedOptions = JSON.parse(args.options);
-            options = QueryOptionsSchema.parse(parsedOptions);
-          } catch (error) {
-            if (error instanceof z.ZodError) {
-              throw new Error(`Invalid query options: ${error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')}`);
-            }
-            throw new Error(`Invalid options JSON: ${error}`);
-          }
-        }
-        return await client.getEntries(args.pluralApiId, options);
-      }
-    },
-    {
-      name: 'get_entry',
-      description: 'Retrieves a specific entry by its document ID. IMPORTANT: populate="*" only goes 1 level deep and does NOT populate dynamic zones. For dynamic zones use: {"populate": {"dynamicZoneName": {"populate": "*"}}}. For deep population of all fields, nest the populate parameter.',
-      inputSchema: z.object({
-        pluralApiId: z.string().describe('The plural API ID'),
-        documentId: z.string().describe('The document ID'),
-        locale: z.string().optional().describe('The locale to retrieve (e.g., "en", "fr", "ru"). If not specified, uses default locale'),
-        options: z.string().optional().describe('JSON string with populate and fields options. Example for dynamic zones: {"populate": {"sections": {"populate": "*"}}}')
+        contentTypeUid: z.string().describe('The content type UID (e.g., "api::article.article")'),
+        documentId: z.string().optional().describe('Filter by specific document ID (shared across all locale and status versions)'),
+        locale: z.string().optional().describe('The locale to retrieve (e.g., "en", "fr", "ru")'),
+        page: z.number().optional().describe('Page number for pagination (default: 1)'),
+        pageSize: z.number().optional().describe('Number of entries per page (default: 10)'),
+        sort: z.string().optional().describe('Sort order (e.g., "title:ASC" or "createdAt:DESC")'),
+        options: z.string().optional().describe('JSON string with additional query options like filters, populate, fields, status')
       }),
       execute: async (args) => {
         let options: any = {};
+        
+        // Add documentId filter if provided
+        if (args.documentId) {
+          options.filters = {
+            $and: [{
+              documentId: { $eq: args.documentId }
+            }]
+          };
+        }
+        
+        // Add direct parameters
+        if (args.locale) options.locale = args.locale;
+        if (args.page || args.pageSize) {
+          options.pagination = {
+            page: args.page || 1,
+            pageSize: args.pageSize || 10
+          };
+        }
+        if (args.sort) options.sort = args.sort;
+        
+        // Merge with additional options if provided
         if (args.options) {
           try {
             const parsedOptions = JSON.parse(args.options);
-            options = QueryOptionsSchema.parse(parsedOptions);
-          } catch (error) {
-            if (error instanceof z.ZodError) {
-              throw new Error(`Invalid query options: ${error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')}`);
+            // Deep merge filters if both exist
+            if (parsedOptions.filters && options.filters) {
+              // Combine filters with $and
+              const existingFilters = options.filters.$and || [options.filters];
+              const newFilters = parsedOptions.filters.$and || [parsedOptions.filters];
+              options.filters = {
+                $and: [...existingFilters, ...newFilters]
+              };
+              delete parsedOptions.filters;
             }
+            // Merge parsed options, with direct parameters taking precedence
+            options = { ...parsedOptions, ...options };
+            if (parsedOptions.pagination && options.pagination) {
+              options.pagination = { ...parsedOptions.pagination, ...options.pagination };
+            }
+          } catch (error) {
             throw new Error(`Invalid options JSON: ${error}`);
           }
         }
         
-        // Add locale to options if specified
-        if (args.locale) {
-          options.locale = args.locale;
-        }
-        
-        return await client.getEntry(args.pluralApiId, args.documentId, options);
+        return await client.getEntries(args.contentTypeUid, options);
       }
     },
     {
-      name: 'create_entry',
-      description: 'Creates a new entry for a content type. IMPORTANT: Use get_content_type_schema first to check which fields are required. Each content type has different required fields. Common validation errors occur when required fields like "title", "name", or enum fields are missing.',
+      name: 'create_draft_entry',
+      description: 'Creates a NEW entry with a new documentId in DRAFT status. NOTE: This creates a completely new entry, NOT a localized version of an existing entry. For creating localized versions, use create_localized_draft. Use publish_entries to publish after creation.',
       inputSchema: z.object({
-        contentType: z.string().describe('The content type UID'),
-        pluralApiId: z.string().describe('The plural API ID'),
+        contentTypeUid: z.string().describe('The content type UID (e.g., "api::article.article")'),
         data: z.record(z.any()).describe('The entry data. Must include all required fields as defined in the content type schema'),
-        locale: z.string().optional().describe('The locale for the entry (e.g., "en", "fr", "ru"). Required for i18n-enabled content types'),
-        publish: z.boolean().optional().describe('Whether to publish the entry immediately after creation')
+        locale: z.string().optional().describe('The locale for the entry (e.g., "en", "fr", "ru"). Required for i18n-enabled content types')
       }),
       execute: async (args) => {
         // Check if content type is i18n-enabled
-        const contentTypes = await client.listContentTypes();
-        const contentType = contentTypes.find((ct: any) => ct.uid === args.contentType);
-        
-        if (!contentType) {
-          throw new Error(`Content type not found: ${args.contentType}`);
-        }
-        
-        // Get the full schema to check required fields
-        const schema = await client.getContentTypeSchema(args.contentType);
-        
-        // Check for missing required fields
-        const missingFields: Array<{ name: string; type?: string }> = [];
-        
-        // Handle both object and array formats for attributes
-        if (schema.attributes) {
-          if (Array.isArray(schema.attributes)) {
-            // Attributes as array (some Strapi v5 responses)
-            for (const attr of schema.attributes) {
-              if (attr.required && attr.name && !(attr.name in args.data)) {
-                missingFields.push({ name: attr.name, type: attr.type });
-              }
-            }
-          } else if (typeof schema.attributes === 'object') {
-            // Attributes as object (standard format)
-            for (const [name, attr] of Object.entries(schema.attributes)) {
-              if ((attr as any).required && !(name in args.data)) {
-                missingFields.push({ name, type: (attr as any).type });
-              }
-            }
-          }
-        }
-        
-        if (missingFields.length > 0) {
-          const schemaHint = missingFields.map(field => 
-            `- ${field.name} (type: ${field.type || 'unknown'})`
-          ).join('\n');
-          
-          throw new Error(
-            `Missing required fields in data object:\n${schemaHint}\n\n` +
-            `Current data only includes: ${Object.keys(args.data).join(', ')}\n\n` +
-            'Please add the missing fields at the root level of your data object.'
-          );
-        }
-        
+        const initData = await client.listContentTypes();
+        const contentTypes = initData.contentTypes || [];
+        const contentType = contentTypes.find((ct: any) => ct.uid === args.contentTypeUid);
         
         // If content type is i18n-enabled, locale is required
-        if (contentType.isLocalized && !args.locale) {
+        if (contentType && contentType.pluginOptions?.i18n?.localized && !args.locale) {
           // Get default locale
           const locales = await client.adminRequest<any[]>('/i18n/locales');
           const defaultLocale = locales.find((l: any) => l.isDefault);
           
-          if (!defaultLocale) {
-            throw new Error('Content type is i18n-enabled but no locale was specified and no default locale found');
+          if (defaultLocale) {
+            // Use default locale
+            args.locale = defaultLocale.code;
           }
-          
-          // Use default locale
-          args.locale = defaultLocale.code;
         }
         
-        return await client.createEntry(args.contentType, args.pluralApiId, args.data, args.publish, args.locale);
+        return await client.createEntry(args.contentTypeUid, args.data, args.locale);
       }
     },
     {
-      name: 'update_entry',
-      description: 'Updates an existing entry',
+      name: 'create_and_publish_entry',
+      description: 'Creates and publishes a NEW entry with a new documentId. If the content type has draftAndPublish disabled, it will create the entry directly. NOTE: This creates a completely new entry, NOT a localized version of an existing entry.',
       inputSchema: z.object({
-        pluralApiId: z.string().describe('The plural API ID'),
+        contentTypeUid: z.string().describe('The content type UID (e.g., "api::article.article")'),
+        data: z.record(z.any()).describe('The entry data. Must include all required fields as defined in the content type schema'),
+        locale: z.string().optional().describe('The locale for the entry (e.g., "en", "fr", "ru"). Required for i18n-enabled content types')
+      }),
+      execute: async (args) => {
+        // Check content type configuration
+        const initData = await client.listContentTypes();
+        const contentTypes = initData.contentTypes || [];
+        const contentType = contentTypes.find((ct: any) => ct.uid === args.contentTypeUid);
+        
+        // If content type is i18n-enabled, locale is required
+        if (contentType && contentType.pluginOptions?.i18n?.localized && !args.locale) {
+          // Get default locale
+          const locales = await client.adminRequest<any[]>('/i18n/locales');
+          const defaultLocale = locales.find((l: any) => l.isDefault);
+          
+          if (defaultLocale) {
+            // Use default locale
+            args.locale = defaultLocale.code;
+          }
+        }
+        
+        // Check if draftAndPublish is disabled
+        if (contentType && contentType.options?.draftAndPublish === false) {
+          // When draftAndPublish is disabled, just create the entry directly
+          console.error(`[ContentManagement] Content type ${args.contentTypeUid} has draftAndPublish disabled, creating entry directly`);
+          return await client.createEntry(args.contentTypeUid, args.data, args.locale);
+        }
+        
+        // Otherwise use the publish endpoint
+        return await client.createPublishedEntry(args.contentTypeUid, args.data, args.locale);
+      }
+    },
+    {
+      name: 'create_localized_draft',
+      description: 'Creates a localized version of an existing entry as a DRAFT. The draft will need to be published separately using publish_entries.',
+      inputSchema: z.object({
+        contentTypeUid: z.string().describe('The content type UID (e.g., "api::i18n-doc.i18n-doc")'),
+        documentId: z.string().describe('The document ID of the existing entry'),
+        data: z.record(z.any()).describe('The localized entry data'),
+        locale: z.string().describe('The locale for the new version (e.g., "ru", "zh")')
+      }),
+      execute: async (args) => {
+        // Check if content type is i18n-enabled
+        const initData = await client.listContentTypes();
+        const contentTypes = initData.contentTypes || [];
+        const contentType = contentTypes.find((ct: any) => ct.uid === args.contentTypeUid);
+        
+        if (!contentType?.pluginOptions?.i18n?.localized) {
+          throw new Error(`Content type ${args.contentTypeUid} is not i18n-enabled`);
+        }
+        
+        return await client.createLocalizedDraft(args.contentTypeUid, args.documentId, args.data, args.locale);
+      }
+    },
+    {
+      name: 'create_and_publish_localized_entry',
+      description: 'Creates AND publishes a localized version of an existing entry in one step. This adds a new locale version to an existing documentId.',
+      inputSchema: z.object({
+        contentTypeUid: z.string().describe('The content type UID (e.g., "api::i18n-doc.i18n-doc")'),
+        documentId: z.string().describe('The document ID of the existing entry'),
+        data: z.record(z.any()).describe('The localized entry data'),
+        locale: z.string().describe('The locale for the new version (e.g., "ru", "zh")')
+      }),
+      execute: async (args) => {
+        // Check if content type is i18n-enabled
+        const initData = await client.listContentTypes();
+        const contentTypes = initData.contentTypes || [];
+        const contentType = contentTypes.find((ct: any) => ct.uid === args.contentTypeUid);
+        
+        if (!contentType?.pluginOptions?.i18n?.localized) {
+          throw new Error(`Content type ${args.contentTypeUid} is not i18n-enabled`);
+        }
+        
+        return await client.createAndPublishLocalizedEntry(args.contentTypeUid, args.documentId, args.data, args.locale);
+      }
+    },
+    {
+      name: 'publish_localized_entry',
+      description: 'Publishes an existing DRAFT entry for a specific locale. The entry must already exist as a draft.',
+      inputSchema: z.object({
+        contentTypeUid: z.string().describe('The content type UID (e.g., "api::page.page")'),
+        documentId: z.string().describe('The document ID of the entry to publish'),
+        locale: z.string().describe('The locale to publish (e.g., "en", "ru", "zh")')
+      }),
+      execute: async (args) => {
+        return await client.publishLocalizedEntry(args.contentTypeUid, args.documentId, args.locale);
+      }
+    },
+    {
+      name: 'update_entry_draft',
+      description: 'Updates an existing entry and saves it as a DRAFT (unpublished). The entry will need to be published separately using publish_entries.',
+      inputSchema: z.object({
+        contentTypeUid: z.string().describe('The content type UID (e.g., "api::article.article")'),
         documentId: z.string().describe('The document ID'),
         data: z.record(z.any()).describe('The updated data'),
         locale: z.string().optional().describe('The locale to update (e.g., "en", "fr", "ru"). Required for i18n-enabled content types')
       }),
       execute: async (args) => {
         // Get the content type to check if it's i18n-enabled
-        const contentTypes = await client.listContentTypes();
-        const contentType = contentTypes.find((ct: any) => 
-          ct.pluralApiId === args.pluralApiId || ct.uid === args.pluralApiId
-        );
-        
-        if (!contentType) {
-          throw new Error(`Content type not found: ${args.pluralApiId}`);
-        }
-        
-        // Get the full schema to validate dynamic zones
-        const schema = await client.getContentTypeSchema(contentType.uid);
-        
+        const initData = await client.listContentTypes();
+        const contentTypes = initData.contentTypes || [];
+        const contentType = contentTypes.find((ct: any) => ct.uid === args.contentTypeUid);
         
         // If content type is i18n-enabled, locale is required
-        if (contentType.isLocalized && !args.locale) {
+        if (contentType && contentType.pluginOptions?.i18n?.localized && !args.locale) {
           // Get default locale
           const locales = await client.adminRequest<any[]>('/i18n/locales');
           const defaultLocale = locales.find((l: any) => l.isDefault);
           
-          if (!defaultLocale) {
-            throw new Error('Content type is i18n-enabled but no locale was specified and no default locale found');
+          if (defaultLocale) {
+            // Use default locale
+            args.locale = defaultLocale.code;
           }
-          
-          // Use default locale
-          args.locale = defaultLocale.code;
         }
         
-        return await client.updateEntry(args.pluralApiId, args.documentId, args.data, args.locale);
+        return await client.updateEntryDraft(args.contentTypeUid, args.documentId, args.data, args.locale);
+      }
+    },
+    {
+      name: 'update_entry_and_publish',
+      description: 'Updates an existing entry and publishes it immediately in one step. If the content type has draftAndPublish disabled, it will update the entry directly.',
+      inputSchema: z.object({
+        contentTypeUid: z.string().describe('The content type UID (e.g., "api::article.article")'),
+        documentId: z.string().describe('The document ID'),
+        data: z.record(z.any()).describe('The updated data'),
+        locale: z.string().optional().describe('The locale to update (e.g., "en", "fr", "ru"). Required for i18n-enabled content types')
+      }),
+      execute: async (args) => {
+        // Get the content type to check configuration
+        const initData = await client.listContentTypes();
+        const contentTypes = initData.contentTypes || [];
+        const contentType = contentTypes.find((ct: any) => ct.uid === args.contentTypeUid);
+        
+        // If content type is i18n-enabled, locale is required
+        if (contentType && contentType.pluginOptions?.i18n?.localized && !args.locale) {
+          // Get default locale
+          const locales = await client.adminRequest<any[]>('/i18n/locales');
+          const defaultLocale = locales.find((l: any) => l.isDefault);
+          
+          if (defaultLocale) {
+            // Use default locale
+            args.locale = defaultLocale.code;
+          }
+        }
+        
+        // Check if draftAndPublish is disabled
+        if (contentType && contentType.options?.draftAndPublish === false) {
+          // When draftAndPublish is disabled, just update the entry directly
+          console.error(`[ContentManagement] Content type ${args.contentTypeUid} has draftAndPublish disabled, updating entry directly`);
+          return await client.updateEntryDraft(args.contentTypeUid, args.documentId, args.data, args.locale);
+        }
+        
+        // Otherwise use the publish endpoint
+        return await client.updateEntryAndPublish(args.contentTypeUid, args.documentId, args.data, args.locale);
       }
     },
     {
       name: 'delete_entry',
       description: 'Deletes an entry',
       inputSchema: z.object({
-        pluralApiId: z.string().describe('The plural API ID'),
+        contentTypeUid: z.string().describe('The content type UID (e.g., "api::article.article")'),
         documentId: z.string().describe('The document ID'),
         locale: z.string().optional().describe('The locale to delete (e.g., "en", "fr", "ru"). If not specified, deletes all locales')
       }),
       execute: async (args) => {
-        await client.deleteEntry(args.pluralApiId, args.documentId, args.locale);
+        await client.deleteEntry(args.contentTypeUid, args.documentId, args.locale);
         return { success: true, message: `Entry ${args.documentId} deleted successfully` };
       }
     },
     {
-      name: 'delete_all_entries',
-      description: '⚠️ DESTRUCTIVE: Deletes ALL entries for a content type. This operation cannot be undone! Requires explicit approval.',
+      name: 'publish_entries',
+      description: 'Publishes one or more draft entries (publishes all locales)',
       inputSchema: z.object({
-        pluralApiId: z.string().describe('The plural API ID of the content type'),
-        confirmDeletion: z.literal(true).describe('Must be explicitly set to true to confirm this destructive operation')
+        contentTypeUid: z.string().describe('The content type UID (e.g., "api::project.project")'),
+        documentIds: z.array(z.string()).describe('Array of document IDs to publish')
       }),
       execute: async (args) => {
-        if (args.confirmDeletion !== true) {
-          throw new Error('Deletion not confirmed. Set confirmDeletion to true to proceed.');
-        }
-        
-        const result = await client.deleteAllEntries(args.pluralApiId);
-        return { 
-          success: true, 
-          message: `Deleted ${result.deletedCount} entries from ${args.pluralApiId}`,
-          deletedCount: result.deletedCount
-        };
+        return await client.publishEntries(args.contentTypeUid, args.documentIds);
       }
     },
     {
-      name: 'publish_entry',
-      description: 'Publishes a draft entry',
+      name: 'unpublish_entries',
+      description: 'Unpublishes one or more published entries (converts to draft, unpublishes all locales)',
       inputSchema: z.object({
-        pluralApiId: z.string().describe('The plural API ID'),
-        documentId: z.string().describe('The document ID'),
-        locale: z.string().optional().describe('The locale to publish (e.g., "en", "fr", "ru"). Required for i18n-enabled content types')
+        contentTypeUid: z.string().describe('The content type UID (e.g., "api::project.project")'),
+        documentIds: z.array(z.string()).describe('Array of document IDs to unpublish')
       }),
       execute: async (args) => {
-        // Get the content type to check if it's i18n-enabled
-        const contentTypes = await client.listContentTypes();
-        const contentType = contentTypes.find((ct: any) => 
-          ct.pluralApiId === args.pluralApiId || ct.uid === args.pluralApiId
-        );
-        
-        if (!contentType) {
-          throw new Error(`Content type not found: ${args.pluralApiId}`);
-        }
-        
-        // If content type is i18n-enabled, locale is required
-        if (contentType.isLocalized && !args.locale) {
-          // Get default locale
-          const locales = await client.adminRequest<any[]>('/i18n/locales');
-          const defaultLocale = locales.find((l: any) => l.isDefault);
-          
-          if (!defaultLocale) {
-            throw new Error('Content type is i18n-enabled but no locale was specified and no default locale found');
-          }
-          
-          // Use default locale
-          args.locale = defaultLocale.code;
-        }
-        
-        return await client.publishEntry(args.pluralApiId, args.documentId, args.locale);
-      }
-    },
-    {
-      name: 'unpublish_entry',
-      description: 'Unpublishes a published entry (converts to draft)',
-      inputSchema: z.object({
-        pluralApiId: z.string().describe('The plural API ID'),
-        documentId: z.string().describe('The document ID'),
-        locale: z.string().optional().describe('The locale to unpublish (e.g., "en", "fr", "ru"). Required for i18n-enabled content types')
-      }),
-      execute: async (args) => {
-        // Get the content type to check if it's i18n-enabled
-        const contentTypes = await client.listContentTypes();
-        const contentType = contentTypes.find((ct: any) => 
-          ct.pluralApiId === args.pluralApiId || ct.uid === args.pluralApiId
-        );
-        
-        if (!contentType) {
-          throw new Error(`Content type not found: ${args.pluralApiId}`);
-        }
-        
-        // If content type is i18n-enabled, locale is required
-        if (contentType.isLocalized && !args.locale) {
-          // Get default locale
-          const locales = await client.adminRequest<any[]>('/i18n/locales');
-          const defaultLocale = locales.find((l: any) => l.isDefault);
-          
-          if (!defaultLocale) {
-            throw new Error('Content type is i18n-enabled but no locale was specified and no default locale found');
-          }
-          
-          // Use default locale
-          args.locale = defaultLocale.code;
-        }
-        
-        return await client.unpublishEntry(args.pluralApiId, args.documentId, args.locale);
+        return await client.unpublishEntries(args.contentTypeUid, args.documentIds);
       }
     }
   ];

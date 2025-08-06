@@ -17,7 +17,6 @@ describe('Strapi 5 Flattened Response Format', () => {
         await client.callTool({
           name: 'delete_entry',
           arguments: {
-            pluralApiId: 'projects',
             documentId: testDocumentId
           }
         });
@@ -32,10 +31,9 @@ describe('Strapi 5 Flattened Response Format', () => {
     
     // Create entry
     const createResult = await client.callTool({
-      name: 'create_entry',
+      name: 'create_draft_entry',
       arguments: {
-        contentType: 'api::project.project',
-        pluralApiId: 'projects',
+        contentTypeUid: 'api::project.project',
         data: {
           name: testName,
           description: 'Testing Strapi 5 response format'

@@ -28,7 +28,6 @@ const STRAPI_URL = process.env.STRAPI_URL || 'http://localhost:1337';
 const STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN;
 const STRAPI_ADMIN_EMAIL = process.env.STRAPI_ADMIN_EMAIL;
 const STRAPI_ADMIN_PASSWORD = process.env.STRAPI_ADMIN_PASSWORD;
-const STRAPI_DEV_MODE = process.env.STRAPI_DEV_MODE === 'true';
 
 // Validate authentication
 if (!STRAPI_API_TOKEN && !(STRAPI_ADMIN_EMAIL && STRAPI_ADMIN_PASSWORD)) {
@@ -49,8 +48,7 @@ const strapiConfig: StrapiConfig = {
   url: STRAPI_URL,
   adminEmail: STRAPI_ADMIN_EMAIL,
   adminPassword: STRAPI_ADMIN_PASSWORD,
-  apiToken: STRAPI_API_TOKEN,
-  devMode: STRAPI_DEV_MODE
+  apiToken: STRAPI_API_TOKEN
 };
 
 const strapiClient = new StrapiClient(strapiConfig);
@@ -70,7 +68,7 @@ const server = new Server(
 );
 
 // Get all tool definitions
-const tools = getTools(strapiClient, STRAPI_DEV_MODE);
+const tools = getTools(strapiClient);
 
 // Tool call logging setup
 const LOG_DIR = path.join(os.homedir(), '.mcp', 'strapi-mcp-logs');
@@ -111,11 +109,16 @@ async function logToolCall(toolName: string, args: any, result: any, error?: any
 server.setRequestHandler(ListResourcesRequestSchema, async () => {
   try {
     // Fetch all content types
-    const contentTypes = await strapiClient.listContentTypes();
+    const initData = await strapiClient.listContentTypes();
+    const contentTypes = initData.contentTypes || [];
     
-    // Create resources for content types
-    const resources = contentTypes.map(ct => ({
-      uri: `strapi://content-type/${ct.pluralApiId}`,
+    // Filter to only show content types that are displayed in content manager
+    // This excludes system/plugin content types that can't be managed
+    const manageableContentTypes = contentTypes.filter((ct: any) => ct.isDisplayed === true);
+    
+    // Create resources for manageable content types
+    const resources = manageableContentTypes.map((ct: any) => ({
+      uri: `strapi://content-type/${ct.uid}`,
       mimeType: 'application/json',
       name: ct.info.displayName,
       description: ct.info.description || `${ct.info.displayName} content type`
@@ -138,65 +141,34 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
   try {
     const uri = request.params.uri;
     
-    // Parse URI: strapi://content-type/{pluralApiId}[/{documentId}][?filters=...]
-    const match = uri.match(/^strapi:\/\/content-type\/([^\/\?]+)(?:\/([^\/\?]+))?(?:\?(.+))?$/);
+    // Parse URI: strapi://content-type/{contentTypeUid}
+    const match = uri.match(/^strapi:\/\/content-type\/([^\/\?]+)$/);
     if (!match) {
       throw new McpError(ErrorCode.InvalidRequest, `Invalid URI format: ${uri}`);
     }
     
-    const [, pluralApiId, documentId, queryString] = match;
+    const [, contentTypeUid] = match;
     
-    // Parse query parameters with protection against prototype pollution
-    let options: any = {};
-    if (queryString) {
-      const params = new URLSearchParams(queryString);
-      for (const [key, value] of params) {
-        // Protect against prototype pollution
-        if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
-          console.warn(`[Security] Blocked potentially malicious parameter: ${key}`);
-          continue;
-        }
-        
-        // Check for nested prototype pollution attempts
-        if (key.includes('.') && (
-          key.includes('__proto__') || 
-          key.includes('constructor.prototype') || 
-          key.includes('prototype.')
-        )) {
-          console.warn(`[Security] Blocked potentially malicious nested parameter: ${key}`);
-          continue;
-        }
-        
-        try {
-          // Use Object.create(null) to create object without prototype
-          const parsed = JSON.parse(value);
-          if (typeof parsed === 'object' && parsed !== null) {
-            // Sanitize parsed objects to prevent prototype pollution
-            options[key] = JSON.parse(JSON.stringify(parsed));
-          } else {
-            options[key] = parsed;
-          }
-        } catch {
-          options[key] = value;
-        }
-      }
+    // Get all content types to find the schema for this specific type
+    const initData = await strapiClient.listContentTypes();
+    const contentTypes = initData.contentTypes || [];
+    
+    // Find the specific content type schema
+    const contentTypeSchema = contentTypes.find((ct: any) => ct.uid === contentTypeUid);
+    
+    if (!contentTypeSchema) {
+      throw new McpError(
+        ErrorCode.InvalidRequest,
+        `Content type not found: ${contentTypeUid}`
+      );
     }
     
-    // Fetch content
-    let content;
-    if (documentId) {
-      // Get specific entry
-      content = await strapiClient.getEntry(pluralApiId, documentId, options);
-    } else {
-      // Get all entries
-      content = await strapiClient.getEntries(pluralApiId, options);
-    }
-    
+    // Return the full schema as the resource content
     return {
       contents: [{
         uri,
         mimeType: 'application/json',
-        text: JSON.stringify(content, null, 2)
+        text: JSON.stringify(contentTypeSchema, null, 2)
       }]
     };
   } catch (error) {
@@ -247,11 +219,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       console.error('[Warning] Failed to log tool call:', e)
     );
     
-    // Also log to console for critical schema operations
-    if (['create_content_type', 'update_content_type', 'delete_content_type'].includes(name)) {
-      console.log(`[TOOL LOG] ${name} called with args:`, JSON.stringify(args, null, 2));
-      console.log(`[TOOL LOG] ${name} result:`, JSON.stringify(result, null, 2));
-    }
     
     return {
       content: [{
@@ -334,15 +301,9 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   
-  // Log startup info
-  console.log('[INFO] Strapi MCP Server v0.4.1 started');
-  console.log(`[INFO] Tool call logs will be written to: ${LOG_FILE}`);
-  if (STRAPI_DEV_MODE) {
-    console.log('[INFO] Dev mode enabled - schema modification tools are available');
-    console.log('[WARNING] Schema modification tools can cause data loss if used incorrectly!');
-  } else {
-    console.log('[INFO] Dev mode disabled - schema modification tools are hidden for safety');
-  }
+  // Log startup info to stderr (not stdout which is reserved for JSON-RPC)
+  console.error('[INFO] Strapi MCP Server v0.4.1 started');
+  console.error(`[INFO] Tool call logs will be written to: ${LOG_FILE}`);
 }
 
 main().catch((error) => {

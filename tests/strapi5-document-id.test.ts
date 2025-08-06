@@ -12,10 +12,9 @@ describe('Strapi 5 Document ID System', () => {
   it('should use documentId instead of numeric id', async () => {
     // Create an entry
     const createResult = await client.callTool({
-      name: 'create_entry',
+      name: 'create_draft_entry',
       arguments: {
-        contentType: 'api::project.project',
-        pluralApiId: 'projects',
+        contentTypeUid: 'api::project.project',
         data: {
           name: 'Test Project ' + Date.now(),
           description: 'Testing documentId system'
@@ -33,9 +32,9 @@ describe('Strapi 5 Document ID System', () => {
     
     // Update using documentId
     const updateResult = await client.callTool({
-      name: 'update_entry',
+      name: 'update_entry_draft',
       arguments: {
-        pluralApiId: 'projects',
+        contentTypeUid: 'api::project.project',
         documentId: created.documentId,
         data: {
           description: 'Updated via documentId'
@@ -51,7 +50,7 @@ describe('Strapi 5 Document ID System', () => {
     await client.callTool({
       name: 'delete_entry',
       arguments: {
-        pluralApiId: 'projects',
+        contentTypeUid: 'api::project.project',
         documentId: created.documentId
       }
     });

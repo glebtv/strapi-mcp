@@ -11,6 +11,12 @@ describe('Relation Tools', () => {
 
   beforeEach(() => {
     mockClient = new StrapiClient({} as StrapiConfig) as jest.Mocked<StrapiClient>;
+    
+    // Mock relation methods
+    mockClient.connectRelation = jest.fn();
+    mockClient.disconnectRelation = jest.fn();
+    mockClient.setRelation = jest.fn();
+    
     tools = relationTools(mockClient);
   });
 
@@ -32,14 +38,14 @@ describe('Relation Tools', () => {
 
       const tool = tools.find(t => t.name === 'connect_relation')!;
       const result = await tool.execute({
-        pluralApiId: 'articles',
+        contentTypeUid: 'api::article.article',
         documentId: '123',
         relationField: 'authors',
         relatedIds: ['doc-id-2', 'doc-id-3']
       });
 
       expect(mockClient.connectRelation).toHaveBeenCalledWith(
-        'articles',
+        'api::article.article',
         '123',
         'authors',
         ['doc-id-2', 'doc-id-3']
@@ -53,14 +59,14 @@ describe('Relation Tools', () => {
 
       const tool = tools.find(t => t.name === 'connect_relation')!;
       await tool.execute({
-        pluralApiId: 'articles',
+        contentTypeUid: 'api::article.article',
         documentId: '123',
         relationField: 'authors',
         relatedIds: ['doc-id-2', 'doc-id-3']
       });
 
       expect(mockClient.connectRelation).toHaveBeenCalledWith(
-        'articles',
+        'api::article.article',
         '123',
         'authors',
         ['doc-id-2', 'doc-id-3']
@@ -72,7 +78,7 @@ describe('Relation Tools', () => {
       
       await expect(
         tool.execute({
-          pluralApiId: 'articles',
+          contentTypeUid: 'api::article.article',
           documentId: '123',
           relationField: 'authors',
           relatedIds: []
@@ -86,14 +92,14 @@ describe('Relation Tools', () => {
       
       const tool = tools.find(t => t.name === 'connect_relation')!;
       const result = await tool.execute({
-        pluralApiId: 'articles',
+        contentTypeUid: 'api::article.article',
         documentId: '123',
         relationField: 'authors',
         relatedIds: ['any-valid-doc-id', 'another-doc-id']
       });
       
       expect(mockClient.connectRelation).toHaveBeenCalledWith(
-        'articles',
+        'api::article.article',
         '123',
         'authors',
         ['any-valid-doc-id', 'another-doc-id']
@@ -116,14 +122,14 @@ describe('Relation Tools', () => {
 
       const tool = tools.find(t => t.name === 'disconnect_relation')!;
       const result = await tool.execute({
-        pluralApiId: 'articles',
+        contentTypeUid: 'api::article.article',
         documentId: '123',
         relationField: 'authors',
         relatedIds: ['doc-id-3']
       });
 
       expect(mockClient.disconnectRelation).toHaveBeenCalledWith(
-        'articles',
+        'api::article.article',
         '123',
         'authors',
         ['doc-id-3']
@@ -137,14 +143,14 @@ describe('Relation Tools', () => {
       
       const tool = tools.find(t => t.name === 'disconnect_relation')!;
       const result = await tool.execute({
-        pluralApiId: 'articles',
+        contentTypeUid: 'api::article.article',
         documentId: '123',
         relationField: 'authors',
         relatedIds: ['any-doc-id']
       });
       
       expect(mockClient.disconnectRelation).toHaveBeenCalledWith(
-        'articles',
+        'api::article.article',
         '123',
         'authors',
         ['any-doc-id']
@@ -167,14 +173,14 @@ describe('Relation Tools', () => {
 
       const tool = tools.find(t => t.name === 'set_relation')!;
       const result = await tool.execute({
-        pluralApiId: 'articles',
+        contentTypeUid: 'api::article.article',
         documentId: '123',
         relationField: 'authors',
         relatedIds: ['doc-id-4', 'doc-id-5']
       });
 
       expect(mockClient.setRelation).toHaveBeenCalledWith(
-        'articles',
+        'api::article.article',
         '123',
         'authors',
         ['doc-id-4', 'doc-id-5']
@@ -195,14 +201,14 @@ describe('Relation Tools', () => {
 
       const tool = tools.find(t => t.name === 'set_relation')!;
       const result = await tool.execute({
-        pluralApiId: 'articles',
+        contentTypeUid: 'api::article.article',
         documentId: '123',
         relationField: 'authors',
         relatedIds: []
       });
 
       expect(mockClient.setRelation).toHaveBeenCalledWith(
-        'articles',
+        'api::article.article',
         '123',
         'authors',
         []

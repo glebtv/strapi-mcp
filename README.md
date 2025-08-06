@@ -1,8 +1,24 @@
 # Strapi MCP
 
+This was mostly a vibe-coding experiment. I needed a tool but didn't want to build it myself - so I vibe coded the tool.
+
+The experiment ended badly and all the new code here is now human-reviewed.
+
+You can read more about it here: https://www.reddit.com/r/vibecoding/comments/1mirhhk/vibe_coding_is_a_lie/
+
+The tool itself is working but I would not trust it to connect to production server until all the code is reviewed, and do backups on your dev enviromnent including strapi db.
+
+The mcp for structure management itself is not really needed, so it's gone now, if you look at strapi v5 you can ⚠️**just ask claude to edit the json schema files**⚠️..
+
+simple package.json strapi backup example:
+```
+  "scripts": {
+    "export": "strapi export --no-encrypt --no-compress --verbose --file ../backups/dev-$(date +%Y%m%d-%H%M%S)"
+  }
+```
+
 ⚠️ **IMPORTANT DISCLAIMER**: This software has been developed with the assistance of AI technology. It is provided as-is and should NOT be used in production environments without thorough testing and validation. The code may contain errors, security vulnerabilities, or unexpected behavior. Use at your own risk for research, learning, or development purposes only.
 
-the mcp for structure tself is not really needed, if you look at strapi v5 you can ⚠️**just ask claude to edit the json schema files**⚠️..
 
 An MCP (Model Context Protocol) server for Strapi v5 CMS, providing seamless access to content types and entries through standardized tools and resources.
 
@@ -89,6 +105,17 @@ Configure the following environment variables:
 
 ## Setup
 
+### For Claude Code
+
+```
+claude mcp add-json -s user strapi '{ "command": "node",
+ "args": ["/data/strapi-mcp/dist/index.js"],
+ "env": {
+   "STRAPI_URL": "http://localhost:1337",
+   "STRAPI_ADMIN_EMAIL": "admin@test.com",
+   "STRAPI_ADMIN_PASSWORD": "Admin123!"
+}}'
+```
 ### For Claude Desktop
 
 Configure the strapi-mcp server in your MCP settings file:

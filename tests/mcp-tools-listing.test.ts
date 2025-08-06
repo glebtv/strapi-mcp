@@ -21,16 +21,17 @@ describe('MCP Tools Functionality', () => {
       expect(result.content[0]).toHaveProperty('text');
       
       // Parse the response
-      const contentTypes = JSON.parse(result.content[0].text);
-      expect(contentTypes).toHaveProperty('data');
-      expect(Array.isArray(contentTypes.data)).toBe(true);
+      const response = JSON.parse(result.content[0].text);
+      expect(response).toHaveProperty('contentTypes');
+      expect(Array.isArray(response.contentTypes)).toBe(true);
+      expect(response.contentTypes.length).toBeGreaterThan(0);
     });
 
     it('should successfully call get_entries tool', async () => {
       const result = await client.callTool({
         name: 'get_entries',
         arguments: {
-          pluralApiId: 'projects'
+          contentTypeUid: 'api::project.project'
         }
       });
 
@@ -53,7 +54,7 @@ describe('MCP Tools Functionality', () => {
 
     it('should handle invalid tool arguments', async () => {
       await expect(client.callTool({
-        name: 'create_entry',
+        name: 'create_draft_entry',
         arguments: {
           // Missing required contentType and data
         }

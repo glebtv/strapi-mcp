@@ -3,7 +3,6 @@ export interface StrapiConfig {
   adminEmail?: string;
   adminPassword?: string;
   apiToken?: string;
-  devMode?: boolean;
 }
 
 export interface AuthTokens {

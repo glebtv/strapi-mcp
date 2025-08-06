@@ -17,7 +17,7 @@ describe('Strapi MCP Server', () => {
       });
 
       const response = JSON.parse(result.content[0].text);
-      const contentTypes = response.data || response;
+      const contentTypes = response.contentTypes || response.data || response;
       expect(contentTypes).toBeInstanceOf(Array);
       expect(contentTypes.length).toBeGreaterThan(0);
       expect(contentTypes[0]).toHaveProperty('uid');
@@ -29,10 +29,9 @@ describe('Strapi MCP Server', () => {
   describe('CRUD Operations', () => {
     it('should create an entry', async () => {
       const result = await client.callTool({
-        name: 'create_entry',
+        name: 'create_draft_entry',
         arguments: {
-          contentType: 'api::project.project',
-          pluralApiId: 'projects',
+          contentTypeUid: 'api::project.project',
           data: {
             name: 'Test Project ' + Date.now(),
             description: 'Created by test suite'
@@ -48,10 +47,9 @@ describe('Strapi MCP Server', () => {
     it('should get an entry by documentId', async () => {
       // First create an entry to retrieve
       const createResult = await client.callTool({
-        name: 'create_entry',
+        name: 'create_draft_entry',
         arguments: {
-          contentType: 'api::project.project',
-          pluralApiId: 'projects',
+          contentTypeUid: 'api::project.project',
           data: {
             name: 'Test Project for Retrieval ' + Date.now()
           },
@@ -65,23 +63,25 @@ describe('Strapi MCP Server', () => {
       
       // Now retrieve it - since the entry was created in draft status, we need to fetch it as draft
       const result = await client.callTool({
-        name: 'get_entry',
+        name: 'get_entries',
         arguments: {
-          pluralApiId: 'projects',
+          contentTypeUid: 'api::project.project',
           documentId: created.documentId
         }
       });
       
-      const entry = JSON.parse(result.content[0].text);
-      const entryData = entry.data || entry;
-      expect(entryData.documentId).toBe(created.documentId);
-      expect(entryData.name).toContain('Test Project for Retrieval');
+      const response = JSON.parse(result.content[0].text);
+      expect(response.data).toBeDefined();
+      expect(response.data.length).toBeGreaterThan(0);
+      const entry = response.data[0];
+      expect(entry.documentId).toBe(created.documentId);
+      expect(entry.name).toContain('Test Project for Retrieval');
       
       // Cleanup
       await client.callTool({
         name: 'delete_entry',
         arguments: {
-          pluralApiId: 'projects',
+          contentTypeUid: 'api::project.project',
           documentId: created.documentId
         }
       });
@@ -90,10 +90,9 @@ describe('Strapi MCP Server', () => {
     it('should update an entry', async () => {
       // First create an entry to update
       const createResult = await client.callTool({
-        name: 'create_entry',
+        name: 'create_draft_entry',
         arguments: {
-          contentType: 'api::project.project',
-          pluralApiId: 'projects',
+          contentTypeUid: 'api::project.project',
           data: {
             name: 'Original Name ' + Date.now(),
             description: 'Original description'
@@ -106,9 +105,9 @@ describe('Strapi MCP Server', () => {
       
       // Now update it
       const result = await client.callTool({
-        name: 'update_entry',
+        name: 'update_entry_draft',
         arguments: {
-          pluralApiId: 'projects',
+          contentTypeUid: 'api::project.project',
           documentId: created.documentId,
           data: {
             description: 'Updated by test suite'
@@ -125,7 +124,7 @@ describe('Strapi MCP Server', () => {
       await client.callTool({
         name: 'delete_entry',
         arguments: {
-          pluralApiId: 'projects',
+          contentTypeUid: 'api::project.project',
           documentId: created.documentId
         }
       });
@@ -135,7 +134,7 @@ describe('Strapi MCP Server', () => {
       const result = await client.callTool({
         name: 'get_entries',
         arguments: {
-          pluralApiId: 'projects',
+          contentTypeUid: 'api::project.project',
           options: JSON.stringify({
             filters: {
               name: {
@@ -155,10 +154,9 @@ describe('Strapi MCP Server', () => {
     it('should delete an entry', async () => {
       // First create an entry to delete
       const createResult = await client.callTool({
-        name: 'create_entry',
+        name: 'create_draft_entry',
         arguments: {
-          contentType: 'api::project.project',
-          pluralApiId: 'projects',
+          contentTypeUid: 'api::project.project',
           data: {
             name: 'To Be Deleted ' + Date.now()
           }
@@ -170,7 +168,7 @@ describe('Strapi MCP Server', () => {
       const deleteResult = await client.callTool({
         name: 'delete_entry',
         arguments: {
-          pluralApiId: 'projects',
+          contentTypeUid: 'api::project.project',
           documentId: created.documentId
         }
       });
@@ -182,10 +180,9 @@ describe('Strapi MCP Server', () => {
   describe('Error Handling', () => {
     it('should return Strapi validation errors', async () => {
       await expect(client.callTool({
-        name: 'create_entry',
+        name: 'create_draft_entry',
         arguments: {
-          contentType: 'api::project.project',
-          pluralApiId: 'projects',
+          contentTypeUid: 'api::project.project',
           data: {
             name: 123 // Should be string
           }
@@ -195,9 +192,9 @@ describe('Strapi MCP Server', () => {
 
     it('should return 404 for non-existent entries', async () => {
       await expect(client.callTool({
-        name: 'update_entry',
+        name: 'update_entry_draft',
         arguments: {
-          pluralApiId: 'projects',
+          contentTypeUid: 'api::project.project',
           documentId: 'non-existent-id',
           data: {
             name: 'Test'
@@ -237,10 +234,9 @@ describe('Strapi MCP Server', () => {
     beforeEach(async () => {
       // Create main entry
       const mainResult = await client.callTool({
-        name: 'create_entry',
+        name: 'create_draft_entry',
         arguments: {
-          contentType: 'api::project.project',
-          pluralApiId: 'projects',
+          contentTypeUid: 'api::project.project',
           data: {
             name: 'Main Project ' + Date.now()
           }
@@ -250,10 +246,9 @@ describe('Strapi MCP Server', () => {
 
       // Create related entry with required fields
       const relatedResult = await client.callTool({
-        name: 'create_entry',
+        name: 'create_draft_entry',
         arguments: {
-          contentType: 'api::technology.technology',
-          pluralApiId: 'technologies',
+          contentTypeUid: 'api::technology.technology',
           data: {
             name: 'Test Technology ' + Date.now()
           }
@@ -268,7 +263,7 @@ describe('Strapi MCP Server', () => {
         await client.callTool({
           name: 'delete_entry',
           arguments: {
-            pluralApiId: 'projects',
+            contentTypeUid: 'api::project.project',
             documentId: mainDocumentId
           }
         });
@@ -278,7 +273,7 @@ describe('Strapi MCP Server', () => {
         await client.callTool({
           name: 'delete_entry',
           arguments: {
-            pluralApiId: 'technologies',
+            contentTypeUid: 'api::technology.technology',
             documentId: relatedDocumentId
           }
         });
@@ -289,7 +284,7 @@ describe('Strapi MCP Server', () => {
       const result = await client.callTool({
         name: 'connect_relation',
         arguments: {
-          pluralApiId: 'projects',
+          contentTypeUid: 'api::project.project',
           documentId: mainDocumentId,
           relationField: 'technologies',
           relatedIds: [relatedDocumentId]
@@ -305,7 +300,7 @@ describe('Strapi MCP Server', () => {
       await client.callTool({
         name: 'connect_relation',
         arguments: {
-          pluralApiId: 'projects',
+          contentTypeUid: 'api::project.project',
           documentId: mainDocumentId,
           relationField: 'technologies',
           relatedIds: [relatedDocumentId]
@@ -316,7 +311,7 @@ describe('Strapi MCP Server', () => {
       const result = await client.callTool({
         name: 'disconnect_relation',
         arguments: {
-          pluralApiId: 'projects',
+          contentTypeUid: 'api::project.project',
           documentId: mainDocumentId,
           relationField: 'technologies',
           relatedIds: [relatedDocumentId]
@@ -331,7 +326,7 @@ describe('Strapi MCP Server', () => {
       const result = await client.callTool({
         name: 'set_relation',
         arguments: {
-          pluralApiId: 'projects',
+          contentTypeUid: 'api::project.project',
           documentId: mainDocumentId,
           relationField: 'technologies',
           relatedIds: [relatedDocumentId]
@@ -373,10 +368,9 @@ describe('Strapi MCP Server', () => {
       // Create entry to publish with unique name
       const uniqueName = 'Draft Project ' + Date.now();
       const createResult = await client.callTool({
-        name: 'create_entry',
+        name: 'create_draft_entry',
         arguments: {
-          contentType: 'api::project.project',
-          pluralApiId: 'projects',
+          contentTypeUid: 'api::project.project',
           data: {
             name: uniqueName
           }
@@ -386,22 +380,36 @@ describe('Strapi MCP Server', () => {
       
       // Publish it
       const result = await client.callTool({
-        name: 'publish_entry',
+        name: 'publish_entries',
         arguments: {
-          pluralApiId: 'projects',
-          documentId: created.documentId
+          contentTypeUid: 'api::project.project',
+          documentIds: [created.documentId]
         }
       });
 
-      const published = JSON.parse(result.content[0].text);
-      console.log('Published entry:', JSON.stringify(published, null, 2));
-      expect(published.publishedAt).toBeTruthy();
+      const publishResponse = JSON.parse(result.content[0].text);
+      console.log('Publish response:', JSON.stringify(publishResponse, null, 2));
+      // The bulk publish endpoint returns a count of published items
+      expect(publishResponse).toBeDefined();
+      
+      // Verify the entry is actually published by fetching it
+      const getResult = await client.callTool({
+        name: 'get_entries',
+        arguments: {
+          contentTypeUid: 'api::project.project',
+          documentId: created.documentId,
+          options: JSON.stringify({ status: 'published' })
+        }
+      });
+      const published = JSON.parse(getResult.content[0].text);
+      const entry = published.data?.[0] || published.results?.[0];
+      expect(entry?.publishedAt).toBeTruthy();
       
       // Cleanup
       await client.callTool({
         name: 'delete_entry',
         arguments: {
-          pluralApiId: 'projects',
+          contentTypeUid: 'api::project.project',
           documentId: created.documentId
         }
       });
@@ -411,10 +419,9 @@ describe('Strapi MCP Server', () => {
       // Create and publish entry with unique name
       const uniqueName = 'Published Project ' + Date.now();
       const createResult = await client.callTool({
-        name: 'create_entry',
+        name: 'create_draft_entry',
         arguments: {
-          contentType: 'api::project.project',
-          pluralApiId: 'projects',
+          contentTypeUid: 'api::project.project',
           data: {
             name: uniqueName
           }
@@ -424,19 +431,19 @@ describe('Strapi MCP Server', () => {
       
       // First publish
       await client.callTool({
-        name: 'publish_entry',
+        name: 'publish_entries',
         arguments: {
-          pluralApiId: 'projects',
-          documentId: created.documentId
+          contentTypeUid: 'api::project.project',
+          documentIds: [created.documentId]
         }
       });
 
       // Then unpublish
       const result = await client.callTool({
-        name: 'unpublish_entry',
+        name: 'unpublish_entries',
         arguments: {
-          pluralApiId: 'projects',
-          documentId: created.documentId
+          contentTypeUid: 'api::project.project',
+          documentIds: [created.documentId]
         }
       });
 
@@ -454,11 +461,9 @@ describe('Strapi MCP Server', () => {
       const draftResult = await client.callTool({
         name: 'get_entries',
         arguments: {
-          pluralApiId: 'projects',
+          contentTypeUid: 'api::project.project',
+          documentId: created.documentId,
           options: JSON.stringify({
-            filters: {
-              documentId: created.documentId
-            },
             status: 'draft'
           })
         }
@@ -471,7 +476,7 @@ describe('Strapi MCP Server', () => {
       await client.callTool({
         name: 'delete_entry',
         arguments: {
-          pluralApiId: 'projects',
+          contentTypeUid: 'api::project.project',
           documentId: created.documentId
         }
       });

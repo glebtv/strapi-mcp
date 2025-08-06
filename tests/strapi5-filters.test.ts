@@ -14,21 +14,29 @@ describe('Strapi 5 Filter Operators', () => {
     testDocumentIds = [];
     testProjectNames = [];
     
-    // Use the new delete_all_entries tool for complete cleanup
-    console.log('Cleaning up ALL existing projects...');
-    const deleteResult = await client.callTool({
-      name: 'delete_all_entries',
+    // Clean up existing projects
+    console.log('Cleaning up existing projects...');
+    const existingResult = await client.callTool({
+      name: 'get_entries',
       arguments: {
-        pluralApiId: 'api::project.project',
-        confirmDeletion: true
+        contentTypeUid: 'api::project.project',
+        options: JSON.stringify({ pagination: { pageSize: 100 } })
       }
     });
+    const existingProjects = JSON.parse(existingResult.content[0].text);
     
-    const deleteResponse = JSON.parse(deleteResult.content[0].text);
-    console.log(`Deleted ${deleteResponse.deletedCount} existing projects`);
+    for (const project of existingProjects.data || []) {
+      await client.callTool({
+        name: 'delete_entry',
+        arguments: {
+          contentTypeUid: 'api::project.project',
+          documentId: project.documentId
+        }
+      });
+    }
     
-    // Wait after cleanup to ensure deletions are processed
-    if (deleteResponse.deletedCount > 0) {
+    if (existingProjects.data?.length > 0) {
+      console.log(`Deleted ${existingProjects.data.length} existing projects`);
       await new Promise(resolve => setTimeout(resolve, 2000));
     }
     
@@ -42,10 +50,9 @@ describe('Strapi 5 Filter Operators', () => {
     
     for (const name of testProjectNames) {
       const result = await client.callTool({
-        name: 'create_entry',
+        name: 'create_draft_entry',
         arguments: {
-          contentType: 'api::project.project',
-          pluralApiId: 'projects',
+          contentTypeUid: 'api::project.project',
           data: { 
             name,
             description: 'Test project for filters'
@@ -64,18 +71,22 @@ describe('Strapi 5 Filter Operators', () => {
   }, 60000);
   
   afterAll(async () => {
-    // Clean up ALL projects again to ensure clean state for other tests
+    // Clean up test projects
     console.log('Cleaning up after tests...');
-    const deleteResult = await client.callTool({
-      name: 'delete_all_entries',
-      arguments: {
-        pluralApiId: 'api::project.project',
-        confirmDeletion: true
+    for (const documentId of testDocumentIds) {
+      try {
+        await client.callTool({
+          name: 'delete_entry',
+          arguments: {
+            contentTypeUid: 'api::project.project',
+            documentId
+          }
+        });
+      } catch (error) {
+        // Ignore errors if already deleted
       }
-    });
-    
-    const deleteResponse = JSON.parse(deleteResult.content[0].text);
-    console.log(`Cleanup complete: deleted ${deleteResponse.deletedCount} projects`);
+    }
+    console.log(`Cleanup complete: deleted ${testDocumentIds.length} test projects`);
   }, 60000);
 
   it('should support $contains filter', async () => {
@@ -83,7 +94,7 @@ describe('Strapi 5 Filter Operators', () => {
     const allResult = await client.callTool({
       name: 'get_entries',
       arguments: {
-        pluralApiId: 'api::project.project',
+        contentTypeUid: 'api::project.project',
         options: JSON.stringify({
           pagination: { pageSize: 100 }
         })
@@ -105,7 +116,7 @@ describe('Strapi 5 Filter Operators', () => {
     const result = await client.callTool({
       name: 'get_entries',
       arguments: {
-        pluralApiId: 'api::project.project',
+        contentTypeUid: 'api::project.project',
         options: JSON.stringify({
           filters: {
             $and: [{
@@ -139,7 +150,7 @@ describe('Strapi 5 Filter Operators', () => {
     const result = await client.callTool({
       name: 'get_entries', 
       arguments: {
-        pluralApiId: 'api::project.project',
+        contentTypeUid: 'api::project.project',
         options: JSON.stringify({
           filters: {
             name: {

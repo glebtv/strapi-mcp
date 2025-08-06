@@ -13,7 +13,7 @@ describe('Strapi 5 Pagination', () => {
     const result = await client.callTool({
       name: 'get_entries',
       arguments: {
-        pluralApiId: 'projects',
+        contentTypeUid: 'api::project.project',
         options: JSON.stringify({
           pagination: {
             page: 1,

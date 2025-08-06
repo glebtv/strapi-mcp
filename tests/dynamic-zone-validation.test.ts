@@ -67,13 +67,11 @@ describe('Dynamic Zone Component Validation', () => {
 
       try {
         await client.callTool({
-          name: 'create_entry',
+          name: 'create_draft_entry',
           arguments: {
-            contentType: 'api::page.page',
-            pluralApiId: 'pages',
+            contentTypeUid: 'api::page.page',
             data: dataWithInvalidComponents,
             locale: 'en',
-            publish: true
           }
         });
         
@@ -108,13 +106,11 @@ describe('Dynamic Zone Component Validation', () => {
       };
 
       const result = await client.callTool({
-        name: 'create_entry',
+        name: 'create_draft_entry',
         arguments: {
-          contentType: 'api::page.page',
-          pluralApiId: 'pages',
+          contentTypeUid: 'api::page.page',
           data: validData,
           locale: 'en',
-          publish: true
         }
       });
 
@@ -127,7 +123,7 @@ describe('Dynamic Zone Component Validation', () => {
       await client.callTool({
         name: 'delete_entry',
         arguments: {
-          pluralApiId: 'pages',
+          contentTypeUid: 'api::page.page',
           documentId: response.documentId,
           locale: 'en'
         }
@@ -149,13 +145,11 @@ describe('Dynamic Zone Component Validation', () => {
 
       try {
         await client.callTool({
-          name: 'create_entry',
+          name: 'create_draft_entry',
           arguments: {
-            contentType: 'api::page.page',
-            pluralApiId: 'pages',
+            contentTypeUid: 'api::page.page',
             data: dataWithMissingComponent,
             locale: 'en',
-            publish: true
           }
         });
         
@@ -186,13 +180,11 @@ describe('Dynamic Zone Component Validation', () => {
       };
 
       const result = await client.callTool({
-        name: 'create_entry',
+        name: 'create_draft_entry',
         arguments: {
-          contentType: 'api::page.page',
-          pluralApiId: 'pages',
+          contentTypeUid: 'api::page.page',
           data: validData,
           locale: 'en',
-          publish: true
         }
       });
 
@@ -206,7 +198,7 @@ describe('Dynamic Zone Component Validation', () => {
         await client.callTool({
           name: 'delete_entry',
           arguments: {
-            pluralApiId: 'pages',
+            contentTypeUid: 'api::page.page',
             documentId: testEntryId,
             locale: 'en'
           }
@@ -232,9 +224,9 @@ describe('Dynamic Zone Component Validation', () => {
 
       try {
         await client.callTool({
-          name: 'update_entry',
+          name: 'update_entry_draft',
           arguments: {
-            pluralApiId: 'pages',
+            contentTypeUid: 'api::page.page',
             documentId: testEntryId,
             data: updateWithInvalid,
             locale: 'en'
@@ -265,9 +257,9 @@ describe('Dynamic Zone Component Validation', () => {
       };
 
       const result = await client.callTool({
-        name: 'update_entry',
+        name: 'update_entry_draft',
         arguments: {
-          pluralApiId: 'pages',
+          contentTypeUid: 'api::page.page',
           documentId: testEntryId,
           data: validUpdate,
           locale: 'en'

@@ -29,7 +29,7 @@ describe('Page Publish/Unpublish Integration Tests', () => {
         await client.callTool({
           name: 'delete_entry',
           arguments: {
-            pluralApiId: 'pages',
+            contentTypeUid: 'api::page.page',
             documentId: pageDocumentId
           }
         });
@@ -114,12 +114,10 @@ describe('Page Publish/Unpublish Integration Tests', () => {
 
     // Create the page in draft state
     const createResult = await client.callTool({
-      name: 'create_entry',
+      name: 'create_draft_entry',
       arguments: {
-        contentType: 'api::page.page',
-        pluralApiId: 'pages',
-        data: pageData,
-        publish: false // Create in draft state
+        contentTypeUid: 'api::page.page',
+        data: pageData
       }
     });
 
@@ -150,18 +148,16 @@ describe('Page Publish/Unpublish Integration Tests', () => {
 
     // Publish the page
     const publishResult = await client.callTool({
-      name: 'publish_entry',
+      name: 'publish_entries',
       arguments: {
-        pluralApiId: 'pages',
-        documentId: pageDocumentId
+        contentTypeUid: 'api::page.page',
+        documentIds: [pageDocumentId]
       }
     });
 
     const publishResponse = parseToolResponse(publishResult);
     expect(publishResponse).toBeDefined();
-    const publishedAt = publishResponse.publishedAt || publishResponse.data?.publishedAt;
-    expect(publishedAt).toBeDefined();
-    expect(publishedAt).not.toBeNull();
+    expect(publishResponse.count).toBe(1); // Bulk endpoint returns count
 
     // Verify page is now visible in public API
     const publicResponse = await axios.get(`${STRAPI_URL}/api/pages/${pageDocumentId}?populate[sections][populate]=*`);
@@ -196,18 +192,16 @@ describe('Page Publish/Unpublish Integration Tests', () => {
 
     // Unpublish the page
     const unpublishResult = await client.callTool({
-      name: 'unpublish_entry',
+      name: 'unpublish_entries',
       arguments: {
-        pluralApiId: 'pages',
-        documentId: pageDocumentId
+        contentTypeUid: 'api::page.page',
+        documentIds: [pageDocumentId]
       }
     });
 
     const unpublishResponse = parseToolResponse(unpublishResult);
     expect(unpublishResponse).toBeDefined();
-    
-    // Note: The unpublish tool returns the state before unpublishing, not after
-    // So we skip checking the publishedAt field in the response
+    expect(unpublishResponse.count).toBe(1); // Bulk endpoint returns count
 
     // Verify page is no longer visible in public API
     try {
@@ -252,18 +246,28 @@ describe('Page Publish/Unpublish Integration Tests', () => {
 
     // Create the page
     const createResult = await client.callTool({
-      name: 'create_entry',
+      name: 'create_draft_entry',
       arguments: {
-        contentType: 'api::page.page',
-        pluralApiId: 'pages',
-        data: pageData,
-        publish: true // Create and publish immediately
+        contentTypeUid: 'api::page.page',
+        data: pageData
       }
     });
 
     const createResponse = parseToolResponse(createResult);
     const i18nPageId = createResponse.documentId || createResponse.data?.documentId;
     expect(i18nPageId).toBeDefined();
+
+    // Publish the page
+    const publishResult = await client.callTool({
+      name: 'publish_entries',
+      arguments: {
+        contentTypeUid: 'api::page.page',
+        documentIds: [i18nPageId]
+      }
+    });
+    
+    const publishResponse = parseToolResponse(publishResult);
+    expect(publishResponse.count).toBe(1);
 
     // Verify published state
     const publishedResponse = await axios.get(`${STRAPI_URL}/api/pages/${i18nPageId}`);
@@ -279,7 +283,7 @@ describe('Page Publish/Unpublish Integration Tests', () => {
     await client.callTool({
       name: 'delete_entry',
       arguments: {
-        pluralApiId: 'pages',
+        contentTypeUid: 'api::page.page',
         documentId: i18nPageId
       }
     });

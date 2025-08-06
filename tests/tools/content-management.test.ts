@@ -14,18 +14,26 @@ describe('Content Management Tools', () => {
     mockClient = new StrapiClient({} as StrapiConfig) as jest.Mocked<StrapiClient>;
     
     // Mock listContentTypes for i18n checks
-    mockClient.listContentTypes = jest.fn().mockResolvedValue([
-      {
-        uid: 'api::article.article',
-        pluralApiId: 'articles',
-        isLocalized: false
-      },
-      {
-        uid: 'api::i18n-doc.i18n-doc',
-        pluralApiId: 'i18n-docs',
-        isLocalized: true
-      }
-    ]);
+    mockClient.listContentTypes = jest.fn().mockResolvedValue({
+      contentTypes: [
+        {
+          uid: 'api::article.article',
+          apiID: 'article',
+          info: { displayName: 'Article', description: 'Article content type' },
+          pluginOptions: {}
+        },
+        {
+          uid: 'api::i18n-doc.i18n-doc',
+          apiID: 'i18n-doc',
+          pluginOptions: {
+            i18n: {
+              localized: true
+            }
+          }
+        }
+      ],
+      components: []
+    });
     
     // Mock adminRequest for default locale fetching
     mockClient.adminRequest = jest.fn().mockResolvedValue([
@@ -33,14 +41,13 @@ describe('Content Management Tools', () => {
       { code: 'fr', name: 'French', isDefault: false }
     ]);
     
-    // Mock getContentTypeSchema for validation
-    mockClient.getContentTypeSchema = jest.fn().mockResolvedValue({
-      uid: 'api::article.article',
-      attributes: [
-        { name: 'title', type: 'string', required: true },
-        { name: 'content', type: 'richtext', required: false }
-      ]
-    });
+    // Mock all needed methods
+    mockClient.getEntries = jest.fn();
+    mockClient.createEntry = jest.fn();
+    mockClient.createPublishedEntry = jest.fn();
+    mockClient.updateEntryDraft = jest.fn();
+    mockClient.updateEntryAndPublish = jest.fn();
+    mockClient.deleteEntry = jest.fn();
     
     // Get tools
     tools = contentManagementTools(mockClient);
@@ -56,18 +63,17 @@ describe('Content Management Tools', () => {
         {
           uid: 'api::article.article',
           apiID: 'article',
-          pluralApiId: 'articles',
           info: { displayName: 'Article', description: 'Article content type' }
         }
       ];
 
-      mockClient.listContentTypes.mockResolvedValue(mockContentTypes);
+      mockClient.listContentTypes.mockResolvedValue({ contentTypes: mockContentTypes, components: [] });
 
       const tool = tools.find(t => t.name === 'list_content_types')!;
       const result = await tool.execute({});
 
       expect(mockClient.listContentTypes).toHaveBeenCalled();
-      expect(result).toEqual({ data: mockContentTypes });
+      expect(result).toEqual({ contentTypes: mockContentTypes, components: [] });
     });
   });
 
@@ -81,9 +87,9 @@ describe('Content Management Tools', () => {
       mockClient.getEntries.mockResolvedValue(mockEntries);
 
       const tool = tools.find(t => t.name === 'get_entries')!;
-      const result = await tool.execute({ pluralApiId: 'articles' });
+      const result = await tool.execute({ contentTypeUid: 'api::article.article' });
 
-      expect(mockClient.getEntries).toHaveBeenCalledWith('articles', {});
+      expect(mockClient.getEntries).toHaveBeenCalledWith('api::article.article', {});
       expect(result).toEqual(mockEntries);
     });
 
@@ -103,11 +109,11 @@ describe('Content Management Tools', () => {
 
       const tool = tools.find(t => t.name === 'get_entries')!;
       const result = await tool.execute({ 
-        pluralApiId: 'articles',
+        contentTypeUid: 'api::article.article',
         options: JSON.stringify(options)
       });
 
-      expect(mockClient.getEntries).toHaveBeenCalledWith('articles', options);
+      expect(mockClient.getEntries).toHaveBeenCalledWith('api::article.article', options);
       expect(result).toEqual(mockEntries);
     });
 
@@ -115,52 +121,12 @@ describe('Content Management Tools', () => {
       const tool = tools.find(t => t.name === 'get_entries')!;
       
       await expect(
-        tool.execute({ pluralApiId: 'articles', options: 'invalid json' })
+        tool.execute({ contentTypeUid: 'api::article.article', options: 'invalid json' })
       ).rejects.toThrow('Invalid options JSON');
     });
   });
 
-  describe('get_entry', () => {
-    it('should get a specific entry', async () => {
-      const mockEntry = {
-        id: '123',
-        attributes: { title: 'Test Article' }
-      };
-
-      mockClient.getEntry.mockResolvedValue(mockEntry);
-
-      const tool = tools.find(t => t.name === 'get_entry')!;
-      const result = await tool.execute({ 
-        pluralApiId: 'articles',
-        documentId: '123'
-      });
-
-      expect(mockClient.getEntry).toHaveBeenCalledWith('articles', '123', {});
-      expect(result).toEqual(mockEntry);
-    });
-
-    it('should get entry with specific locale', async () => {
-      const mockEntry = {
-        id: '456',
-        attributes: { title: 'Article Français' },
-        locale: 'fr'
-      };
-
-      mockClient.getEntry.mockResolvedValue(mockEntry);
-
-      const tool = tools.find(t => t.name === 'get_entry')!;
-      const result = await tool.execute({ 
-        pluralApiId: 'i18n-docs',
-        documentId: '456',
-        locale: 'fr'
-      });
-
-      expect(mockClient.getEntry).toHaveBeenCalledWith('i18n-docs', '456', { locale: 'fr' });
-      expect(result).toEqual(mockEntry);
-    });
-  });
-
-  describe('create_entry', () => {
+  describe('create_draft_entry', () => {
     it('should create a new entry', async () => {
       const mockCreatedEntry = {
         id: '456',
@@ -174,50 +140,45 @@ describe('Content Management Tools', () => {
 
       mockClient.createEntry.mockResolvedValue(mockCreatedEntry);
 
-      const tool = tools.find(t => t.name === 'create_entry')!;
+      const tool = tools.find(t => t.name === 'create_draft_entry')!;
       const result = await tool.execute({
-        contentType: 'api::article.article',
-        pluralApiId: 'articles',
+        contentTypeUid: 'api::article.article',
         data: entryData
       });
 
       expect(mockClient.createEntry).toHaveBeenCalledWith(
         'api::article.article',
-        'articles',
         entryData,
-        undefined,
         undefined
       );
       expect(result).toEqual(mockCreatedEntry);
     });
 
-    it('should create and publish a new entry when publish is true', async () => {
+    it('should create entry with default locale for i18n content type', async () => {
       const mockCreatedEntry = {
         id: '789',
-        attributes: { title: 'Published Article', content: 'Content', publishedAt: '2024-01-01T00:00:00Z' }
+        attributes: { title: 'i18n Article', content: 'Content' },
+        locale: 'en'
       };
 
       const entryData = {
-        title: 'Published Article',
+        title: 'i18n Article',
         content: 'Content'
       };
 
       mockClient.createEntry.mockResolvedValue(mockCreatedEntry);
 
-      const tool = tools.find(t => t.name === 'create_entry')!;
+      const tool = tools.find(t => t.name === 'create_draft_entry')!;
       const result = await tool.execute({
-        contentType: 'api::article.article',
-        pluralApiId: 'articles',
+        contentTypeUid: 'api::i18n-doc.i18n-doc',
         data: entryData,
-        publish: true
       });
 
+      expect(mockClient.adminRequest).toHaveBeenCalledWith('/i18n/locales');
       expect(mockClient.createEntry).toHaveBeenCalledWith(
-        'api::article.article',
-        'articles',
+        'api::i18n-doc.i18n-doc',
         entryData,
-        true,
-        undefined
+        'en'
       );
       expect(result).toEqual(mockCreatedEntry);
     });
@@ -232,57 +193,26 @@ describe('Content Management Tools', () => {
 
       mockClient.createEntry.mockResolvedValue(mockCreatedEntry);
 
-      const tool = tools.find(t => t.name === 'create_entry')!;
+      const tool = tools.find(t => t.name === 'create_draft_entry')!;
       const result = await tool.execute({
-        contentType: 'api::i18n-doc.i18n-doc',
-        pluralApiId: 'i18n-docs',
+        contentTypeUid: 'api::i18n-doc.i18n-doc',
         data: entryData,
         locale: 'fr'
       });
 
       expect(mockClient.createEntry).toHaveBeenCalledWith(
         'api::i18n-doc.i18n-doc',
-        'i18n-docs',
         entryData,
-        undefined,
         'fr'
       );
       expect(result).toEqual(mockCreatedEntry);
     });
 
-    it('should use default locale for i18n content type when locale not specified', async () => {
-      const entryData = { title: 'Default Locale Doc', content: 'Content' };
-      const mockCreatedEntry = {
-        id: '789',
-        attributes: { ...entryData },
-        locale: 'en'
-      };
-
-      mockClient.createEntry.mockResolvedValue(mockCreatedEntry);
-
-      const tool = tools.find(t => t.name === 'create_entry')!;
-      const result = await tool.execute({
-        contentType: 'api::i18n-doc.i18n-doc',
-        pluralApiId: 'i18n-docs',
-        data: entryData
-      });
-
-      // Should fetch default locale
-      expect(mockClient.adminRequest).toHaveBeenCalledWith('/i18n/locales');
-      
-      expect(mockClient.createEntry).toHaveBeenCalledWith(
-        'api::i18n-doc.i18n-doc',
-        'i18n-docs',
-        entryData,
-        undefined,
-        'en' // default locale
-      );
-      expect(result).toEqual(mockCreatedEntry);
-    });
+    // Removed duplicate test - this is already covered in the previous test
   });
 
-  describe('update_entry', () => {
-    it('should update an existing entry', async () => {
+  describe('update_entry_draft', () => {
+    it('should update an existing entry as draft', async () => {
       const mockUpdatedEntry = {
         id: '123',
         attributes: { title: 'Updated Title' }
@@ -290,16 +220,16 @@ describe('Content Management Tools', () => {
 
       const updateData = { title: 'Updated Title' };
 
-      mockClient.updateEntry.mockResolvedValue(mockUpdatedEntry);
+      mockClient.updateEntryDraft.mockResolvedValue(mockUpdatedEntry);
 
-      const tool = tools.find(t => t.name === 'update_entry')!;
+      const tool = tools.find(t => t.name === 'update_entry_draft')!;
       const result = await tool.execute({
-        pluralApiId: 'articles',
+        contentTypeUid: 'api::article.article',
         documentId: '123',
         data: updateData
       });
 
-      expect(mockClient.updateEntry).toHaveBeenCalledWith('articles', '123', updateData, undefined);
+      expect(mockClient.updateEntryDraft).toHaveBeenCalledWith('api::article.article', '123', updateData, undefined);
       expect(result).toEqual(mockUpdatedEntry);
     });
 
@@ -312,17 +242,40 @@ describe('Content Management Tools', () => {
 
       const updateData = { title: 'Titre Mis à Jour' };
 
-      mockClient.updateEntry.mockResolvedValue(mockUpdatedEntry);
+      mockClient.updateEntryDraft.mockResolvedValue(mockUpdatedEntry);
 
-      const tool = tools.find(t => t.name === 'update_entry')!;
+      const tool = tools.find(t => t.name === 'update_entry_draft')!;
       const result = await tool.execute({
-        pluralApiId: 'i18n-docs',
+        contentTypeUid: 'api::i18n-doc.i18n-doc',
         documentId: '456',
         data: updateData,
         locale: 'fr'
       });
 
-      expect(mockClient.updateEntry).toHaveBeenCalledWith('i18n-docs', '456', updateData, 'fr');
+      expect(mockClient.updateEntryDraft).toHaveBeenCalledWith('api::i18n-doc.i18n-doc', '456', updateData, 'fr');
+      expect(result).toEqual(mockUpdatedEntry);
+    });
+  });
+
+  describe('update_entry_and_publish', () => {
+    it('should update and publish an entry', async () => {
+      const mockUpdatedEntry = {
+        id: '123',
+        attributes: { title: 'Published Title', publishedAt: '2024-01-01T00:00:00Z' }
+      };
+
+      const updateData = { title: 'Published Title' };
+
+      mockClient.updateEntryAndPublish.mockResolvedValue(mockUpdatedEntry);
+
+      const tool = tools.find(t => t.name === 'update_entry_and_publish')!;
+      const result = await tool.execute({
+        contentTypeUid: 'api::article.article',
+        documentId: '123',
+        data: updateData
+      });
+
+      expect(mockClient.updateEntryAndPublish).toHaveBeenCalledWith('api::article.article', '123', updateData, undefined);
       expect(result).toEqual(mockUpdatedEntry);
     });
   });
@@ -333,11 +286,11 @@ describe('Content Management Tools', () => {
 
       const tool = tools.find(t => t.name === 'delete_entry')!;
       const result = await tool.execute({
-        pluralApiId: 'articles',
+        contentTypeUid: 'api::article.article',
         documentId: '123'
       });
 
-      expect(mockClient.deleteEntry).toHaveBeenCalledWith('articles', '123', undefined);
+      expect(mockClient.deleteEntry).toHaveBeenCalledWith('api::article.article', '123', undefined);
       expect(result).toEqual({
         success: true,
         message: 'Entry 123 deleted successfully'
@@ -349,12 +302,12 @@ describe('Content Management Tools', () => {
 
       const tool = tools.find(t => t.name === 'delete_entry')!;
       const result = await tool.execute({
-        pluralApiId: 'i18n-docs',
+        contentTypeUid: 'api::i18n-doc.i18n-doc',
         documentId: '456',
         locale: 'fr'
       });
 
-      expect(mockClient.deleteEntry).toHaveBeenCalledWith('i18n-docs', '456', 'fr');
+      expect(mockClient.deleteEntry).toHaveBeenCalledWith('api::i18n-doc.i18n-doc', '456', 'fr');
       expect(result).toEqual({
         success: true,
         message: 'Entry 456 deleted successfully'
@@ -362,83 +315,4 @@ describe('Content Management Tools', () => {
     });
   });
 
-  describe('publish_entry', () => {
-    it('should publish an entry', async () => {
-      const mockPublishedEntry = {
-        id: '123',
-        attributes: { title: 'Article', publishedAt: '2024-01-01T00:00:00Z' }
-      };
-
-      mockClient.publishEntry.mockResolvedValue(mockPublishedEntry);
-
-      const tool = tools.find(t => t.name === 'publish_entry')!;
-      const result = await tool.execute({
-        pluralApiId: 'articles',
-        documentId: '123'
-      });
-
-      expect(mockClient.publishEntry).toHaveBeenCalledWith('articles', '123', undefined);
-      expect(result).toEqual(mockPublishedEntry);
-    });
-
-    it('should publish specific locale of i18n entry', async () => {
-      const mockPublishedEntry = {
-        id: '456',
-        attributes: { title: 'Article Français', publishedAt: '2024-01-01T00:00:00Z' },
-        locale: 'fr'
-      };
-
-      mockClient.publishEntry.mockResolvedValue(mockPublishedEntry);
-
-      const tool = tools.find(t => t.name === 'publish_entry')!;
-      const result = await tool.execute({
-        pluralApiId: 'i18n-docs',
-        documentId: '456',
-        locale: 'fr'
-      });
-
-      expect(mockClient.publishEntry).toHaveBeenCalledWith('i18n-docs', '456', 'fr');
-      expect(result).toEqual(mockPublishedEntry);
-    });
-  });
-
-  describe('unpublish_entry', () => {
-    it('should unpublish an entry', async () => {
-      const mockUnpublishedEntry = {
-        id: '123',
-        attributes: { title: 'Article', publishedAt: null }
-      };
-
-      mockClient.unpublishEntry.mockResolvedValue(mockUnpublishedEntry);
-
-      const tool = tools.find(t => t.name === 'unpublish_entry')!;
-      const result = await tool.execute({
-        pluralApiId: 'articles',
-        documentId: '123'
-      });
-
-      expect(mockClient.unpublishEntry).toHaveBeenCalledWith('articles', '123', undefined);
-      expect(result).toEqual(mockUnpublishedEntry);
-    });
-
-    it('should unpublish specific locale of i18n entry', async () => {
-      const mockUnpublishedEntry = {
-        id: '456',
-        attributes: { title: 'Article Français', publishedAt: null },
-        locale: 'fr'
-      };
-
-      mockClient.unpublishEntry.mockResolvedValue(mockUnpublishedEntry);
-
-      const tool = tools.find(t => t.name === 'unpublish_entry')!;
-      const result = await tool.execute({
-        pluralApiId: 'i18n-docs',
-        documentId: '456',
-        locale: 'fr'
-      });
-
-      expect(mockClient.unpublishEntry).toHaveBeenCalledWith('i18n-docs', '456', 'fr');
-      expect(result).toEqual(mockUnpublishedEntry);
-    });
-  });
 });
