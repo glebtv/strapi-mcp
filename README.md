@@ -8,6 +8,17 @@ You can read more about it here: https://www.reddit.com/r/vibecoding/comments/1m
 
 The tool itself is working but I would not trust it to connect to production server until all the code is reviewed, and do backups on your dev enviromnent including strapi db.
 
+## ⚠️ **IMPORTANT: Component Management in Strapi v5** ⚠️
+
+**Components in Strapi v5 are simple JSON schema files** located at:
+- `src/components/{category}/{component-name}.json`
+
+**You don't need any special tools to manage components** - just edit the JSON files directly:
+- Components are organized in category folders (e.g., `sections/`, `shared/`)
+- Each component is a single JSON file with `collectionName`, `info`, and `attributes`
+- After editing component JSON files, Strapi will automatically reload in development mode
+- Example path: `src/components/sections/hero.json`, `src/components/shared/seo.json`
+
 The mcp for structure management itself is not really needed, so it's gone now, if you look at strapi v5 you can ⚠️**just ask claude to edit the json schema files**⚠️..
 
 simple package.json strapi backup example:

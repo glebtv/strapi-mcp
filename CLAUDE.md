@@ -92,12 +92,14 @@ The test helper script is REQUIRED because it:
 
 4. **Tool Organization (`src/tools/`)**
    - `content-management.ts`: CRUD operations for entries
+     - `list_content_types`: Lists content types with optional filter
+     - `list_components`: Lists components with optional filter  
+     - Helper functions for i18n locale handling and content type config
    - `media.ts`: File upload tools with size limits
    - `relation.ts`: Relation management with **Strapi v5 document IDs**
-   - `content-type-builder.ts`: Schema management tools with proper i18n support
-   - `component.ts`: Component CRUD operations
+   - `api-token.ts`: API token management
+   - `i18n.ts`: Locale management tools
    - `direct-api.ts`: Direct REST API access
-   - `schema.ts`: Content type schema retrieval
 
 ### Key Design Decisions
 
@@ -110,9 +112,10 @@ The test helper script is REQUIRED because it:
 4. **Error Handling**: All tools return structured errors with helpful troubleshooting messages
 
 5. **Test Structure**: 
-   - Unit tests mock the StrapiClient
+   - Unit tests mock the StrapiClient using Jest
    - Integration tests run against a real Strapi instance
    - Tests run sequentially (`maxWorkers: 1`) to avoid API conflicts
+   - **IMPORTANT**: Only use Jest for testing, never vitest
 
 ### Authentication Flow
 
@@ -173,6 +176,8 @@ When `STRAPI_DEV_MODE=true`:
 
 ### Strapi Specific Memories
 - In the SETUP SCRIPT @scripts/setup-test-strapi.sh WE DO ALL CHANGES TO STRAPI IN THE SETUP SCRIPT
-```
+- **COMPONENTS ARE JSON FILES**: Strapi components are simple JSON schema files located at `src/components/{category}/{component}.json`. Edit them directly - no special tools needed!
+  - Example: `test-strapi-app/src/components/sections/hero.json`
+  - Structure: Each has `collectionName`, `info`, and `attributes` fields
+  - Strapi auto-reloads in dev mode after JSON changes
 
-</invoke>

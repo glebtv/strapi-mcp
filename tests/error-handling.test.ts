@@ -18,9 +18,10 @@ describe('Error Handling', () => {
       // If name field accepts numbers, we need a different approach
       try {
         await client.callTool({
-          name: 'create_draft_entry',
+          name: 'create_entry',
           arguments: {
             contentTypeUid: 'api::project.project',
+        publish: false,
             data: {
               // Try with an empty object to trigger required field validation
               // or with an invalid field type
@@ -39,9 +40,10 @@ describe('Error Handling', () => {
       try {
         // Create an entry with invalid data type (number instead of string)
         await client.callTool({
-          name: 'create_draft_entry',
+          name: 'create_entry',
           arguments: {
             contentTypeUid: 'api::project.project',
+        publish: false,
             data: {
               name: 'Test',
               description: 12345 // Should be string if field expects string
@@ -75,13 +77,14 @@ describe('Error Handling', () => {
     it('should handle non-existent document updates', async () => {
       try {
         await client.callTool({
-          name: 'update_entry_draft',
+          name: 'update_entry',
           arguments: {
             contentTypeUid: 'api::project.project',
             documentId: 'non-existent-document-id',
             data: {
               name: 'Test'
-            }
+            },
+            publish: false
           }
         });
         throw new Error('Should have thrown an error');

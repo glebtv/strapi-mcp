@@ -67,9 +67,10 @@ describe('Dynamic Zone Component Validation', () => {
 
       try {
         await client.callTool({
-          name: 'create_draft_entry',
+          name: 'create_entry',
           arguments: {
             contentTypeUid: 'api::page.page',
+        publish: false,
             data: dataWithInvalidComponents,
             locale: 'en',
           }
@@ -106,9 +107,10 @@ describe('Dynamic Zone Component Validation', () => {
       };
 
       const result = await client.callTool({
-        name: 'create_draft_entry',
+        name: 'create_entry',
         arguments: {
           contentTypeUid: 'api::page.page',
+        publish: false,
           data: validData,
           locale: 'en',
         }
@@ -145,9 +147,10 @@ describe('Dynamic Zone Component Validation', () => {
 
       try {
         await client.callTool({
-          name: 'create_draft_entry',
+          name: 'create_entry',
           arguments: {
             contentTypeUid: 'api::page.page',
+        publish: false,
             data: dataWithMissingComponent,
             locale: 'en',
           }
@@ -180,9 +183,10 @@ describe('Dynamic Zone Component Validation', () => {
       };
 
       const result = await client.callTool({
-        name: 'create_draft_entry',
+        name: 'create_entry',
         arguments: {
           contentTypeUid: 'api::page.page',
+        publish: false,
           data: validData,
           locale: 'en',
         }
@@ -224,12 +228,13 @@ describe('Dynamic Zone Component Validation', () => {
 
       try {
         await client.callTool({
-          name: 'update_entry_draft',
+          name: 'update_entry',
           arguments: {
             contentTypeUid: 'api::page.page',
             documentId: testEntryId,
             data: updateWithInvalid,
-            locale: 'en'
+            locale: 'en',
+            publish: false
           }
         });
         
@@ -257,12 +262,13 @@ describe('Dynamic Zone Component Validation', () => {
       };
 
       const result = await client.callTool({
-        name: 'update_entry_draft',
+        name: 'update_entry',
         arguments: {
           contentTypeUid: 'api::page.page',
           documentId: testEntryId,
           data: validUpdate,
-          locale: 'en'
+          locale: 'en',
+          publish: false
         }
       });
 

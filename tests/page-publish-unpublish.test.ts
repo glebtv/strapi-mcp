@@ -114,9 +114,10 @@ describe('Page Publish/Unpublish Integration Tests', () => {
 
     // Create the page in draft state
     const createResult = await client.callTool({
-      name: 'create_draft_entry',
+      name: 'create_entry',
       arguments: {
         contentTypeUid: 'api::page.page',
+        publish: false,
         data: pageData
       }
     });
@@ -246,9 +247,10 @@ describe('Page Publish/Unpublish Integration Tests', () => {
 
     // Create the page
     const createResult = await client.callTool({
-      name: 'create_draft_entry',
+      name: 'create_entry',
       arguments: {
         contentTypeUid: 'api::page.page',
+        publish: false,
         data: pageData
       }
     });

@@ -1,10 +1,11 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
+import qs from 'qs';
 import { AuthManager } from './auth-manager.js';
 import { TokenManager } from './token-manager.js';
 import { ContentOperations } from './client/content-operations.js';
 import { MediaOperations } from './client/media-operations.js';
 import { RelationOperations } from './client/relation-operations.js';
-import { StrapiConfig, ContentType, HealthCheckResult } from './types.js';
+import { StrapiConfig, HealthCheckResult } from './types.js';
 
 export class StrapiClient {
   private axios: AxiosInstance;
@@ -22,18 +23,26 @@ export class StrapiClient {
     this.config = config;
     this.authManager = new AuthManager(config);
     this.tokenManager = new TokenManager(this);
-    
+
     // Initialize operation modules
     this.contentOps = new ContentOperations(this);
     this.mediaOps = new MediaOperations(this);
     this.relationOps = new RelationOperations(this);
-    
+
     this.axios = axios.create({
       baseURL: config.url,
       headers: {
         'Content-Type': 'application/json'
       },
-      validateStatus: (status) => status < 500
+      validateStatus: (status) => status < 500,
+      // Use qs for parameter serialization to properly handle nested filters
+      paramsSerializer: {
+        serialize: (params) => qs.stringify(params, {
+          arrayFormat: 'brackets',
+          encode: true,  // Properly encode special characters
+          encodeValuesOnly: true  // Only encode values, not keys
+        })
+      }
     });
 
     // Add auth headers to all requests
@@ -60,7 +69,7 @@ export class StrapiClient {
         timeout: 5000,
         validateStatus: () => true
       });
-      
+
       if (response.status === 200 || response.status === 204) {
         return { status: 'healthy' };
       } else if (response.status === 503) {
@@ -84,71 +93,73 @@ export class StrapiClient {
   async makeRequest<T>(config: AxiosRequestConfig): Promise<T> {
     try {
       const response = await this.axios.request<T>(config);
-      
+
       // Check if the response contains a Strapi error structure
       if (response.data && typeof response.data === 'object' && 'error' in response.data && response.data.error) {
         const error = response.data.error as any;
-        
+
         const errorMessage = error.message || 'Strapi API error';
         const strapiError = new Error(errorMessage);
-        
+
         // Add additional error details
         (strapiError as any).status = error.status;
         (strapiError as any).name = error.name;
         (strapiError as any).details = error.details;
-        
+
         throw strapiError;
       }
-      
+
       return response.data;
     } catch (error) {
       // Handle connection refused errors specifically
       if (axios.isAxiosError(error) && error.code === 'ECONNREFUSED') {
         throw new Error('Connection refused, check if Strapi instance is running');
       }
-      
+
       // Handle HTTP errors (4xx, 5xx)
       if (axios.isAxiosError(error) && error.response) {
         const status = error.response.status;
         const statusText = error.response.statusText;
-        
+
         // Special handling for 401 - try to re-login
         if (status === 401) {
           const reLoginSuccess = await this.authManager.handleAuthError(error);
           if (reLoginSuccess) {
             // Retry the request with new auth
             const response = await this.axios.request<T>(config);
-            
+
             // Check for Strapi errors in retry response too
             if (response.data && typeof response.data === 'object' && 'error' in response.data && response.data.error) {
               const error = response.data.error as any;
               const errorMessage = error.message || 'Strapi API error';
               const strapiError = new Error(errorMessage);
-              
+
               (strapiError as any).status = error.status;
               (strapiError as any).name = error.name;
               (strapiError as any).details = error.details;
-              
+
               throw strapiError;
             }
-            
+
             return response.data;
           }
         }
-        
+
         // Extract error message from response
         let errorMessage = `HTTP ${status} ${statusText}`;
-        
+
         // Try to extract more detailed error information
         if (error.response.data) {
           if (typeof error.response.data === 'string') {
             // Plain text error response (like "Method Not Allowed")
-            errorMessage = `${errorMessage}: ${error.response.data}`;
+            // Remove surrounding quotes if present (from JSON-encoded strings)
+            const cleanedData = error.response.data.replace(/^"(.*)"$/, '$1');
+            errorMessage = `${errorMessage}: ${cleanedData}`;
           } else if (error.response.data.error) {
             // Strapi error format
             const strapiError = error.response.data.error;
             errorMessage = strapiError.message || errorMessage;
-            
+
             // Create proper error with all details
             const detailedError = new Error(errorMessage);
             (detailedError as any).status = status;
@@ -160,14 +171,14 @@ export class StrapiClient {
             errorMessage = error.response.data.message;
           }
         }
-        
+
         // Throw a proper error for all HTTP errors
         const httpError = new Error(errorMessage);
         (httpError as any).status = status;
         (httpError as any).statusText = statusText;
         throw httpError;
       }
-      
+
       // Re-throw other errors as-is
       throw error;
     }
@@ -194,13 +205,12 @@ export class StrapiClient {
   }
 
   /**
-   * List all content types and components
+   * Get content manager initialization data (content types and components)
    */
-  async listContentTypes(): Promise<any> {
+  async contentManagerInit(): Promise<any> {
     // Use content-manager/init endpoint for listing content types and components
     const response = await this.adminRequest<any>('/content-manager/init');
-    // The response from adminRequest is the axios response.data which contains { data: { contentTypes, components } }
-    // We need to extract the inner data object
+    // Return the raw data from the API response
     return response?.data || { contentTypes: [], components: [] };
   }
 
@@ -284,13 +294,13 @@ export class StrapiClient {
    */
   async strapiRest(endpoint: string, method: string = 'GET', params?: any, body?: any, authenticated: boolean = true): Promise<any> {
     let headers: any = {};
-    
+
     // Only add authentication if requested
     if (authenticated) {
       // Check if this is an admin endpoint
-      const isAdminEndpoint = endpoint.startsWith('admin/') || endpoint.startsWith('/admin/') || 
+      const isAdminEndpoint = endpoint.startsWith('admin/') || endpoint.startsWith('/admin/') ||
                              endpoint.includes('content-manager') || endpoint.includes('content-type-builder');
-      
+
       if (isAdminEndpoint) {
         // Admin endpoints require JWT token from admin login
         if (this.config.adminEmail && this.config.adminPassword) {
@@ -314,7 +324,7 @@ export class StrapiClient {
         }
       }
     }
-    
+
     const config: AxiosRequestConfig = {
       url: endpoint,
       method,
@@ -336,7 +346,7 @@ export class StrapiClient {
         baseURL: this.config.url,
         validateStatus: (status) => status < 500
       });
-      
+
       // Check if the response indicates an error
       if (response.status >= 400) {
         const error = response.data?.error || response.data;
@@ -351,15 +361,15 @@ export class StrapiClient {
         console.error('[StrapiClient] REST API error:', errorDetails);
         throw new Error(`Strapi API error: ${errorMessage}`, { cause: errorDetails });
       }
-      
+
       // Check if response is HTML (which indicates wrong endpoint or auth failure)
       const contentType = response.headers['content-type'] || '';
       if (contentType.includes('text/html') && typeof response.data === 'string') {
         const isLoginPage = response.data.includes('Strapi Admin') || response.data.includes('strapi--root');
-        const errorMsg = isLoginPage 
+        const errorMsg = isLoginPage
           ? `Authentication failed or wrong endpoint. Got HTML login page for ${method} ${endpoint}. Check if endpoint requires admin auth.`
           : `Invalid API endpoint ${method} ${endpoint}. Got HTML response instead of JSON.`;
-        
+
         console.error('[StrapiClient] HTML response detected:', {
           endpoint,
           method,
@@ -367,10 +377,10 @@ export class StrapiClient {
           isLoginPage,
           htmlSnippet: response.data.substring(0, 200)
         });
-        
+
         throw new Error(errorMsg);
       }
-      
+
       return response.data;
     } catch (error) {
       // Handle connection refused errors specifically

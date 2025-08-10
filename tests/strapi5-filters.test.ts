@@ -50,9 +50,10 @@ describe('Strapi 5 Filter Operators', () => {
     
     for (const name of testProjectNames) {
       const result = await client.callTool({
-        name: 'create_draft_entry',
+        name: 'create_entry',
         arguments: {
           contentTypeUid: 'api::project.project',
+        publish: false,
           data: { 
             name,
             description: 'Test project for filters'
@@ -147,15 +148,18 @@ describe('Strapi 5 Filter Operators', () => {
   }, 60000);
 
   it('should support $in filter', async () => {
+    // Strapi v5 $in filter requires the array format with $and wrapper
     const result = await client.callTool({
       name: 'get_entries', 
       arguments: {
         contentTypeUid: 'api::project.project',
         options: JSON.stringify({
           filters: {
-            name: {
-              $in: [testProjectNames[0], testProjectNames[2]] // Alpha Project, Gamma Development
-            }
+            $and: [{
+              name: {
+                $in: [testProjectNames[0], testProjectNames[2]] // Alpha Project, Gamma Development
+              }
+            }]
           }
         })
       }

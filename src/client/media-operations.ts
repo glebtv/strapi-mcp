@@ -16,7 +16,7 @@ export class MediaOperations {
     // Validate file size
     const base64Size = fileData.length;
     const MAX_BASE64_SIZE = 1024 * 1024; // 1MB of base64
-    
+
     if (base64Size > MAX_BASE64_SIZE) {
       const estimatedSizeMB = ((base64Size * 3) / 4 / (1024 * 1024)).toFixed(2);
       throw new Error(`File too large: ~${estimatedSizeMB}MB. Maximum ~0.75MB for base64 upload.`);
@@ -31,9 +31,9 @@ export class MediaOperations {
       throw new Error('Invalid base64 data');
     }
     const formData = new FormData();
-    formData.append('files', buffer, { 
-      filename: fileName, 
-      contentType: fileType 
+    formData.append('files', buffer, {
+      filename: fileName,
+      contentType: fileType
     });
     formData.append('fileInfo', JSON.stringify({ name: fileName, folder: null }));
 
@@ -71,14 +71,14 @@ export class MediaOperations {
   async uploadMediaFromPath(filePath: string, fileName?: string, fileType?: string): Promise<any> {
     const fs = await import('fs');
     const path = await import('path');
-    
+
     if (!fs.existsSync(filePath)) {
       throw new Error(`File not found: ${filePath}`);
     }
 
     const stats = fs.statSync(filePath);
     const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-    
+
     if (stats.size > MAX_FILE_SIZE) {
       throw new Error(`File too large: ${(stats.size / (1024 * 1024)).toFixed(2)}MB. Maximum 10MB.`);
     }
@@ -86,7 +86,7 @@ export class MediaOperations {
     const actualFileName = fileName || path.basename(filePath);
     const fileBuffer = fs.readFileSync(filePath);
     const base64Data = fileBuffer.toString('base64');
-    
+
     if (!fileType) {
       const ext = path.extname(filePath).toLowerCase();
       const mimeTypes: Record<string, string> = {
@@ -163,14 +163,14 @@ export class MediaOperations {
    */
   private filterBase64FromResponse(data: any): any {
     if (!data) return data;
-    
+
     if (Array.isArray(data)) {
       return data.map(item => this.filterBase64FromResponse(item));
     }
-    
+
     if (typeof data === 'object') {
       const filtered: any = {};
-      
+
       for (const [key, value] of Object.entries(data)) {
         if (typeof value === 'string' && value.length > 1000 && /^[A-Za-z0-9+/=]+$/.test(value.substring(0, 100))) {
           filtered[key] = `[BASE64_DATA_FILTERED - ${value.length} chars]`;
@@ -178,10 +178,10 @@ export class MediaOperations {
           filtered[key] = this.filterBase64FromResponse(value);
         }
       }
-      
+
       return filtered;
     }
-    
+
     return data;
   }
 }

@@ -2,15 +2,21 @@ import { z } from 'zod';
 import { StrapiClient } from '../strapi-client.js';
 import { Tool } from './types.js';
 
+// Required string schema - ensures strings are not empty
+const RequiredString = z.string().trim().min(1, { message: 'Field is required and cannot be empty' });
+
+// Optional string schema - can be empty or undefined
+const OptionalString = z.string().trim().optional();
+
 export function mediaTools(client: StrapiClient): Tool[] {
   return [
     {
       name: 'upload_media',
       description: 'Uploads a media file using base64 encoding. Limited to ~750KB files to prevent context window overflow',
       inputSchema: z.object({
-        fileData: z.string().describe('Base64 encoded file data'),
-        fileName: z.string().describe('Name for the file'),
-        fileType: z.string().describe('MIME type (e.g., "image/jpeg")')
+        fileData: RequiredString.describe('Base64 encoded file data'),
+        fileName: RequiredString.describe('Name for the file'),
+        fileType: RequiredString.describe('MIME type (e.g., "image/jpeg")')
       }),
       execute: async (args) => {
         return await client.uploadMedia(args.fileData, args.fileName, args.fileType);
@@ -20,9 +26,9 @@ export function mediaTools(client: StrapiClient): Tool[] {
       name: 'upload_media_from_path',
       description: 'Uploads a media file from a local file path. Supports files up to 10MB',
       inputSchema: z.object({
-        filePath: z.string().describe('Local file system path'),
-        fileName: z.string().optional().describe('Override the file name'),
-        fileType: z.string().optional().describe('Override the MIME type')
+        filePath: RequiredString.describe('Local file system path'),
+        fileName: OptionalString.describe('Override the file name'),
+        fileType: OptionalString.describe('Override the MIME type')
       }),
       execute: async (args) => {
         return await client.uploadMediaFromPath(args.filePath, args.fileName, args.fileType);
@@ -34,8 +40,8 @@ export function mediaTools(client: StrapiClient): Tool[] {
       inputSchema: z.object({
         page: z.number().optional().describe('Page number (default: 1)'),
         pageSize: z.number().optional().describe('Number of items per page (default: 10)'),
-        sort: z.string().optional().describe('Sort order (e.g., "createdAt:DESC")'),
-        filters: z.record(z.any()).optional().describe('Filter parameters')
+        sort: OptionalString.describe('Sort order (e.g., "createdAt:DESC")'),
+        filters: z.record(z.any()).optional().describe('Filter parameters. Examples: Filter by image type: {"$and": [{"mime": {"$contains": "image"}}]}. Filter by file name: {"$and": [{"name": {"$contains": "logo"}}]}. Filter by folder: {"$and": [{"folderPath": {"$eq": "/"}}]}. Filter video files: {"$and": [{"mime": {"$contains": "video"}}]}. Filter audio files: {"$and": [{"mime": {"$contains": "audio"}}]}. Combine filters: {"$and": [{"mime": {"$contains": "image"}}, {"name": {"$contains": "banner"}}]}')
       }),
       execute: async (args) => {
         return await client.listMedia(args);
@@ -47,7 +53,7 @@ export function mediaTools(client: StrapiClient): Tool[] {
       inputSchema: z.object({
         page: z.number().optional().describe('Page number (default: 1)'),
         pageSize: z.number().optional().describe('Number of items per page (default: 10)'),
-        sort: z.string().optional().describe('Sort order (e.g., "createdAt:DESC")'),
+        sort: OptionalString.describe('Sort order (e.g., "createdAt:DESC")'),
         filters: z.record(z.any()).optional().describe('Filter parameters')
       }),
       execute: async (args) => {

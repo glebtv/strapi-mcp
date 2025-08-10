@@ -31,9 +31,10 @@ describe('Strapi 5 Flattened Response Format', () => {
     
     // Create entry
     const createResult = await client.callTool({
-      name: 'create_draft_entry',
+      name: 'create_entry',
       arguments: {
         contentTypeUid: 'api::project.project',
+        publish: false,
         data: {
           name: testName,
           description: 'Testing Strapi 5 response format'

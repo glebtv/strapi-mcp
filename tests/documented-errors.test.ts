@@ -55,9 +55,10 @@ describe('Documented Strapi MCP Errors', () => {
 
       try {
         await client.callTool({
-          name: 'create_draft_entry',
+          name: 'create_entry',
           arguments: {
             contentTypeUid: 'api::page.page',
+        publish: false,
             data: incompleteData,
             locale: 'en',
           }
@@ -89,9 +90,10 @@ describe('Documented Strapi MCP Errors', () => {
       };
 
       const result = await client.callTool({
-        name: 'create_draft_entry',
+        name: 'create_entry',
         arguments: {
           contentTypeUid: 'api::page.page',
+        publish: false,
           data: completeData,
           locale: 'en',
         }
@@ -123,9 +125,10 @@ describe('Documented Strapi MCP Errors', () => {
       };
 
       const result = await client.callTool({
-        name: 'create_draft_entry',
+        name: 'create_entry',
         arguments: {
           contentTypeUid: 'api::page.page',
+        publish: false,
           data: validData,
           locale: 'en',
         }
@@ -203,9 +206,10 @@ describe('Documented Strapi MCP Errors', () => {
 
       try {
         await client.callTool({
-          name: 'create_draft_entry',
+          name: 'create_entry',
           arguments: {
             contentTypeUid: 'api::page.page',
+        publish: false,
             data: dataWithInvalidComponents,
             locale: 'en',
           }
@@ -248,9 +252,10 @@ describe('Documented Strapi MCP Errors', () => {
       };
 
       const createResult = await client.callTool({
-        name: 'create_draft_entry',
+        name: 'create_entry',
         arguments: {
           contentTypeUid: 'api::page.page',
+        publish: false,
           data: testData,
           locale: 'en',
         }

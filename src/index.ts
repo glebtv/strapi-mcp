@@ -58,6 +58,7 @@ const server = new Server(
   {
     name: 'strapi-mcp',
     version: '0.4.1',
+    description: 'Strapi v5 MCP Server. IMPORTANT: Components in Strapi are edited directly via JSON schema files located at src/components/{category}/{component}.json. No special tools needed - just edit the JSON files directly.',
   },
   {
     capabilities: {
@@ -94,7 +95,7 @@ async function logToolCall(toolName: string, args: any, result: any, error?: any
     } : undefined,
     duration: duration || 0
   };
-  
+
   try {
     // Use promises version to avoid blocking
     await fs.promises.appendFile(LOG_FILE, JSON.stringify(logEntry) + '\n');
@@ -109,13 +110,13 @@ async function logToolCall(toolName: string, args: any, result: any, error?: any
 server.setRequestHandler(ListResourcesRequestSchema, async () => {
   try {
     // Fetch all content types
-    const initData = await strapiClient.listContentTypes();
+    const initData = await strapiClient.contentManagerInit();
     const contentTypes = initData.contentTypes || [];
-    
+
     // Filter to only show content types that are displayed in content manager
     // This excludes system/plugin content types that can't be managed
     const manageableContentTypes = contentTypes.filter((ct: any) => ct.isDisplayed === true);
-    
+
     // Create resources for manageable content types
     const resources = manageableContentTypes.map((ct: any) => ({
       uri: `strapi://content-type/${ct.uid}`,
@@ -123,7 +124,7 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
       name: ct.info.displayName,
       description: ct.info.description || `${ct.info.displayName} content type`
     }));
-    
+
     return { resources };
   } catch (error) {
     console.error('[Error] Failed to list resources:', error);
@@ -140,29 +141,29 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
 server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
   try {
     const uri = request.params.uri;
-    
+
     // Parse URI: strapi://content-type/{contentTypeUid}
     const match = uri.match(/^strapi:\/\/content-type\/([^\/\?]+)$/);
     if (!match) {
       throw new McpError(ErrorCode.InvalidRequest, `Invalid URI format: ${uri}`);
     }
-    
+
     const [, contentTypeUid] = match;
-    
+
     // Get all content types to find the schema for this specific type
-    const initData = await strapiClient.listContentTypes();
+    const initData = await strapiClient.contentManagerInit();
     const contentTypes = initData.contentTypes || [];
-    
+
     // Find the specific content type schema
     const contentTypeSchema = contentTypes.find((ct: any) => ct.uid === contentTypeUid);
-    
+
     if (!contentTypeSchema) {
       throw new McpError(
         ErrorCode.InvalidRequest,
         `Content type not found: ${contentTypeUid}`
       );
     }
-    
+
     // Return the full schema as the resource content
     return {
       contents: [{
@@ -199,27 +200,27 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
   const startTime = Date.now();
-  
+
   const tool = tools[name];
   if (!tool) {
     throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
   }
-  
+
   try {
     // Validate arguments
     const validatedArgs = tool.inputSchema.parse(args);
-    
+
     // Execute tool
     const result = await tool.execute(validatedArgs);
-    
+
     // Log successful call
     const duration = Date.now() - startTime;
     // Don't await to avoid blocking the response
-    logToolCall(name, args, result, undefined, duration).catch(e => 
+    logToolCall(name, args, result, undefined, duration).catch(e =>
       console.error('[Warning] Failed to log tool call:', e)
     );
-    
-    
+
+
     return {
       content: [{
         type: 'text',
@@ -233,24 +234,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         `Invalid arguments: ${error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')}`
       );
     }
-    
+
     // Log error
     const duration = Date.now() - startTime;
     // Don't await to avoid blocking the response
-    logToolCall(name, args, null, error, duration).catch(e => 
+    logToolCall(name, args, null, error, duration).catch(e =>
       console.error('[Warning] Failed to log tool call error:', e)
     );
-    
+
     console.error(`[Error] Tool ${name} failed:`, error);
     console.error('[Error] Tool arguments:', JSON.stringify(args, null, 2));
-    
+
     // Extract detailed error information
     let errorMessage = error instanceof Error ? error.message : String(error);
-    
+
     // If the error has validation details, format them nicely
     if (error instanceof Error && (error as any).details) {
       const details = (error as any).details;
-      
+
       // Handle Strapi validation errors with nested structure
       if (details.errors && Array.isArray(details.errors)) {
         const formattedErrors = details.errors.map((err: any) => {
@@ -263,20 +264,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           }
           return err.message || JSON.stringify(err);
         });
-        
+
         // Check if this is a create_entry or update_entry call to provide more specific help
         const isContentOperation = ['create_entry', 'update_entry'].includes(name);
-        const tipMessage = isContentOperation 
+        const tipMessage = isContentOperation
           ? '\n\nTip: Use get_content_type_schema first to check ALL required fields. Required fields must be included at the root level of the data object, not nested inside components.'
           : '\n\nTip: Use get_content_type_schema to check which fields are required before creating entries.';
-        
+
         errorMessage = `${errorMessage}\n\nValidation errors:\n- ${formattedErrors.join('\n- ')}${tipMessage}`;
       } else {
         // Fallback for other error structures
         errorMessage = `${errorMessage}\n\nDetails: ${JSON.stringify(details, null, 2)}`;
       }
     }
-    
+
     throw new McpError(
       ErrorCode.InternalError,
       `Tool execution failed: ${errorMessage}`
@@ -300,7 +301,7 @@ process.on('uncaughtException', (error) => {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  
+
   // Log startup info to stderr (not stdout which is reserved for JSON-RPC)
   console.error('[INFO] Strapi MCP Server v0.4.1 started');
   console.error(`[INFO] Tool call logs will be written to: ${LOG_FILE}`);

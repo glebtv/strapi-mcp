@@ -8,7 +8,7 @@ export class AuthManager {
 
   constructor(config: StrapiConfig) {
     this.config = config;
-    
+
     // Set initial API token if provided
     if (config.apiToken) {
       this.tokens.apiToken = config.apiToken;
@@ -62,7 +62,7 @@ export class AuthManager {
     }
 
     this.loginPromise = this.performLogin();
-    
+
     try {
       const result = await this.loginPromise;
       return result;
@@ -74,11 +74,11 @@ export class AuthManager {
   private async performLogin(): Promise<boolean> {
     const maxRetries = 5;
     let retryDelay = 1000; // Start with 1 second
-    
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         console.error(`[Auth] Login attempt ${attempt}/${maxRetries} to ${this.config.url}/admin/login`);
-        
+
         const response = await axios.post(
           `${this.config.url}/admin/login`,
           {
@@ -98,7 +98,7 @@ export class AuthManager {
           console.error('[Auth] Successfully logged in to Strapi admin');
           return true;
         }
-        
+
         if (response.status === 429) {
           // Rate limited - wait and retry
           console.error(`[Auth] Login rate limited (429), attempt ${attempt}/${maxRetries}, waiting ${retryDelay}ms before retry`);
@@ -119,7 +119,7 @@ export class AuthManager {
           console.error('[Auth] Connection refused, check if Strapi instance is running');
           throw new Error('Connection refused, check if Strapi instance is running');
         }
-        
+
         // Only retry on network errors, not authentication errors
         if (axios.isAxiosError(error) && error.response?.status === 429) {
           console.error(`[Auth] Login rate limited in catch block, attempt ${attempt}/${maxRetries}`);
@@ -129,13 +129,13 @@ export class AuthManager {
             continue;
           }
         }
-        
+
         // For any other error, fail immediately
         console.error('[Auth] Login error:', error);
         return false;
       }
     }
-    
+
     return false;
   }
 

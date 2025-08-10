@@ -12,12 +12,15 @@ describe('Content Management Tools - Unit Tests', () => {
   beforeEach(() => {
     mockClient = new StrapiClient({} as StrapiConfig) as jest.Mocked<StrapiClient>;
     
-    // Mock listContentTypes for i18n checks - updated to match new response format
-    mockClient.listContentTypes = jest.fn().mockResolvedValue({
+    // Mock contentManagerInit for content type checks
+    mockClient.contentManagerInit = jest.fn().mockResolvedValue({
       contentTypes: [
         {
           uid: 'api::article.article',
-          pluginOptions: {}
+          pluginOptions: {},
+          options: {
+            draftAndPublish: true  // Ensure draftAndPublish is enabled
+          }
         },
         {
           uid: 'api::i18n-doc.i18n-doc',
@@ -25,6 +28,9 @@ describe('Content Management Tools - Unit Tests', () => {
             i18n: {
               localized: true
             }
+          },
+          options: {
+            draftAndPublish: true  // Ensure draftAndPublish is enabled
           }
         }
       ],
@@ -97,8 +103,8 @@ describe('Content Management Tools - Unit Tests', () => {
     });
   });
 
-  describe('create_draft_entry tool', () => {
-    const getTool = () => tools.find(t => t.name === 'create_draft_entry')!;
+  describe('create_entry tool', () => {
+    const getTool = () => tools.find(t => t.name === 'create_entry')!;
 
     it('should create draft entry', async () => {
       const mockResponse = { id: 1, title: 'Test' };
@@ -128,39 +134,60 @@ describe('Content Management Tools - Unit Tests', () => {
     });
   });
 
-  describe('update_entry_draft tool', () => {
-    const getTool = () => tools.find(t => t.name === 'update_entry_draft')!;
+  describe('update_entry tool', () => {
+    const getTool = () => tools.find(t => t.name === 'update_entry')!;
 
-    it('should update entry as draft', async () => {
+    it('should update entry as draft when publish=false', async () => {
       const mockResponse = { id: 1, title: 'Updated' };
       mockClient.updateEntryDraft.mockResolvedValue(mockResponse);
 
       const result = await getTool().execute({
         contentTypeUid: 'api::article.article',
         documentId: 'abc123',
-        data: { title: 'Updated' }
+        data: { title: 'Updated' },
+        publish: false
       });
 
       expect(mockClient.updateEntryDraft).toHaveBeenCalledWith('api::article.article', 'abc123', { title: 'Updated' }, undefined);
       expect(result).toEqual(mockResponse);
     });
-  });
 
-  describe('update_entry_and_publish tool', () => {
-    const getTool = () => tools.find(t => t.name === 'update_entry_and_publish')!;
-
-    it('should update and publish entry', async () => {
+    it('should update and publish entry when publish=true', async () => {
       const mockResponse = { id: 1, title: 'Updated' };
       mockClient.updateEntryAndPublish.mockResolvedValue(mockResponse);
 
       const result = await getTool().execute({
         contentTypeUid: 'api::article.article',
         documentId: 'abc123',
-        data: { title: 'Updated' }
+        data: { title: 'Updated' },
+        publish: true
       });
 
       expect(mockClient.updateEntryAndPublish).toHaveBeenCalledWith('api::article.article', 'abc123', { title: 'Updated' }, undefined);
       expect(result).toEqual(mockResponse);
+    });
+
+    it('should default to publish=true', async () => {
+      const mockResponse = { id: 1, title: 'Updated' };
+      mockClient.updateEntryAndPublish.mockResolvedValue(mockResponse);
+
+      // Test the actual input schema default behavior
+      const tool = getTool();
+      const parsedArgs = tool.inputSchema.parse({
+        contentTypeUid: 'api::article.article',
+        documentId: 'abc123',
+        data: { title: 'Updated' }
+        // publish not specified
+      });
+      
+      // Verify the default was applied
+      expect(parsedArgs.publish).toBe(true);
+      
+      // Now execute with parsed args
+      const result = await tool.execute(parsedArgs);
+
+      expect(result).toEqual(mockResponse);
+      expect(mockClient.updateEntryAndPublish).toHaveBeenCalledWith('api::article.article', 'abc123', { title: 'Updated' }, undefined);
     });
   });
 
@@ -177,6 +204,28 @@ describe('Content Management Tools - Unit Tests', () => {
 
       expect(mockClient.deleteEntry).toHaveBeenCalledWith('api::article.article', 'abc123', undefined);
       expect(result).toEqual({ success: true, message: 'Entry abc123 deleted successfully' });
+    });
+  });
+
+  describe('error handling', () => {
+    it('should handle contentManagerInit failure gracefully', async () => {
+      // Mock contentManagerInit to return undefined (server down scenario)
+      mockClient.contentManagerInit.mockResolvedValue(undefined as any);
+
+      const getTool = () => tools.find(t => t.name === 'list_content_types')!;
+      
+      await expect(getTool().execute({}))
+        .rejects.toThrow('Failed to retrieve content types from Strapi. The server may be down or unreachable.');
+    });
+
+    it('should handle contentManagerInit error with custom message', async () => {
+      // Mock contentManagerInit to throw an error
+      mockClient.contentManagerInit.mockRejectedValue(new Error('Connection refused'));
+
+      const getTool = () => tools.find(t => t.name === 'list_content_types')!;
+      
+      await expect(getTool().execute({}))
+        .rejects.toThrow('Connection refused');
     });
   });
 

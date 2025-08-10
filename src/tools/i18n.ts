@@ -23,7 +23,7 @@ export function i18nTools(client: StrapiClient): Tool[] {
       }),
       execute: async (args) => {
         const name = args.name || `${args.code.toUpperCase()} (${args.code})`;
-        
+
         const response = await client.adminRequest<any>(
           '/i18n/locales',
           'POST',
@@ -33,7 +33,7 @@ export function i18nTools(client: StrapiClient): Tool[] {
             isDefault: args.isDefault
           }
         );
-        
+
         return response;
       }
     },
@@ -48,7 +48,7 @@ export function i18nTools(client: StrapiClient): Tool[] {
           `/i18n/locales/${args.id}`,
           'DELETE'
         );
-        
+
         return { success: true, message: `Locale ${args.id} deleted successfully` };
       }
     }

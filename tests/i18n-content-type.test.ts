@@ -38,11 +38,12 @@ describe('Internationalization (i18n) Content Type Management', () => {
     it('should verify the i18n-doc content type exists with localized fields', async () => {
       const result = await client.callTool({
         name: 'list_content_types',
-        arguments: {}
+        arguments: {
+          attributes: true  // Include full attributes to check i18n settings
+        }
       });
 
-      const data = parseToolResponse(result);
-      const contentTypes = data.contentTypes || [];
+      const contentTypes = parseToolResponse(result);
       const i18nDoc = contentTypes.find((ct: any) => ct.uid === 'api::i18n-doc.i18n-doc');
       
       expect(i18nDoc).toBeDefined();
@@ -75,10 +76,11 @@ describe('Internationalization (i18n) Content Type Management', () => {
       };
 
       const result = await client.callTool({
-        name: 'create_draft_entry',
+        name: 'create_entry',
         arguments: {
           contentTypeUid: 'api::i18n-doc.i18n-doc',
           data: documentData,
+          publish: false  // Create as draft
         }
       });
 
@@ -134,11 +136,12 @@ describe('Internationalization (i18n) Content Type Management', () => {
 
       // Create the Russian version
       const result = await client.callTool({
-        name: 'create_draft_entry',
+        name: 'create_entry',
         arguments: {
           contentTypeUid: 'api::i18n-doc.i18n-doc',
           data: documentData,
           locale: 'ru',
+          publish: false  // Create as draft
         }
       });
 
@@ -194,11 +197,12 @@ describe('Internationalization (i18n) Content Type Management', () => {
 
       // Create the Chinese version
       const result = await client.callTool({
-        name: 'create_draft_entry',
+        name: 'create_entry',
         arguments: {
           contentTypeUid: 'api::i18n-doc.i18n-doc',
           data: documentData,
           locale: 'zh',
+          publish: false  // Create as draft
         }
       });
 
@@ -281,12 +285,13 @@ describe('Internationalization (i18n) Content Type Management', () => {
       };
 
       const result = await client.callTool({
-        name: 'update_entry_draft',
+        name: 'update_entry',
         arguments: {
           contentTypeUid: 'api::i18n-doc.i18n-doc',
           documentId: createdDocumentIds.en,
           data: updateData,
-          locale: 'en'
+          locale: 'en',
+          publish: false  // Update as draft
         }
       });
 

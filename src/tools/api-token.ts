@@ -3,22 +3,28 @@ import { StrapiClient } from '../strapi-client.js';
 import { TokenManager } from '../token-manager.js';
 import { Tool } from './types.js';
 
+// Required string schema - ensures strings are not empty
+const RequiredString = z.string().trim().min(1, { message: 'Field is required and cannot be empty' });
+
+// Optional string schema - can be empty or undefined
+const OptionalString = z.string().trim().optional();
+
 export function apiTokenTools(client: StrapiClient): Tool[] {
   const tokenManager = new TokenManager(client);
-  
+
   return [
     {
       name: 'create_api_token',
       description: 'Create a new API token for REST API access',
       inputSchema: z.object({
-        name: z.string().describe('Name for the API token'),
-        description: z.string().optional().describe('Description of the token'),
+        name: RequiredString.describe('Name for the API token'),
+        description: OptionalString.describe('Description of the token'),
         type: z.enum(['read-only', 'full-access', 'custom']).default('full-access').describe('Token access type'),
         lifespan: z.number().optional().describe('Token lifespan in days (null for no expiry)')
       }),
       execute: async (args) => {
         const lifespanMs = args.lifespan ? args.lifespan * 24 * 60 * 60 * 1000 : null;
-        
+
         const response = await client.adminRequest<any>(
           '/admin/api-tokens',
           'POST',
@@ -38,7 +44,7 @@ export function apiTokenTools(client: StrapiClient): Tool[] {
             message: 'API token created successfully. Save this token as it will not be shown again.'
           };
         }
-        
+
         return { success: false, message: 'Failed to create API token' };
       }
     },
@@ -66,12 +72,33 @@ export function apiTokenTools(client: StrapiClient): Tool[] {
       }
     },
     {
-      name: 'clear_token_cache',
-      description: 'Clear the cached API token used for REST API calls',
+      name: 'delete_saved_token',
+      description: 'Delete the saved API token file used for REST API calls',
       inputSchema: z.object({}),
       execute: async () => {
-        tokenManager.clearCache();
-        return { success: true, message: 'Token cache cleared successfully' };
+        tokenManager.deleteSavedToken();
+        return { success: true, message: 'Saved token deleted successfully' };
+      }
+    },
+    {
+      name: 'get_saved_token',
+      description: 'Get the saved token information from ~/.mcp/strapi-mcp.tokens.json',
+      inputSchema: z.object({}),
+      execute: async () => {
+        const tokenInfo = tokenManager.getSavedToken();
+        if (!tokenInfo) {
+          return { 
+            success: false, 
+            message: 'No saved token found',
+            tokenPath: '~/.mcp/strapi-mcp.tokens.json'
+          };
+        }
+        
+        return {
+          success: true,
+          tokenInfo: tokenInfo,
+          message: 'Token information retrieved successfully'
+        };
       }
     }
   ];

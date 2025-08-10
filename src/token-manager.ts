@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { StrapiClient } from './strapi-client.js';
 
-interface TokenCache {
+export interface TokenCache {
   adminJwt?: string;
   apiKey?: string;
   createdAt?: string;
@@ -36,16 +36,16 @@ export class TokenManager {
     // Create a new API token with retry logic for name conflicts
     const maxRetries = 5;
     let retryCount = 0;
-    
+
     while (retryCount < maxRetries) {
       try {
         // Generate token name with random suffix after first attempt
-        const tokenName = retryCount === 0 
-          ? 'strapi-mcp' 
+        const tokenName = retryCount === 0
+          ? 'strapi-mcp'
           : `strapi-mcp-${Math.random().toString(36).substr(2, 6)}`;
-        
+
         console.error(`[TokenManager] Creating new API token: ${tokenName}`);
-        
+
         const response = await this.client.adminRequest<any>(
           '/admin/api-tokens',
           'POST',
@@ -64,7 +64,7 @@ export class TokenManager {
           cache.adminJwt = this.client.getAuthManager().getJwtToken();
           cache.createdAt = new Date().toISOString();
           this.saveTokenCache(cache);
-          
+
           console.error('[TokenManager] API token created and saved');
           return response.data.accessKey;
         }
@@ -75,7 +75,7 @@ export class TokenManager {
           console.error(`[TokenManager] Token name already taken, retrying with different name (attempt ${retryCount}/${maxRetries})`);
           continue;
         }
-        
+
         // For other errors, log and exit
         console.error('[TokenManager] Failed to create API token:', error);
         break;
@@ -112,15 +112,35 @@ export class TokenManager {
   }
 
   /**
-   * Clear the token cache
+   * Delete the saved token file
    */
-  clearCache(): void {
+  deleteSavedToken(): void {
     try {
       if (fs.existsSync(this.tokensPath)) {
         fs.unlinkSync(this.tokensPath);
+        console.error('[TokenManager] Saved token deleted');
       }
     } catch (error) {
-      console.error('[TokenManager] Failed to clear token cache:', error);
+      console.error('[TokenManager] Failed to delete saved token:', error);
     }
+  }
+
+  /**
+   * Get the saved token information
+   */
+  getSavedToken(): TokenCache & { tokenPath: string } | null {
+    try {
+      if (fs.existsSync(this.tokensPath)) {
+        const content = fs.readFileSync(this.tokensPath, 'utf-8');
+        const cache = JSON.parse(content) as TokenCache;
+        return {
+          ...cache,
+          tokenPath: this.tokensPath
+        };
+      }
+    } catch (error) {
+      console.error('[TokenManager] Failed to read saved token:', error);
+    }
+    return null;
   }
 }

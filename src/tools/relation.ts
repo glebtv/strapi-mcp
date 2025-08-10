@@ -2,22 +2,25 @@ import { z } from 'zod';
 import { StrapiClient } from '../strapi-client.js';
 import { Tool } from './types.js';
 
+// Required string schema - ensures strings are not empty
+const RequiredString = z.string().trim().min(1, { message: 'Field is required and cannot be empty' });
+
 export function relationTools(client: StrapiClient): Tool[] {
   return [
     {
       name: 'connect_relation',
       description: 'Connects entries to a relation field',
       inputSchema: z.object({
-        contentTypeUid: z.string().describe('The content type UID (e.g., "api::article.article")'),
-        documentId: z.string().describe('Main entry document ID'),
-        relationField: z.string().describe('Name of the relation field'),
-        relatedIds: z.array(z.string()).describe('Array of document IDs to connect')
+        contentTypeUid: RequiredString.describe('The content type UID (e.g., "api::article.article")'),
+        documentId: RequiredString.describe('Main entry document ID'),
+        relationField: RequiredString.describe('Name of the relation field'),
+        relatedIds: z.array(RequiredString).describe('Array of document IDs to connect')
       }),
       execute: async (args) => {
         if (!args.relatedIds || args.relatedIds.length === 0) {
           throw new Error('At least one related ID is required');
         }
-        
+
         return await client.connectRelation(
           args.contentTypeUid,
           args.documentId,
@@ -30,16 +33,16 @@ export function relationTools(client: StrapiClient): Tool[] {
       name: 'disconnect_relation',
       description: 'Disconnects entries from a relation field',
       inputSchema: z.object({
-        contentTypeUid: z.string().describe('The content type UID (e.g., "api::article.article")'),
-        documentId: z.string().describe('Main entry document ID'),
-        relationField: z.string().describe('Name of the relation field'),
-        relatedIds: z.array(z.string()).describe('Array of document IDs to disconnect')
+        contentTypeUid: RequiredString.describe('The content type UID (e.g., "api::article.article")'),
+        documentId: RequiredString.describe('Main entry document ID'),
+        relationField: RequiredString.describe('Name of the relation field'),
+        relatedIds: z.array(RequiredString).describe('Array of document IDs to disconnect')
       }),
       execute: async (args) => {
         if (!args.relatedIds || args.relatedIds.length === 0) {
           throw new Error('At least one related ID is required');
         }
-        
+
         return await client.disconnectRelation(
           args.contentTypeUid,
           args.documentId,
@@ -52,10 +55,10 @@ export function relationTools(client: StrapiClient): Tool[] {
       name: 'set_relation',
       description: 'Sets the complete list of related entries, replacing any existing relations',
       inputSchema: z.object({
-        contentTypeUid: z.string().describe('The content type UID (e.g., "api::article.article")'),
-        documentId: z.string().describe('Main entry document ID'),
-        relationField: z.string().describe('Name of the relation field'),
-        relatedIds: z.array(z.string()).describe('Array of document IDs to set')
+        contentTypeUid: RequiredString.describe('The content type UID (e.g., "api::article.article")'),
+        documentId: RequiredString.describe('Main entry document ID'),
+        relationField: RequiredString.describe('Name of the relation field'),
+        relatedIds: z.array(RequiredString).describe('Array of document IDs to set')
       }),
       execute: async (args) => {
         return await client.setRelation(
