@@ -218,6 +218,7 @@ describe('Strapi MCP Server', () => {
         arguments: {
           endpoint: 'api/projects',
           method: 'GET',
+          authenticated: true,
           params: {
             pagination: {
               page: 1,

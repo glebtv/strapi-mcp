@@ -312,11 +312,33 @@ export function contentManagementTools(client: StrapiClient): Tool[] {
         documentId: RequiredString.describe('The document ID'),
         data: z.record(z.any()).describe('The updated data'),
         locale: OptionalString.describe('The locale to update (e.g., "en", "fr", "ru"). Required for i18n-enabled content types'),
-        publish: z.boolean().optional().default(true).describe('Whether to publish the entry immediately (default: true publishes, false saves as draft)')
+        publish: z.boolean().optional().default(true).describe('Whether to publish the entry immediately (default: true publishes, false saves as draft)'),
+        partial: z.boolean().optional().default(false).describe('When true, merges provided data with existing entry data instead of replacing it completely')
       }),
       execute: async (args) => {
         // Ensure locale for i18n-enabled content types
         const locale = await ensureLocaleForI18nContent(client, args.contentTypeUid, args.locale);
+
+        let dataToUpdate = args.data;
+
+        // Handle partial updates
+        if (args.partial) {
+          // Fetch current entry
+          const current = await client.getEntries(args.contentTypeUid, {
+            filters: { documentId: { $eq: args.documentId } },
+            locale: locale,
+            populate: '*'
+          });
+          
+          if (!current.data || current.data.length === 0) {
+            throw new Error(`Entry with documentId ${args.documentId} not found`);
+          }
+
+          const existingEntry = current.data[0];
+          
+          // Merge provided data with existing entry using Object.assign
+          dataToUpdate = Object.assign({}, existingEntry, args.data);
+        }
 
         // Check content type configuration
         const contentType = await getContentTypeConfig(client, args.contentTypeUid);
@@ -325,16 +347,16 @@ export function contentManagementTools(client: StrapiClient): Tool[] {
         if (contentType?.options?.draftAndPublish === false) {
           // When draftAndPublish is disabled, just update the entry directly
           // The publish parameter is ignored since there's no draft/publish concept
-          return await client.updateEntryDraft(args.contentTypeUid, args.documentId, args.data, locale);
+          return await client.updateEntryDraft(args.contentTypeUid, args.documentId, dataToUpdate, locale);
         }
 
         // If publish is requested, use the publish endpoint
         if (args.publish) {
-          return await client.updateEntryAndPublish(args.contentTypeUid, args.documentId, args.data, locale);
+          return await client.updateEntryAndPublish(args.contentTypeUid, args.documentId, dataToUpdate, locale);
         }
 
         // Otherwise update as draft
-        return await client.updateEntryDraft(args.contentTypeUid, args.documentId, args.data, locale);
+        return await client.updateEntryDraft(args.contentTypeUid, args.documentId, dataToUpdate, locale);
       }
     },
     {

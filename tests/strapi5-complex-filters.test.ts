@@ -17,6 +17,7 @@ describe('Strapi 5 Complex Filters', () => {
       arguments: {
         endpoint: 'api/projects',
         method: 'GET',
+        authenticated: true,
         params: {
           filters: {
             $and: [
