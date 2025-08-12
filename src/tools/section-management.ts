@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { StrapiClient } from '../strapi-client.js';
 import { Tool } from './types.js';
+import { cleanEntryForUpdate } from '../utils/entry-utils.js';
 
 // Required string schema - ensures strings are not empty
 const RequiredString = z.string().trim().min(1, { message: 'Field is required and cannot be empty' });
@@ -86,17 +87,20 @@ export function sectionManagementTools(client: StrapiClient): Tool[] {
           // Fetch entry and validate zone field
           const entry = await fetchEntryAndValidateZone(client, args.contentTypeUid, args.documentId, args.zoneField, locale);
           
+          // Clean the entry to remove metadata fields
+          const cleanedEntry = cleanEntryForUpdate(entry);
+          
           // Add section at specified position
           const sections = [...entry[args.zoneField]];
           const position = args.position ?? sections.length;
           sections.splice(position, 0, args.section);
-          entry[args.zoneField] = sections;
+          cleanedEntry[args.zoneField] = sections;
           
           // Update entry
           if (args.publish) {
-            return await client.updateEntryAndPublish(args.contentTypeUid, args.documentId, entry, locale);
+            return await client.updateEntryAndPublish(args.contentTypeUid, args.documentId, cleanedEntry, locale);
           } else {
-            return await client.updateEntryDraft(args.contentTypeUid, args.documentId, entry, locale);
+            return await client.updateEntryDraft(args.contentTypeUid, args.documentId, cleanedEntry, locale);
           }
         } catch (error: any) {
           // Enhanced error handling for validation errors
@@ -134,6 +138,9 @@ export function sectionManagementTools(client: StrapiClient): Tool[] {
           // Fetch entry and validate zone field
           const entry = await fetchEntryAndValidateZone(client, args.contentTypeUid, args.documentId, args.zoneField, locale);
           
+          // Clean the entry to remove metadata fields
+          const cleanedEntry = cleanEntryForUpdate(entry);
+          
           // Validate section index
           const sections = entry[args.zoneField];
           if (args.sectionIndex >= sections.length || args.sectionIndex < 0) {
@@ -142,13 +149,13 @@ export function sectionManagementTools(client: StrapiClient): Tool[] {
           
           // Update specific section
           sections[args.sectionIndex] = args.section;
-          entry[args.zoneField] = sections;
+          cleanedEntry[args.zoneField] = sections;
           
           // Update entry
           if (args.publish) {
-            return await client.updateEntryAndPublish(args.contentTypeUid, args.documentId, entry, locale);
+            return await client.updateEntryAndPublish(args.contentTypeUid, args.documentId, cleanedEntry, locale);
           } else {
-            return await client.updateEntryDraft(args.contentTypeUid, args.documentId, entry, locale);
+            return await client.updateEntryDraft(args.contentTypeUid, args.documentId, cleanedEntry, locale);
           }
         } catch (error: any) {
           // Enhanced error handling for validation errors
@@ -180,6 +187,9 @@ export function sectionManagementTools(client: StrapiClient): Tool[] {
           // Fetch entry and validate zone field
           const entry = await fetchEntryAndValidateZone(client, args.contentTypeUid, args.documentId, args.zoneField, locale);
           
+          // Clean the entry to remove metadata fields
+          const cleanedEntry = cleanEntryForUpdate(entry);
+          
           // Validate section index
           const sections = entry[args.zoneField];
           if (args.sectionIndex >= sections.length || args.sectionIndex < 0) {
@@ -188,13 +198,13 @@ export function sectionManagementTools(client: StrapiClient): Tool[] {
           
           // Remove section
           sections.splice(args.sectionIndex, 1);
-          entry[args.zoneField] = sections;
+          cleanedEntry[args.zoneField] = sections;
           
           // Update entry
           if (args.publish) {
-            return await client.updateEntryAndPublish(args.contentTypeUid, args.documentId, entry, locale);
+            return await client.updateEntryAndPublish(args.contentTypeUid, args.documentId, cleanedEntry, locale);
           } else {
-            return await client.updateEntryDraft(args.contentTypeUid, args.documentId, entry, locale);
+            return await client.updateEntryDraft(args.contentTypeUid, args.documentId, cleanedEntry, locale);
           }
         } catch (error: any) {
           // Enhanced error handling for validation errors
@@ -227,6 +237,9 @@ export function sectionManagementTools(client: StrapiClient): Tool[] {
           // Fetch entry and validate zone field
           const entry = await fetchEntryAndValidateZone(client, args.contentTypeUid, args.documentId, args.zoneField, locale);
           
+          // Clean the entry to remove metadata fields
+          const cleanedEntry = cleanEntryForUpdate(entry);
+          
           // Validate section indices
           const sections = entry[args.zoneField];
           if (args.fromIndex >= sections.length || args.fromIndex < 0) {
@@ -239,13 +252,13 @@ export function sectionManagementTools(client: StrapiClient): Tool[] {
           // Reorder sections
           const [movedSection] = sections.splice(args.fromIndex, 1);
           sections.splice(args.toIndex, 0, movedSection);
-          entry[args.zoneField] = sections;
+          cleanedEntry[args.zoneField] = sections;
           
           // Update entry
           if (args.publish) {
-            return await client.updateEntryAndPublish(args.contentTypeUid, args.documentId, entry, locale);
+            return await client.updateEntryAndPublish(args.contentTypeUid, args.documentId, cleanedEntry, locale);
           } else {
-            return await client.updateEntryDraft(args.contentTypeUid, args.documentId, entry, locale);
+            return await client.updateEntryDraft(args.contentTypeUid, args.documentId, cleanedEntry, locale);
           }
         } catch (error: any) {
           // Enhanced error handling for validation errors

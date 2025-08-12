@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { StrapiClient } from '../strapi-client.js';
 import { Tool } from './types.js';
+import { cleanEntryForUpdate } from '../utils/entry-utils.js';
 
 // Required string schema - ensures strings are not empty
 const RequiredString = z.string().trim().min(1, { message: 'Field is required and cannot be empty' });
@@ -336,8 +337,11 @@ export function contentManagementTools(client: StrapiClient): Tool[] {
 
           const existingEntry = current.data[0];
           
-          // Merge provided data with existing entry using Object.assign
-          dataToUpdate = Object.assign({}, existingEntry, args.data);
+          // Clean the existing entry to remove metadata fields
+          const cleanedExisting = cleanEntryForUpdate(existingEntry);
+          
+          // Merge provided data with cleaned existing entry
+          dataToUpdate = Object.assign({}, cleanedExisting, args.data);
         }
 
         // Check content type configuration
