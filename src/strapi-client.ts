@@ -1,12 +1,13 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
+import curlirize from 'axios-curlirize';
 import qs from 'qs';
-import * as fs from 'fs';
 import { AuthManager } from './auth-manager.js';
 import { TokenManager } from './token-manager.js';
 import { ContentOperations } from './client/content-operations.js';
 import { MediaOperations } from './client/media-operations.js';
 import { RelationOperations } from './client/relation-operations.js';
 import { StrapiConfig, HealthCheckResult } from './types.js';
+import { logger } from './logger.js';
 
 export class StrapiClient {
   private axios: AxiosInstance;
@@ -15,7 +16,6 @@ export class StrapiClient {
   public config: StrapiConfig;
   private healthCheckInProgress = false;
   private tokenRefreshTimer?: NodeJS.Timeout;
-  private logFile = 'tool-calls.log';
 
   // Operation modules
   public contentOps: ContentOperations;
@@ -48,12 +48,63 @@ export class StrapiClient {
       }
     });
 
+    // Initialize axios-curlirize for proper curl logging
+    curlirize(this.axios, (result: any, error: any) => {
+      // Log the curl command
+      if (result && result.command) {
+        logger.logCurl(result.command);
+      }
+      if (error) {
+        logger.error('CURL', 'Error generating curl command', error);
+      }
+    });
+
     // Add auth headers to all requests
     this.axios.interceptors.request.use((config) => {
       const authHeaders = this.authManager.getAuthHeaders();
       Object.assign(config.headers, authHeaders);
+      
+      // Log request
+      logger.logHttpRequest(
+        config.method?.toUpperCase() || 'GET',
+        config.url || '',
+        config.headers,
+        config.data
+      );
+      
       return config;
     });
+
+    // Add response interceptor for logging
+    this.axios.interceptors.response.use(
+      (response) => {
+        // Skip logging the response body for content-manager/init due to size
+        const isContentManagerInit = response.config.url?.includes('/content-manager/init');
+        
+        // Log successful response
+        logger.logHttpResponse(
+          response.config.method?.toUpperCase() || 'GET',
+          response.config.url || '',
+          response.status,
+          isContentManagerInit ? { message: 'Response body omitted due to size' } : response.data
+        );
+        return response;
+      },
+      (error) => {
+        // Log error response
+        if (error.response) {
+          logger.logHttpResponse(
+            error.config?.method?.toUpperCase() || 'GET',
+            error.config?.url || '',
+            error.response.status,
+            error.response.data
+          );
+        } else {
+          logger.error('HTTP', 'Request failed', error.message);
+        }
+        return Promise.reject(error);
+      }
+    );
 
     // Set up token refresh timer if admin credentials are provided
     if (config.adminEmail && config.adminPassword) {
@@ -61,89 +112,6 @@ export class StrapiClient {
     }
   }
 
-  /**
-   * Format request as curl command for debugging
-   */
-  private formatAsCurl(config: AxiosRequestConfig): string {
-    const url = config.url?.startsWith('http') 
-      ? config.url 
-      : `${this.config.url}${config.url}`;
-    
-    let curl = `curl '${url}'`;
-    
-    // Add method if not GET
-    if (config.method && config.method !== 'GET') {
-      curl += ` \\\n  -X ${config.method}`;
-    }
-    
-    // Add headers
-    if (config.headers) {
-      Object.entries(config.headers).forEach(([key, value]) => {
-        if (value !== undefined) {
-          curl += ` \\\n  -H '${key}: ${value}'`;
-        }
-      });
-    }
-    
-    // Add data
-    if (config.data) {
-      const dataStr = typeof config.data === 'string' 
-        ? config.data 
-        : JSON.stringify(config.data);
-      curl += ` \\\n  --data-raw '${dataStr}'`;
-    }
-    
-    // Add params
-    if (config.params) {
-      const queryString = qs.stringify(config.params, {
-        arrayFormat: 'brackets',
-        encode: true,
-        encodeValuesOnly: true
-      });
-      if (queryString) {
-        const separator = url.includes('?') ? '&' : '?';
-        curl = curl.replace(url, `${url}${separator}${queryString}`);
-      }
-    }
-    
-    return curl;
-  }
-
-  /**
-   * Log HTTP request and response
-   */
-  private logHttpCall(config: AxiosRequestConfig, response?: any, error?: any): void {
-    const timestamp = new Date().toISOString();
-    const curl = this.formatAsCurl(config);
-    
-    let logEntry = '\n========================================\n';
-    logEntry += `Timestamp: ${timestamp}\n`;
-    logEntry += `Request:\n${curl}\n\n`;
-    
-    if (response) {
-      logEntry += `Response Status: ${response.status} ${response.statusText || ''}\n`;
-      logEntry += `Response Headers: ${JSON.stringify(response.headers, null, 2)}\n`;
-      logEntry += `Response Body: ${JSON.stringify(response.data, null, 2)}\n`;
-    }
-    
-    if (error) {
-      logEntry += `Error: ${error.message}\n`;
-      if (error.response) {
-        logEntry += `Error Status: ${error.response.status}\n`;
-        logEntry += `Error Body: ${JSON.stringify(error.response.data, null, 2)}\n`;
-      }
-    }
-    
-    // Write to log file
-    try {
-      fs.appendFileSync(this.logFile, logEntry);
-    } catch (e) {
-      console.error('Failed to write to log file:', e);
-    }
-    
-    // Also output to console for immediate visibility
-    console.error('[HTTP LOG]', curl);
-  }
 
   /**
    * Set up automatic token refresh
@@ -159,7 +127,7 @@ export class StrapiClient {
       try {
         await this.refreshToken();
       } catch (error) {
-        console.error('[StrapiClient] Token refresh failed:', error);
+        logger.error('StrapiClient', 'Token refresh failed', error);
         // Exit the process if token refresh fails
         process.exit(1);
       }
@@ -187,13 +155,13 @@ export class StrapiClient {
       
       if (response.data?.data?.token) {
         this.authManager.setJwtToken(response.data.data.token);
-        console.error('[StrapiClient] Token refreshed successfully');
+        logger.info('StrapiClient', 'Token refreshed successfully');
       } else {
         throw new Error('Invalid token refresh response');
       }
     } catch {
       // Try to re-login if refresh fails
-      console.error('[StrapiClient] Token refresh failed, attempting re-login');
+      logger.warn('StrapiClient', 'Token refresh failed, attempting re-login');
       const success = await this.authManager.login();
       if (!success) {
         throw new Error('Failed to re-authenticate after token refresh failure');
@@ -240,13 +208,7 @@ export class StrapiClient {
    */
   async makeRequest<T>(config: AxiosRequestConfig): Promise<T> {
     try {
-      // Log the request
-      this.logHttpCall(config);
-      
       const response = await this.axios.request<T>(config);
-
-      // Log the response
-      this.logHttpCall(config, response);
 
       // Check if the response contains a Strapi error structure
       if (response.data && typeof response.data === 'object' && 'error' in response.data && response.data.error) {
@@ -265,9 +227,6 @@ export class StrapiClient {
 
       return response.data;
     } catch (error) {
-      // Log the error
-      this.logHttpCall(config, undefined, error);
-      
       // Handle connection refused errors specifically
       if (axios.isAxiosError(error) && error.code === 'ECONNREFUSED') {
         throw new Error('Connection refused, check if Strapi instance is running');
@@ -282,14 +241,11 @@ export class StrapiClient {
         if (status === 401) {
           const reLoginSuccess = await this.authManager.handleAuthError(error);
           if (reLoginSuccess) {
-            console.error('[StrapiClient] Retrying request after re-authentication');
+            logger.info('StrapiClient', 'Retrying request after re-authentication');
             
             // Retry the request with new auth
             const response = await this.axios.request<T>(config);
             
-            // Log the retry
-            this.logHttpCall(config, response);
-
             // Check for Strapi errors in retry response too
             if (response.data && typeof response.data === 'object' && 'error' in response.data && response.data.error) {
               const error = response.data.error as any;
@@ -471,7 +427,7 @@ export class StrapiClient {
           if (jwtToken) {
             headers['Authorization'] = `Bearer ${jwtToken}`;
           } else {
-            console.error('[StrapiClient] Failed to get JWT token for admin API access');
+            logger.error('StrapiClient', 'Failed to get JWT token for admin API access');
           }
         } else {
           throw new Error('Admin credentials required for admin endpoint access');
@@ -482,7 +438,7 @@ export class StrapiClient {
         if (apiToken) {
           headers['Authorization'] = `Bearer ${apiToken}`;
         } else {
-          console.error('[StrapiClient] Failed to get API token for REST API access');
+          logger.error('StrapiClient', 'Failed to get API token for REST API access');
         }
       }
     }
@@ -495,7 +451,7 @@ export class StrapiClient {
       headers: Object.keys(headers).length > 0 ? headers : undefined
     };
 
-    console.error('[StrapiClient] Making REST API request:', {
+    logger.debug('StrapiClient', 'Making REST API request', {
       url: endpoint,
       method,
       hasAuth: !!headers['Authorization']
@@ -520,7 +476,7 @@ export class StrapiClient {
           method,
           ...(error?.details && { details: error.details })
         };
-        console.error('[StrapiClient] REST API error:', errorDetails);
+        logger.error('StrapiClient', 'REST API error', errorDetails);
         throw new Error(`Strapi API error: ${errorMessage}`, { cause: errorDetails });
       }
 
@@ -532,7 +488,7 @@ export class StrapiClient {
           ? `Authentication failed or wrong endpoint. Got HTML login page for ${method} ${endpoint}. Check if endpoint requires admin auth.`
           : `Invalid API endpoint ${method} ${endpoint}. Got HTML response instead of JSON.`;
 
-        console.error('[StrapiClient] HTML response detected:', {
+        logger.error('StrapiClient', 'HTML response detected', {
           endpoint,
           method,
           contentType,

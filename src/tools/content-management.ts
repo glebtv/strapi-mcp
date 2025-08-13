@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { StrapiClient } from '../strapi-client.js';
 import { Tool } from './types.js';
 import { cleanEntryForUpdate } from '../utils/entry-utils.js';
+import { logger } from '../logger.js';
 
 // Required string schema - ensures strings are not empty
 const RequiredString = z.string().trim().min(1, { message: 'Field is required and cannot be empty' });
@@ -245,7 +246,7 @@ export function contentManagementTools(client: StrapiClient): Tool[] {
         if (contentType?.options?.draftAndPublish === false) {
           // When draftAndPublish is disabled, just create the entry directly
           // The publish parameter is ignored since there's no draft/publish concept
-          console.error(`[ContentManagement] Content type ${args.contentTypeUid} has draftAndPublish disabled, creating entry directly`);
+          logger.debug('ContentManagement', `Content type ${args.contentTypeUid} has draftAndPublish disabled, creating entry directly`);
           return await client.createEntry(args.contentTypeUid, args.data, locale);
         }
 
@@ -280,7 +281,7 @@ export function contentManagementTools(client: StrapiClient): Tool[] {
         if (contentType?.options?.draftAndPublish === false) {
           // When draftAndPublish is disabled, just create the localized entry directly
           // The publish parameter is ignored since there's no draft/publish concept
-          console.error(`[ContentManagement] Content type ${args.contentTypeUid} has draftAndPublish disabled, creating localized entry directly`);
+          logger.debug('ContentManagement', `Content type ${args.contentTypeUid} has draftAndPublish disabled, creating localized entry directly`);
           return await client.createLocalizedDraft(args.contentTypeUid, args.documentId, args.data, args.locale);
         }
 

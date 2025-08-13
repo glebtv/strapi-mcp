@@ -6,6 +6,7 @@ module.exports = {
   testMatch: ['**/*.test.ts'],
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
+    'axios-curlirize': '<rootDir>/__mocks__/axios-curlirize.js',
   },
   extensionsToTreatAsEsm: ['.ts'],
   transform: {
@@ -24,6 +25,10 @@ module.exports = {
       },
     ],
   },
+  // Transform axios-curlirize ES modules
+  transformIgnorePatterns: [
+    'node_modules/(?!(axios-curlirize)/)',
+  ],
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
   coverageDirectory: 'coverage',
   collectCoverageFrom: [

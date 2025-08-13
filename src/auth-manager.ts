@@ -1,5 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import { StrapiConfig, AuthTokens } from './types.js';
+import { logger } from './logger.js';
 
 export class AuthManager {
   private config: StrapiConfig;
@@ -59,7 +60,7 @@ export class AuthManager {
 
     // If no admin credentials, can't login
     if (!this.config.adminEmail || !this.config.adminPassword) {
-      console.error('[Auth] No admin credentials provided');
+      logger.debug('Auth', 'No admin credentials provided');
       return false;
     }
 
@@ -84,7 +85,7 @@ export class AuthManager {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.error(`[Auth] Login attempt ${attempt}/${maxRetries} to ${this.config.url}/admin/login`);
+        logger.debug('Auth', `Login attempt ${attempt}/${maxRetries} to ${this.config.url}/admin/login`);
 
         const response = await axios.post(
           `${this.config.url}/admin/login`,
@@ -102,13 +103,13 @@ export class AuthManager {
 
         if (response.status === 200 && response.data?.data?.token) {
           this.tokens.jwt = response.data.data.token;
-          console.error('[Auth] Successfully logged in to Strapi admin');
+          logger.info('Auth', 'Successfully logged in to Strapi admin');
           return true;
         }
 
         if (response.status === 429) {
           // Rate limited - wait and retry
-          console.error(`[Auth] Login rate limited (429), attempt ${attempt}/${maxRetries}, waiting ${retryDelay}ms before retry`);
+          logger.warn('Auth', `Login rate limited (429), attempt ${attempt}/${maxRetries}, waiting ${retryDelay}ms before retry`);
           if (attempt < maxRetries) {
             await new Promise(resolve => setTimeout(resolve, retryDelay));
             retryDelay *= 2; // Exponential backoff
@@ -118,18 +119,18 @@ export class AuthManager {
 
         // For any other error (including 400/401), fail immediately without retrying
         const errorData = response.data?.error || response.data;
-        console.error(`[Auth] Login failed with status ${response.status}: ${errorData?.message || 'Unknown error'}`);
+        logger.error('Auth', `Login failed with status ${response.status}: ${errorData?.message || 'Unknown error'}`);
         return false;
       } catch (error) {
         // Handle connection refused errors specifically
         if (axios.isAxiosError(error) && error.code === 'ECONNREFUSED') {
-          console.error('[Auth] Connection refused, check if Strapi instance is running');
+          logger.error('Auth', 'Connection refused, check if Strapi instance is running');
           throw new Error('Connection refused, check if Strapi instance is running');
         }
 
         // Only retry on network errors, not authentication errors
         if (axios.isAxiosError(error) && error.response?.status === 429) {
-          console.error(`[Auth] Login rate limited in catch block, attempt ${attempt}/${maxRetries}`);
+          logger.warn('Auth', `Login rate limited in catch block, attempt ${attempt}/${maxRetries}`);
           if (attempt < maxRetries) {
             await new Promise(resolve => setTimeout(resolve, retryDelay));
             retryDelay *= 2;
@@ -138,7 +139,7 @@ export class AuthManager {
         }
 
         // For any other error, fail immediately
-        console.error('[Auth] Login error:', error);
+        logger.error('Auth', 'Login error', error);
         return false;
       }
     }
@@ -158,7 +159,7 @@ export class AuthManager {
    */
   async handleAuthError(error: AxiosError): Promise<boolean> {
     if (error.response?.status === 401 && this.tokens.jwt) {
-      console.error('[Auth] JWT token expired, attempting re-login...');
+      logger.info('Auth', 'JWT token expired, attempting re-login...');
       this.clearJwtToken();
       return await this.login();
     }
