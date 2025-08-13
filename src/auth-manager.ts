@@ -42,6 +42,13 @@ export class AuthManager {
   }
 
   /**
+   * Set JWT token (for token refresh)
+   */
+  setJwtToken(token: string): void {
+    this.tokens.jwt = token;
+  }
+
+  /**
    * Login to Strapi admin
    */
   async login(): Promise<boolean> {

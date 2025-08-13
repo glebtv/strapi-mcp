@@ -1,5 +1,6 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import qs from 'qs';
+import * as fs from 'fs';
 import { AuthManager } from './auth-manager.js';
 import { TokenManager } from './token-manager.js';
 import { ContentOperations } from './client/content-operations.js';
@@ -13,6 +14,8 @@ export class StrapiClient {
   private tokenManager: TokenManager;
   public config: StrapiConfig;
   private healthCheckInProgress = false;
+  private tokenRefreshTimer?: NodeJS.Timeout;
+  private logFile = 'tool-calls.log';
 
   // Operation modules
   public contentOps: ContentOperations;
@@ -51,6 +54,151 @@ export class StrapiClient {
       Object.assign(config.headers, authHeaders);
       return config;
     });
+
+    // Set up token refresh timer if admin credentials are provided
+    if (config.adminEmail && config.adminPassword) {
+      this.setupTokenRefresh();
+    }
+  }
+
+  /**
+   * Format request as curl command for debugging
+   */
+  private formatAsCurl(config: AxiosRequestConfig): string {
+    const url = config.url?.startsWith('http') 
+      ? config.url 
+      : `${this.config.url}${config.url}`;
+    
+    let curl = `curl '${url}'`;
+    
+    // Add method if not GET
+    if (config.method && config.method !== 'GET') {
+      curl += ` \\\n  -X ${config.method}`;
+    }
+    
+    // Add headers
+    if (config.headers) {
+      Object.entries(config.headers).forEach(([key, value]) => {
+        if (value !== undefined) {
+          curl += ` \\\n  -H '${key}: ${value}'`;
+        }
+      });
+    }
+    
+    // Add data
+    if (config.data) {
+      const dataStr = typeof config.data === 'string' 
+        ? config.data 
+        : JSON.stringify(config.data);
+      curl += ` \\\n  --data-raw '${dataStr}'`;
+    }
+    
+    // Add params
+    if (config.params) {
+      const queryString = qs.stringify(config.params, {
+        arrayFormat: 'brackets',
+        encode: true,
+        encodeValuesOnly: true
+      });
+      if (queryString) {
+        const separator = url.includes('?') ? '&' : '?';
+        curl = curl.replace(url, `${url}${separator}${queryString}`);
+      }
+    }
+    
+    return curl;
+  }
+
+  /**
+   * Log HTTP request and response
+   */
+  private logHttpCall(config: AxiosRequestConfig, response?: any, error?: any): void {
+    const timestamp = new Date().toISOString();
+    const curl = this.formatAsCurl(config);
+    
+    let logEntry = '\n========================================\n';
+    logEntry += `Timestamp: ${timestamp}\n`;
+    logEntry += `Request:\n${curl}\n\n`;
+    
+    if (response) {
+      logEntry += `Response Status: ${response.status} ${response.statusText || ''}\n`;
+      logEntry += `Response Headers: ${JSON.stringify(response.headers, null, 2)}\n`;
+      logEntry += `Response Body: ${JSON.stringify(response.data, null, 2)}\n`;
+    }
+    
+    if (error) {
+      logEntry += `Error: ${error.message}\n`;
+      if (error.response) {
+        logEntry += `Error Status: ${error.response.status}\n`;
+        logEntry += `Error Body: ${JSON.stringify(error.response.data, null, 2)}\n`;
+      }
+    }
+    
+    // Write to log file
+    try {
+      fs.appendFileSync(this.logFile, logEntry);
+    } catch (e) {
+      console.error('Failed to write to log file:', e);
+    }
+    
+    // Also output to console for immediate visibility
+    console.error('[HTTP LOG]', curl);
+  }
+
+  /**
+   * Set up automatic token refresh
+   */
+  private setupTokenRefresh(): void {
+    // Clear any existing timer
+    if (this.tokenRefreshTimer) {
+      clearInterval(this.tokenRefreshTimer);
+    }
+    
+    // Refresh token every 5 minutes
+    this.tokenRefreshTimer = setInterval(async () => {
+      try {
+        await this.refreshToken();
+      } catch (error) {
+        console.error('[StrapiClient] Token refresh failed:', error);
+        // Exit the process if token refresh fails
+        process.exit(1);
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+  }
+
+  /**
+   * Refresh the JWT token
+   */
+  async refreshToken(): Promise<void> {
+    const jwtToken = this.authManager.getJwtToken();
+    if (!jwtToken) {
+      // Try to login first if no token
+      const success = await this.authManager.login();
+      if (!success) {
+        throw new Error('Failed to authenticate with admin credentials');
+      }
+      return;
+    }
+    
+    try {
+      const response = await this.axios.post('/admin/renew-token', {
+        token: jwtToken
+      });
+      
+      if (response.data?.data?.token) {
+        this.authManager.setJwtToken(response.data.data.token);
+        console.error('[StrapiClient] Token refreshed successfully');
+      } else {
+        throw new Error('Invalid token refresh response');
+      }
+    } catch {
+      // Try to re-login if refresh fails
+      console.error('[StrapiClient] Token refresh failed, attempting re-login');
+      const success = await this.authManager.login();
+      if (!success) {
+        throw new Error('Failed to re-authenticate after token refresh failure');
+      }
+    }
   }
 
   /**
@@ -92,7 +240,13 @@ export class StrapiClient {
    */
   async makeRequest<T>(config: AxiosRequestConfig): Promise<T> {
     try {
+      // Log the request
+      this.logHttpCall(config);
+      
       const response = await this.axios.request<T>(config);
+
+      // Log the response
+      this.logHttpCall(config, response);
 
       // Check if the response contains a Strapi error structure
       if (response.data && typeof response.data === 'object' && 'error' in response.data && response.data.error) {
@@ -111,6 +265,9 @@ export class StrapiClient {
 
       return response.data;
     } catch (error) {
+      // Log the error
+      this.logHttpCall(config, undefined, error);
+      
       // Handle connection refused errors specifically
       if (axios.isAxiosError(error) && error.code === 'ECONNREFUSED') {
         throw new Error('Connection refused, check if Strapi instance is running');
@@ -125,8 +282,13 @@ export class StrapiClient {
         if (status === 401) {
           const reLoginSuccess = await this.authManager.handleAuthError(error);
           if (reLoginSuccess) {
+            console.error('[StrapiClient] Retrying request after re-authentication');
+            
             // Retry the request with new auth
             const response = await this.axios.request<T>(config);
+            
+            // Log the retry
+            this.logHttpCall(config, response);
 
             // Check for Strapi errors in retry response too
             if (response.data && typeof response.data === 'object' && 'error' in response.data && response.data.error) {
