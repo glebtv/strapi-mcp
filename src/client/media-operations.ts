@@ -1,4 +1,5 @@
 import FormData from 'form-data';
+import { logger } from '../logger.js';
 
 export class MediaOperations {
   constructor(private client: any) {}
@@ -27,7 +28,7 @@ export class MediaOperations {
     try {
       buffer = Buffer.from(fileData, 'base64');
     } catch (error) {
-      console.error('[Upload] Failed to decode base64 data:', error);
+      logger.error('Upload', 'Failed to decode base64 data', error);
       throw new Error('Invalid base64 data');
     }
     const formData = new FormData();
@@ -60,7 +61,7 @@ export class MediaOperations {
       // Response is an array of uploaded files
       return Array.isArray(response) ? response[0] : response;
     } catch (error) {
-      console.error('[API] Failed to upload media:', error);
+      logger.error('API', 'Failed to upload media', error);
       throw error;
     }
   }
@@ -126,7 +127,7 @@ export class MediaOperations {
 
       return this.filterBase64FromResponse(response);
     } catch (error) {
-      console.error('[API] Failed to list media:', error);
+      logger.error('API', 'Failed to list media', error);
       throw error;
     }
   }
@@ -153,7 +154,7 @@ export class MediaOperations {
 
       return response;
     } catch (error) {
-      console.error('[API] Failed to list folders:', error);
+      logger.error('API', 'Failed to list folders', error);
       throw error;
     }
   }

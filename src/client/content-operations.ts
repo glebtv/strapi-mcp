@@ -193,23 +193,13 @@ export class ContentOperations {
    * Publish an existing draft entry for a specific locale
    */
   async publishLocalizedEntry(contentTypeUid: string, documentId: string, locale: string): Promise<any> {
+    // Use bulkPublish endpoint with locale parameter, matching the working curl request
     const params = { locale };
 
-    // First, get the current draft data
-    const currentEntry = await this.client.adminRequest(
-      `/content-manager/collection-types/${contentTypeUid}/${documentId}`,
-      'GET',
-      undefined,
-      params
-    );
-
-    // Then publish it with the current data
-    const requestData = { ...currentEntry.data, documentId };
-
     const response = await this.client.adminRequest(
-      `/content-manager/collection-types/${contentTypeUid}/${documentId}/actions/publish`,
+      `/content-manager/collection-types/${contentTypeUid}/actions/bulkPublish`,
       'POST',
-      requestData,
+      { documentIds: [documentId] },
       params
     );
     return response?.data || response;

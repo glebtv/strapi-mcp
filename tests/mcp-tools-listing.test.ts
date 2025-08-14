@@ -68,7 +68,8 @@ describe('MCP Tools Functionality', () => {
         name: 'strapi_rest',
         arguments: {
           endpoint: '/api/projects',
-          method: 'GET'
+          method: 'GET',
+          authenticated: true
         }
       });
 

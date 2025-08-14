@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { StrapiClient } from './strapi-client.js';
+import { logger } from './logger.js';
 
 export interface TokenCache {
   adminJwt?: string;
@@ -44,7 +45,7 @@ export class TokenManager {
           ? 'strapi-mcp'
           : `strapi-mcp-${Math.random().toString(36).substr(2, 6)}`;
 
-        console.error(`[TokenManager] Creating new API token: ${tokenName}`);
+        logger.info('TokenManager', `Creating new API token: ${tokenName}`);
 
         const response = await this.client.adminRequest<any>(
           '/admin/api-tokens',
@@ -65,19 +66,19 @@ export class TokenManager {
           cache.createdAt = new Date().toISOString();
           this.saveTokenCache(cache);
 
-          console.error('[TokenManager] API token created and saved');
+          logger.info('TokenManager', 'API token created and saved');
           return response.data.accessKey;
         }
       } catch (error) {
         // Check if it's a "name already taken" error
         if (error instanceof Error && error.message.includes('Name already taken')) {
           retryCount++;
-          console.error(`[TokenManager] Token name already taken, retrying with different name (attempt ${retryCount}/${maxRetries})`);
+          logger.debug('TokenManager', `Token name already taken, retrying with different name (attempt ${retryCount}/${maxRetries}`);
           continue;
         }
 
         // For other errors, log and exit
-        console.error('[TokenManager] Failed to create API token:', error);
+        logger.error('TokenManager', 'Failed to create API token', error);
         break;
       }
     }
@@ -95,7 +96,7 @@ export class TokenManager {
         return JSON.parse(content);
       }
     } catch (error) {
-      console.error('[TokenManager] Failed to load token cache:', error);
+      logger.error('TokenManager', 'Failed to load token cache', error);
     }
     return {};
   }
@@ -107,7 +108,7 @@ export class TokenManager {
     try {
       fs.writeFileSync(this.tokensPath, JSON.stringify(cache, null, 2));
     } catch (error) {
-      console.error('[TokenManager] Failed to save token cache:', error);
+      logger.error('TokenManager', 'Failed to save token cache', error);
     }
   }
 
@@ -118,10 +119,10 @@ export class TokenManager {
     try {
       if (fs.existsSync(this.tokensPath)) {
         fs.unlinkSync(this.tokensPath);
-        console.error('[TokenManager] Saved token deleted');
+        logger.info('TokenManager', 'Saved token deleted');
       }
     } catch (error) {
-      console.error('[TokenManager] Failed to delete saved token:', error);
+      logger.error('TokenManager', 'Failed to delete saved token', error);
     }
   }
 
@@ -139,7 +140,7 @@ export class TokenManager {
         };
       }
     } catch (error) {
-      console.error('[TokenManager] Failed to read saved token:', error);
+      logger.error('TokenManager', 'Failed to read saved token', error);
     }
     return null;
   }

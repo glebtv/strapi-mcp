@@ -6,6 +6,7 @@ import { relationTools } from './relation.js';
 import { directApiTool } from './direct-api.js';
 import { apiTokenTools } from './api-token.js';
 import { i18nTools } from './i18n.js';
+import { sectionManagementTools } from './section-management.js';
 
 export function getTools(client: StrapiClient): Record<string, Tool> {
   const tools: Record<string, Tool> = {};
@@ -17,6 +18,7 @@ export function getTools(client: StrapiClient): Record<string, Tool> {
     ...relationTools(client),
     ...apiTokenTools(client),
     ...i18nTools(client),
+    ...sectionManagementTools(client),
     directApiTool(client)
   ];
 

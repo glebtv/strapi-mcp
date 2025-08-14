@@ -16,9 +16,7 @@ import dotenv from 'dotenv';
 import { StrapiClient } from './strapi-client.js';
 import { StrapiConfig } from './types.js';
 import { getTools } from './tools/index.js';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
+import { logger } from './logger.js';
 
 // Load environment variables
 dotenv.config();
@@ -31,13 +29,13 @@ const STRAPI_ADMIN_PASSWORD = process.env.STRAPI_ADMIN_PASSWORD;
 
 // Validate authentication
 if (!STRAPI_API_TOKEN && !(STRAPI_ADMIN_EMAIL && STRAPI_ADMIN_PASSWORD)) {
-  console.error('[Error] Missing required authentication. Please provide either STRAPI_API_TOKEN or both STRAPI_ADMIN_EMAIL and STRAPI_ADMIN_PASSWORD');
+  logger.error('Startup', 'Missing required authentication. Please provide either STRAPI_API_TOKEN or both STRAPI_ADMIN_EMAIL and STRAPI_ADMIN_PASSWORD');
   process.exit(1);
 }
 
 // Validate placeholder tokens
 if (STRAPI_API_TOKEN && (STRAPI_API_TOKEN === 'strapi_token' || STRAPI_API_TOKEN === 'your-api-token-here' || STRAPI_API_TOKEN.includes('placeholder'))) {
-  console.error('[Error] STRAPI_API_TOKEN appears to be a placeholder value. Please provide a real API token.');
+  logger.error('Startup', 'STRAPI_API_TOKEN appears to be a placeholder value. Please provide a real API token.');
   process.exit(1);
 }
 
@@ -71,39 +69,6 @@ const server = new Server(
 // Get all tool definitions
 const tools = getTools(strapiClient);
 
-// Tool call logging setup
-const LOG_DIR = path.join(os.homedir(), '.mcp', 'strapi-mcp-logs');
-const LOG_FILE = path.join(LOG_DIR, 'tool-calls.log');
-
-// Ensure log directory exists
-if (!fs.existsSync(LOG_DIR)) {
-  fs.mkdirSync(LOG_DIR, { recursive: true });
-}
-
-// Log tool call asynchronously to avoid blocking the event loop
-async function logToolCall(toolName: string, args: any, result: any, error?: any, duration?: number) {
-  const timestamp = new Date().toISOString();
-  const logEntry = {
-    timestamp,
-    tool: toolName,
-    arguments: args,
-    result: error ? undefined : result,
-    error: error ? {
-      message: error.message || String(error),
-      stack: error.stack,
-      details: (error as any).details
-    } : undefined,
-    duration: duration || 0
-  };
-
-  try {
-    // Use promises version to avoid blocking
-    await fs.promises.appendFile(LOG_FILE, JSON.stringify(logEntry) + '\n');
-  } catch (e) {
-    console.error('[Warning] Failed to write to log file:', e);
-  }
-}
-
 /**
  * Handle listing available resources
  */
@@ -127,7 +92,7 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
 
     return { resources };
   } catch (error) {
-    console.error('[Error] Failed to list resources:', error);
+    logger.error('ListResources', 'Failed to list resources', error);
     throw new McpError(
       ErrorCode.InternalError,
       `Failed to list resources: ${error instanceof Error ? error.message : String(error)}`
@@ -173,7 +138,7 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
       }]
     };
   } catch (error) {
-    console.error('[Error] Failed to read resource:', error);
+    logger.error('ReadResource', 'Failed to read resource', error);
     throw new McpError(
       ErrorCode.InternalError,
       `Failed to read resource: ${error instanceof Error ? error.message : String(error)}`
@@ -215,10 +180,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     // Log successful call
     const duration = Date.now() - startTime;
-    // Don't await to avoid blocking the response
-    logToolCall(name, args, result, undefined, duration).catch(e =>
-      console.error('[Warning] Failed to log tool call:', e)
-    );
+    logger.logToolCall(name, args, result, undefined, duration);
 
 
     return {
@@ -237,13 +199,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     // Log error
     const duration = Date.now() - startTime;
-    // Don't await to avoid blocking the response
-    logToolCall(name, args, null, error, duration).catch(e =>
-      console.error('[Warning] Failed to log tool call error:', e)
-    );
-
-    console.error(`[Error] Tool ${name} failed:`, error);
-    console.error('[Error] Tool arguments:', JSON.stringify(args, null, 2));
+    logger.logToolCall(name, args, null, error, duration);
+    logger.error('ToolExecution', `Tool ${name} failed`, { error, args });
 
     // Extract detailed error information
     let errorMessage = error instanceof Error ? error.message : String(error);
@@ -287,14 +244,28 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
 // Handle errors
 process.on('unhandledRejection', (reason, _promise) => {
-  console.error('[Fatal] Unhandled Rejection:', reason);
+  logger.error('Fatal', 'Unhandled Rejection', reason);
+  logger.close();
   // Exit immediately to prevent inconsistent state
   process.exit(1);
 });
 
 process.on('uncaughtException', (error) => {
-  console.error('[Fatal] Uncaught Exception:', error);
+  logger.error('Fatal', 'Uncaught Exception', error);
+  logger.close();
   process.exit(1);
+});
+
+process.on('SIGINT', () => {
+  logger.info('Shutdown', 'Received SIGINT, shutting down gracefully');
+  logger.close();
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  logger.info('Shutdown', 'Received SIGTERM, shutting down gracefully');
+  logger.close();
+  process.exit(0);
 });
 
 // Start server
@@ -302,12 +273,13 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
-  // Log startup info to stderr (not stdout which is reserved for JSON-RPC)
-  console.error('[INFO] Strapi MCP Server v0.4.1 started');
-  console.error(`[INFO] Tool call logs will be written to: ${LOG_FILE}`);
+  // Log startup info
+  logger.info('Startup', 'Strapi MCP Server v0.4.1 started');
+  logger.info('Startup', `Log file: ${logger.getLogFile()}`);
 }
 
 main().catch((error) => {
-  console.error('[Fatal] Failed to start server:', error);
+  logger.error('Fatal', 'Failed to start server', error);
+  logger.close();
   process.exit(1);
 });
