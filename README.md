@@ -58,6 +58,7 @@ This TypeScript-based MCP server integrates with Strapi v5 instances to provide:
 - **i18n Support**: Manage locales and localized content
 - **Advanced Querying**: Filtering, pagination, sorting, and field selection
 - **Direct API Access**: Execute custom REST requests against Strapi
+- **MCP Prompts**: Built-in prompt accessible via `/strapi:tools` with comprehensive usage instructions
 
 **⚠️ Important Note on Schema Modifications**: The `update_content_type` tool does NOT support partial updates - it will replace ALL attributes with only the ones you provide. For safer schema modifications, we strongly recommend modifying Strapi's JSON schema files directly using AI assistance rather than using the schema modification tools.
 
@@ -202,6 +203,22 @@ use_mcp_tool(
 ```
 
 For comprehensive examples and usage patterns, see the [Tools and Resources Reference](./docs/TOOLS-v2.md).
+
+## Using MCP Prompts
+
+The server includes a built-in prompt that provides comprehensive instructions for working with Strapi through MCP tools. When connected to an AI assistant that supports MCP prompts, you can invoke it with:
+
+```
+/strapi:tools
+```
+
+This will provide the AI with detailed guidance on:
+- Strapi v5 Document Service API patterns
+- Working with dynamic zones and components
+- Creating and managing localized content
+- Using partial update tools for better performance
+- Common pitfalls and solutions
+- Best practices for content management
 
 ## Development
 

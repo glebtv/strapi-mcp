@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.2] - 2025-01-18
+
+### Added
+
+- **MCP Prompts Support**: Added support for MCP protocol prompts accessible via `/strapi:tools` command
+- The prompt provides comprehensive instructions for working with Strapi through MCP tools
+- Prompt includes guidance on:
+  - Strapi v5 Document Service API patterns
+  - Working with dynamic zones and components
+  - Creating and managing localized content
+  - Using partial update tools for better performance
+  - Common pitfalls and solutions
+  - Best practices for content management
+
+### Documentation
+
+- Added generic working guide embedded in `src/prompts/index.ts`
+- Updated `docs/session.md` to be a generic manual without project-specific information
+- Added usage instructions for MCP prompts in README
+
 ## [0.4.1] - 2025-01-10
 
 ### Security & Safety Improvements
