@@ -10,11 +10,26 @@ All notable changes to this project will be documented in this file.
 - Published package to npm registry as `@rocket-sensei/strapi-mcp`
 - Automated testing and building before npm publish
 - GitHub Actions workflow for release automation
+- **MCP Prompts Support**: Added support for MCP protocol prompts accessible via `/strapi:tools` command
+- The prompt provides comprehensive instructions for working with Strapi through MCP tools
+- Prompt includes guidance on:
+  - Strapi v5 Document Service API patterns
+  - Working with dynamic zones and components
+  - Creating and managing localized content
+  - Using partial update tools for better performance
+  - Common pitfalls and solutions
+  - Best practices for content management
 
 ### Changed
 
 - Updated package name to use npm scope `@rocket-sensei/strapi-mcp`
 - Added `publishConfig` to package.json for public npm access
+
+### Documentation
+
+- Added generic working guide embedded in `src/prompts/index.ts`
+- Updated `docs/session.md` to be a generic manual without project-specific information
+- Added usage instructions for MCP prompts in README
 
 ## [0.4.1] - 2025-01-10
 

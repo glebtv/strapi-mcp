@@ -7,6 +7,8 @@ import {
   ListResourcesRequestSchema,
   ListToolsRequestSchema,
   ReadResourceRequestSchema,
+  ListPromptsRequestSchema,
+  GetPromptRequestSchema,
   ErrorCode,
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
@@ -17,6 +19,7 @@ import { StrapiClient } from './strapi-client.js';
 import { StrapiConfig } from './types.js';
 import { getTools } from './tools/index.js';
 import { logger } from './logger.js';
+import { getPrompts, getPromptContent } from './prompts/index.js';
 
 // Load environment variables
 dotenv.config();
@@ -55,13 +58,14 @@ const strapiClient = new StrapiClient(strapiConfig);
 const server = new Server(
   {
     name: 'strapi-mcp',
-    version: '0.4.1',
+    version: '0.4.2',
     description: 'Strapi v5 MCP Server. IMPORTANT: Components in Strapi are edited directly via JSON schema files located at src/components/{category}/{component}.json. No special tools needed - just edit the JSON files directly.',
   },
   {
     capabilities: {
       resources: {},
       tools: {},
+      prompts: {},
     },
   }
 );
@@ -157,6 +161,44 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       inputSchema: zodToJsonSchema(tool.inputSchema)
     }))
   };
+});
+
+/**
+ * Handle listing available prompts
+ */
+server.setRequestHandler(ListPromptsRequestSchema, async () => {
+  return {
+    prompts: getPrompts()
+  };
+});
+
+/**
+ * Handle getting a specific prompt
+ */
+server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+  const { name, arguments: args = {} } = request.params;
+  
+  try {
+    const promptContent = getPromptContent(name, args);
+    
+    return {
+      description: `Working guide for using Strapi MCP tools effectively`,
+      messages: [
+        {
+          role: 'user' as const,
+          content: {
+            type: 'text' as const,
+            text: promptContent
+          }
+        }
+      ]
+    };
+  } catch (error) {
+    throw new McpError(
+      ErrorCode.InvalidRequest,
+      `Failed to get prompt: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
 });
 
 /**
@@ -274,7 +316,7 @@ async function main() {
   await server.connect(transport);
 
   // Log startup info
-  logger.info('Startup', 'Strapi MCP Server v0.4.1 started');
+  logger.info('Startup', 'Strapi MCP Server v0.4.2 started');
   logger.info('Startup', `Log file: ${logger.getLogFile()}`);
 }
 
