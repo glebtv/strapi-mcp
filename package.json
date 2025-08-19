@@ -1,6 +1,6 @@
 {
-  "name": "strapi-mcp",
-  "version": "0.4.1",
+  "name": "@rocket-sensei/strapi-mcp",
+  "version": "0.5.0",
   "description": "MCP server for Strapi CMS - provides tools to manage content types, entries, media, and more",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -62,5 +62,9 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/glebtv/strapi-mcp.git"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   }
 }

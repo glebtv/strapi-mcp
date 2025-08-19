@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] - Unreleased
+
+### Added
+
+- npm publishing workflow for GitHub releases
+- Published package to npm registry as `@rocket-sensei/strapi-mcp`
+- Automated testing and building before npm publish
+- GitHub Actions workflow for release automation
+
+### Changed
+
+- Updated package name to use npm scope `@rocket-sensei/strapi-mcp`
+- Added `publishConfig` to package.json for public npm access
+
 ## [0.4.1] - 2025-01-10
 
 ### Security & Safety Improvements
