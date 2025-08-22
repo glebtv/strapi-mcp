@@ -70,7 +70,7 @@ describe('Section Management Tools', () => {
           arguments: {
             contentTypeUid: 'api::page.page',
             documentId: testDocumentId,
-            options: JSON.stringify({ populate: '*' })
+            populate: '*'
           }
         });
 
@@ -107,7 +107,7 @@ describe('Section Management Tools', () => {
           arguments: {
             contentTypeUid: 'api::page.page',
             documentId: testDocumentId,
-            options: JSON.stringify({ populate: '*' })
+            populate: '*'
           }
         });
 
@@ -170,7 +170,7 @@ describe('Section Management Tools', () => {
           arguments: {
             contentTypeUid: 'api::page.page',
             documentId: testDocumentId,
-            options: JSON.stringify({ populate: '*' })
+            populate: '*'
           }
         });
 
@@ -216,7 +216,7 @@ describe('Section Management Tools', () => {
           arguments: {
             contentTypeUid: 'api::page.page',
             documentId: testDocumentId,
-            options: JSON.stringify({ populate: '*' })
+            populate: '*'
           }
         });
 
@@ -243,7 +243,7 @@ describe('Section Management Tools', () => {
           arguments: {
             contentTypeUid: 'api::page.page',
             documentId: testDocumentId,
-            options: JSON.stringify({ populate: '*' })
+            populate: '*'
           }
         });
 
@@ -280,7 +280,7 @@ describe('Section Management Tools', () => {
           arguments: {
             contentTypeUid: 'api::page.page',
             documentId: testDocumentId,
-            options: JSON.stringify({ populate: '*' })
+            populate: '*'
           }
         });
 
@@ -310,7 +310,7 @@ describe('Section Management Tools', () => {
           arguments: {
             contentTypeUid: 'api::page.page',
             documentId: testDocumentId,
-            options: JSON.stringify({ populate: '*' })
+            populate: '*'
           }
         });
 

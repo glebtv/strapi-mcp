@@ -73,7 +73,7 @@ describe('Partial Update Functionality', () => {
         arguments: {
           contentTypeUid: 'api::page.page',
           documentId: testDocumentId,
-          options: JSON.stringify({ populate: '*' })
+          populate: '*'
         }
       });
 
@@ -114,7 +114,7 @@ describe('Partial Update Functionality', () => {
         arguments: {
           contentTypeUid: 'api::page.page',
           documentId: testDocumentId,
-          options: JSON.stringify({ populate: '*' })
+          populate: '*'
         }
       });
 
@@ -164,7 +164,7 @@ describe('Partial Update Functionality', () => {
         arguments: {
           contentTypeUid: 'api::page.page',
           documentId: testDocumentId,
-          options: JSON.stringify({ populate: '*' })
+          populate: '*'
         }
       });
 

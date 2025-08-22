@@ -139,13 +139,11 @@ describe('Strapi MCP Server', () => {
         name: 'get_entries',
         arguments: {
           contentTypeUid: 'api::project.project',
-          options: JSON.stringify({
-            filters: {
-              name: {
-                $contains: 'Test'
-              }
+          filters: {
+            name: {
+              $contains: 'Test'
             }
-          })
+          }
         }
       });
 
@@ -409,7 +407,7 @@ describe('Strapi MCP Server', () => {
         arguments: {
           contentTypeUid: 'api::project.project',
           documentId: created.documentId,
-          options: JSON.stringify({ status: 'published' })
+          status: 'published'
         }
       });
       const published = JSON.parse(getResult.content[0].text);
@@ -475,9 +473,7 @@ describe('Strapi MCP Server', () => {
         arguments: {
           contentTypeUid: 'api::project.project',
           documentId: created.documentId,
-          options: JSON.stringify({
-            status: 'draft'
-          })
+          status: 'draft'
         }
       });
       const draftEntries = JSON.parse(draftResult.content[0].text);

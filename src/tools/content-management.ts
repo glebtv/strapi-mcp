@@ -10,7 +10,74 @@ const RequiredString = z.string().trim().min(1, { message: 'Field is required an
 // Optional string schema - can be empty or undefined
 const OptionalString = z.string().trim().optional();
 
-// Query options schema removed - using direct JSON parsing instead
+// ============================================================================
+// Strapi Query Parameter Schemas
+// ============================================================================
+
+// Strapi filter operators
+const FilterOperators = z.union([
+  z.object({ $eq: z.any() }),
+  z.object({ $eqi: z.any() }),
+  z.object({ $ne: z.any() }),
+  z.object({ $nei: z.any() }),
+  z.object({ $lt: z.any() }),
+  z.object({ $lte: z.any() }),
+  z.object({ $gt: z.any() }),
+  z.object({ $gte: z.any() }),
+  z.object({ $in: z.array(z.any()) }),
+  z.object({ $notIn: z.array(z.any()) }),
+  z.object({ $contains: z.string() }),
+  z.object({ $notContains: z.string() }),
+  z.object({ $containsi: z.string() }),
+  z.object({ $notContainsi: z.string() }),
+  z.object({ $null: z.boolean() }),
+  z.object({ $notNull: z.boolean() }),
+  z.object({ $between: z.array(z.any()).length(2) }),
+  z.object({ $startsWith: z.string() }),
+  z.object({ $startsWithi: z.string() }),
+  z.object({ $endsWith: z.string() }),
+  z.object({ $endsWithi: z.string() }),
+]);
+
+// Recursive filter schema to support nested filters and logical operators
+const FilterSchema: z.ZodType<any> = z.lazy(() =>
+  z.union([
+    FilterOperators,
+    z.record(z.union([
+      FilterOperators,
+      FilterSchema,
+      z.any()
+    ])),
+    z.object({ $and: z.array(FilterSchema) }),
+    z.object({ $or: z.array(FilterSchema) }),
+    z.object({ $not: FilterSchema })
+  ])
+);
+
+// Populate schema - can be string, array of strings, or complex object
+const PopulateSchema = z.union([
+  z.literal('*'),
+  z.string(),
+  z.array(z.string()),
+  z.record(z.any()) // Complex populate objects
+]);
+
+// Pagination schema
+const PaginationSchema = z.object({
+  page: z.number().positive().optional(),
+  pageSize: z.number().positive().optional(),
+  pageCount: z.number().positive().optional(),
+  total: z.number().nonnegative().optional()
+});
+
+// Sort schema - single string or array of strings
+const SortSchema = z.union([
+  z.string(),
+  z.array(z.string())
+]);
+
+// Fields schema - array of field names
+const FieldsSchema = z.array(z.string());
 
 /**
  * Helper function to get content type configuration
@@ -170,57 +237,73 @@ export function contentManagementTools(client: StrapiClient): Tool[] {
       description: 'Retrieves entries for a specific content type with support for filtering, pagination, sorting, and localization.',
       inputSchema: z.object({
         contentTypeUid: RequiredString.describe('The content type UID (e.g., "api::article.article")'),
+        
+        // Direct filter parameters
         documentId: OptionalString.describe('Filter by specific document ID (shared across all locale and status versions)'),
-        locale: OptionalString.describe('The locale to retrieve (e.g., "en", "fr", "ru")'),
-        page: z.number().optional().describe('Page number for pagination (default: 1)'),
-        pageSize: z.number().optional().describe('Number of entries per page (default: 10)'),
-        sort: OptionalString.describe('Sort order (e.g., "title:ASC" or "createdAt:DESC")'),
-        options: OptionalString.describe('JSON string with additional query options like filters, populate, fields, status')
-      }),
+        filters: z.record(z.any()).optional().describe('Strapi filter object supporting operators like $eq, $in, $contains, $and, $or, etc.'),
+        
+        // Population and field selection
+        populate: PopulateSchema.optional().describe('Population strategy: "*" for all, field names, or complex nested population'),
+        fields: FieldsSchema.optional().describe('Array of field names to return'),
+        
+        // Localization
+        locale: OptionalString.describe('The locale to retrieve (e.g., "en", "fr", "ru", or "all" for all locales)'),
+        
+        // Pagination
+        pagination: PaginationSchema.optional().describe('Pagination object with page and pageSize'),
+        
+        // Sorting
+        sort: SortSchema.optional().describe('Sort order (e.g., "title:ASC" or ["title:ASC", "createdAt:DESC"])'),
+        
+        // Status for draft/publish
+        status: z.enum(['published', 'draft']).optional().describe('Filter by publication status (for draft & publish enabled content types)')
+      }).strict(),
       execute: async (args) => {
         let options: any = {};
 
-        // Add documentId filter if provided
+        // Handle documentId as a special filter
         if (args.documentId) {
-          options.filters = {
-            $and: [{
-              documentId: { $eq: args.documentId }
-            }]
-          };
-        }
-
-        // Add direct parameters
-        if (args.locale) options.locale = args.locale;
-        if (args.page || args.pageSize) {
-          options.pagination = {
-            page: args.page || 1,
-            pageSize: args.pageSize || 10
-          };
-        }
-        if (args.sort) options.sort = args.sort;
-
-        // Merge with additional options if provided
-        if (args.options) {
-          try {
-            const parsedOptions = JSON.parse(args.options);
-            // Deep merge filters if both exist
-            if (parsedOptions.filters && options.filters) {
-              // Combine filters with $and
-              const existingFilters = options.filters.$and || [options.filters];
-              const newFilters = parsedOptions.filters.$and || [parsedOptions.filters];
-              options.filters = {
-                $and: [...existingFilters, ...newFilters]
-              };
-              delete parsedOptions.filters;
-            }
-            // Merge parsed options, with direct parameters taking precedence
-            options = { ...parsedOptions, ...options };
-            if (parsedOptions.pagination && options.pagination) {
-              options.pagination = { ...parsedOptions.pagination, ...options.pagination };
-            }
-          } catch (error) {
-            throw new Error(`Invalid options JSON: ${error}`);
+          const docFilter = { documentId: { $eq: args.documentId } };
+          if (args.filters) {
+            // Combine with existing filters using $and
+            options.filters = {
+              $and: [docFilter, args.filters]
+            };
+          } else {
+            options.filters = docFilter;
           }
+        } else if (args.filters) {
+          options.filters = args.filters;
+        }
+
+        // Add populate if provided
+        if (args.populate !== undefined) {
+          options.populate = args.populate;
+        }
+
+        // Add fields if provided
+        if (args.fields) {
+          options.fields = args.fields;
+        }
+
+        // Add locale
+        if (args.locale) {
+          options.locale = args.locale;
+        }
+
+        // Handle pagination
+        if (args.pagination) {
+          options.pagination = args.pagination;
+        }
+
+        // Add sort
+        if (args.sort) {
+          options.sort = args.sort;
+        }
+
+        // Add status
+        if (args.status) {
+          options.status = args.status;
         }
 
         return await client.getEntries(args.contentTypeUid, options);

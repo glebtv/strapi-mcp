@@ -14,12 +14,10 @@ describe('Strapi 5 Pagination', () => {
       name: 'get_entries',
       arguments: {
         contentTypeUid: 'api::project.project',
-        options: JSON.stringify({
-          pagination: {
-            page: 1,
-            pageSize: 5
-          }
-        })
+        pagination: {
+          page: 1,
+          pageSize: 5
+        }
       }
     });
 
