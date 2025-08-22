@@ -342,19 +342,21 @@ describe('Content Management Tools', () => {
       const tool = tools.find(t => t.name === 'get_entries')!;
       const result = await tool.execute({ 
         contentTypeUid: 'api::article.article',
-        options: JSON.stringify(options)
+        filters: options.filters,
+        pagination: options.pagination,
+        sort: options.sort
       });
 
       expect(mockClient.getEntries).toHaveBeenCalledWith('api::article.article', options);
       expect(result).toEqual(mockEntries);
     });
 
-    it('should handle invalid JSON options', async () => {
+    it('should reject invalid filter types', async () => {
       const tool = tools.find(t => t.name === 'get_entries')!;
       
       await expect(
-        tool.execute({ contentTypeUid: 'api::article.article', options: 'invalid json' })
-      ).rejects.toThrow('Invalid options JSON');
+        tool.inputSchema.parseAsync({ contentTypeUid: 'api::article.article', filters: 'invalid should be object' })
+      ).rejects.toThrow();
     });
   });
 

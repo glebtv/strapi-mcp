@@ -74,7 +74,7 @@ describe('Content Management Tools - Unit Tests', () => {
 
       const result = await getTool().execute({
         contentTypeUid: 'api::article.article',
-        options: JSON.stringify({ filters: { title: 'test' } })
+        filters: { title: 'test' }
       });
 
       expect(mockClient.getEntries).toHaveBeenCalledWith('api::article.article', {
@@ -83,11 +83,13 @@ describe('Content Management Tools - Unit Tests', () => {
       expect(result).toEqual(mockResponse);
     });
 
-    it('should handle invalid JSON gracefully', async () => {
-      await expect(getTool().execute({
+    it('should reject invalid filter types', async () => {
+      // The schema should reject non-object filters
+      const tool = getTool();
+      await expect(tool.inputSchema.parseAsync({
         contentTypeUid: 'api::article.article',
-        options: 'invalid json'
-      })).rejects.toThrow('Invalid options JSON');
+        filters: 'invalid string instead of object'
+      })).rejects.toThrow();
     });
 
     it('should handle empty options', async () => {

@@ -295,7 +295,7 @@ describe('Documented Strapi MCP Errors', () => {
           contentTypeUid: 'api::page.page',
           documentId: testEntryId,
           locale: 'en',
-          options: JSON.stringify({ populate: '*' })
+          populate: '*'
         }
       });
 
@@ -327,13 +327,11 @@ describe('Documented Strapi MCP Errors', () => {
           contentTypeUid: 'api::page.page',
           documentId: testEntryId,
           locale: 'en',
-          options: JSON.stringify({ 
-            populate: { 
-              sections: { 
-                populate: '*' 
-              } 
+          populate: { 
+            sections: { 
+              populate: '*' 
             } 
-          })
+          }
         }
       });
 

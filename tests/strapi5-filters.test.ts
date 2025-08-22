@@ -20,7 +20,7 @@ describe('Strapi 5 Filter Operators', () => {
       name: 'get_entries',
       arguments: {
         contentTypeUid: 'api::project.project',
-        options: JSON.stringify({ pagination: { pageSize: 100 } })
+        pagination: { pageSize: 100 }
       }
     });
     const existingProjects = JSON.parse(existingResult.content[0].text);
@@ -96,9 +96,7 @@ describe('Strapi 5 Filter Operators', () => {
       name: 'get_entries',
       arguments: {
         contentTypeUid: 'api::project.project',
-        options: JSON.stringify({
-          pagination: { pageSize: 100 }
-        })
+        pagination: { pageSize: 100 }
       }
     });
     const allProjects = JSON.parse(allResult.content[0].text);
@@ -118,15 +116,13 @@ describe('Strapi 5 Filter Operators', () => {
       name: 'get_entries',
       arguments: {
         contentTypeUid: 'api::project.project',
-        options: JSON.stringify({
-          filters: {
-            $and: [{
-              name: {
-                $contains: 'Project'
-              }
-            }]
-          }
-        })
+        filters: {
+          $and: [{
+            name: {
+              $contains: 'Project'
+            }
+          }]
+        }
       }
     });
 
@@ -153,15 +149,13 @@ describe('Strapi 5 Filter Operators', () => {
       name: 'get_entries', 
       arguments: {
         contentTypeUid: 'api::project.project',
-        options: JSON.stringify({
-          filters: {
-            $and: [{
-              name: {
-                $in: [testProjectNames[0], testProjectNames[2]] // Alpha Project, Gamma Development
-              }
-            }]
-          }
-        })
+        filters: {
+          $and: [{
+            name: {
+              $in: [testProjectNames[0], testProjectNames[2]] // Alpha Project, Gamma Development
+            }
+          }]
+        }
       }
     });
 

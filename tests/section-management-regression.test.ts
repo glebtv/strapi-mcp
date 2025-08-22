@@ -86,7 +86,7 @@ describe('Section Management - Status Field Regression', () => {
         arguments: {
           contentTypeUid: 'api::page.page',
           documentId: testDocumentId,
-          options: JSON.stringify({ populate: '*' })
+          populate: '*'
         }
       });
       
@@ -124,7 +124,7 @@ describe('Section Management - Status Field Regression', () => {
         arguments: {
           contentTypeUid: 'api::page.page',
           documentId: testDocumentId,
-          options: JSON.stringify({ populate: '*' })
+          populate: '*'
         }
       });
       
@@ -176,7 +176,7 @@ describe('Section Management - Status Field Regression', () => {
         arguments: {
           contentTypeUid: 'api::page.page',
           documentId: testDocumentId,
-          options: JSON.stringify({ populate: '*' })
+          populate: '*'
         }
       });
       
@@ -200,7 +200,7 @@ describe('Section Management - Status Field Regression', () => {
         arguments: {
           contentTypeUid: 'api::page.page',
           documentId: testDocumentId,
-          options: JSON.stringify({ populate: '*' })
+          populate: '*'
         }
       });
       
@@ -242,7 +242,7 @@ describe('Section Management - Status Field Regression', () => {
         arguments: {
           contentTypeUid: 'api::page.page',
           documentId: testDocumentId,
-          options: JSON.stringify({ populate: '*' })
+          populate: '*'
         }
       });
       
